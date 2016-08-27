@@ -1,30 +1,13 @@
-/*
- * ***** BEGIN LICENSE BLOCK ***** Version: MPL 1.1/GPL 2.0/LGPL 2.1
- * 
- * The contents of this file are subject to the Mozilla Public License Version 1.1 (the "License"); you may not use this
- * file except in compliance with the License. You may obtain a copy of the License at http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, either
- * express or implied. See the License for the specific language governing rights and limitations under the License.
- * 
- * The Original Code is part of dcm4che, an implementation of DICOM(TM) in Java(TM), hosted at
- * http://sourceforge.net/projects/dcm4che.
- * 
- * The Initial Developer of the Original Code is Gunter Zeilinger, Huetteldorferstr. 24/10, 1150 Vienna/Austria/Europe.
- * Portions created by the Initial Developer are Copyright (C) 2002-2005 the Initial Developer. All Rights Reserved.
- * 
- * Contributor(s): See listed authors below.
- * 
- * Alternatively, the contents of this file may be used under the terms of either the GNU General Public License Version
- * 2 or later (the "GPL"), or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"), in which case the
- * provisions of the GPL or the LGPL are applicable instead of those above. If you wish to allow use of your version of
- * this file only under the terms of either the GPL or the LGPL, and not to allow others to use your version of this
- * file under the terms of the MPL, indicate your decision by deleting the provisions above and replace them with the
- * notice and other provisions required by the GPL or the LGPL. If you do not delete the provisions above, a recipient
- * may use your version of this file under the terms of any one of the MPL, the GPL or the LGPL.
- * 
- * ***** END LICENSE BLOCK *****
- */
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.codec.utils;
 
 import java.awt.image.BufferedImage;
@@ -50,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import org.weasis.core.api.media.data.ImageElement;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.util.FileUtil;
-import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.PRSpecialElement;
 import org.weasis.dicom.codec.display.OverlayOp;
 
@@ -60,16 +42,15 @@ public class OverlayUtils {
     private static final byte[] icmColorValues = new byte[] { (byte) 0xFF, (byte) 0x00 };
 
     /**
-     * Merge the overlays into the buffered image.
-     * 
+     * Merge the overlays into the buffered image. This method apply only white pixel overlays.
+     *
      * @param params
-     * 
+     *
      */
-    public static RenderedImage getOverlays(ImageElement image, DicomMediaIO reader, int frameIndex, int width,
+    public static RenderedImage getBinaryOverlays(ImageElement image, Attributes attributes, int frameIndex, int width,
         int height, HashMap<String, Object> params) throws IOException {
-        Attributes ds = reader.getDicomObject();
 
-        // TODO get grayscaleValue from PR
+        // Default grayscale value for overlay
         int grayscaleValue = 0xFFFF;
         int outBits = 1;
         IndexColorModel icm =
@@ -79,7 +60,7 @@ public class OverlayUtils {
 
         // Get serialized overlay (from pixel data)
         byte[][] data = null;
-        String filePath = (String) image.getTagValue(TagW.OverlayBurninData);
+        String filePath = (String) image.getTagValue(TagW.OverlayBurninDataPath);
         if (filePath != null) {
             FileInputStream fileIn = null;
             ObjectInputStream objIn = null;
@@ -98,31 +79,18 @@ public class OverlayUtils {
             }
         }
 
-        int[] overlayGroupOffsets = Overlays.getActiveOverlayGroupOffsets(ds, 0xffff);
+        int[] overlayGroupOffsets = Overlays.getActiveOverlayGroupOffsets(attributes, 0xffff);
 
         for (int i = 0; i < overlayGroupOffsets.length; i++) {
             byte[] ovlyData = null;
-            if (data != null && ds.getInt(Tag.OverlayBitsAllocated | overlayGroupOffsets[i], 1) != 1) {
+            // Get bitmap overlay from pixel data
+            if (data != null && attributes.getInt(Tag.OverlayBitsAllocated | overlayGroupOffsets[i], 1) != 1) {
                 if (data.length > i) {
                     ovlyData = data[i];
                 }
             }
-
-            Attributes ovlyAttrs = ds;
-
-            // if (param instanceof DicomImageReadParam) {
-            // DicomImageReadParam dParam = (DicomImageReadParam) param;
-            // Attributes psAttrs = dParam.getPresentationState();
-            // if (psAttrs != null) {
-            // if (psAttrs.containsValue(Tag.OverlayData | gg0000)) {
-            // ovlyAttrs = psAttrs;
-            // }
-            // grayscaleValue = Overlays.getRecommendedDisplayGrayscaleValue(psAttrs, gg0000);
-            // } else {
-            // grayscaleValue = dParam.getOverlayGrayscaleValue();
-            // }
-            // }
-            Overlays.applyOverlay(ovlyData != null ? 0 : frameIndex, raster, ovlyAttrs, overlayGroupOffsets[i],
+            // If onlyData is null, get bitmap overlay from dicom attributes
+            Overlays.applyOverlay(ovlyData != null ? 0 : frameIndex, raster, attributes, overlayGroupOffsets[i],
                 grayscaleValue >>> (16 - outBits), ovlyData);
         }
 
@@ -130,13 +98,29 @@ public class OverlayUtils {
         if (pr instanceof PRSpecialElement) {
             Attributes ovlyAttrs = ((PRSpecialElement) pr).getMediaReader().getDicomObject();
             overlayGroupOffsets = Overlays.getActiveOverlayGroupOffsets(ovlyAttrs, 0xffff);
+            Integer shuttOverlayGroup =
+                DicomMediaUtils.getIntegerFromDicomElement(ovlyAttrs, Tag.ShutterOverlayGroup, Integer.MIN_VALUE);
 
             // grayscaleValue = Overlays.getRecommendedDisplayGrayscaleValue(psAttrs, gg0000);
             for (int i = 0; i < overlayGroupOffsets.length; i++) {
-                Overlays.applyOverlay(frameIndex, raster, ovlyAttrs, overlayGroupOffsets[i],
-                    grayscaleValue >>> (16 - outBits), null);
+                if (shuttOverlayGroup != overlayGroupOffsets[i]) {
+                    Overlays.applyOverlay(frameIndex, raster, ovlyAttrs, overlayGroupOffsets[i],
+                        grayscaleValue >>> (16 - outBits), null);
+                }
             }
         }
+
+        return overBi;
+    }
+
+    public static RenderedImage getShutterOverlay(Attributes attributes, int frameIndex, int width, int height,
+        int shuttOverlayGroup) throws IOException {
+        IndexColorModel icm =
+            new IndexColorModel(1, icmColorValues.length, icmColorValues, icmColorValues, icmColorValues, 0);
+        BufferedImage overBi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, icm);
+
+        Overlays.applyOverlay(frameIndex, overBi.getRaster(), attributes, shuttOverlayGroup - 0x6000, 1, null);
+
         return overBi;
     }
 

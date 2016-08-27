@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.explorer;
 
 import java.io.File;
@@ -15,10 +15,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.dcm4che3.data.Tag;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.explorer.ObservableEvent;
 import org.weasis.core.api.explorer.model.DataExplorerModel;
-import org.weasis.core.api.explorer.model.TreeModel;
 import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.media.MimeInspector;
 import org.weasis.core.api.media.data.MediaElement;
@@ -33,10 +33,12 @@ import org.weasis.core.api.util.FileUtil;
 import org.weasis.core.ui.docking.UIManager;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
-import org.weasis.core.ui.graphic.model.GraphicList;
-import org.weasis.core.ui.serialize.DefaultSerializer;
+import org.weasis.core.ui.model.GraphicModel;
+import org.weasis.core.ui.serialize.XmlSerializer;
 import org.weasis.dicom.codec.DicomCodec;
 import org.weasis.dicom.codec.DicomMediaIO;
+import org.weasis.dicom.codec.TagD;
+import org.weasis.dicom.codec.TagD.Level;
 
 public class LoadLocalDicom extends ExplorerTask {
 
@@ -59,16 +61,16 @@ public class LoadLocalDicom extends ExplorerTask {
 
     @Override
     protected Boolean doInBackground() throws Exception {
-        dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.LoadingStart, dicomModel, null,
-            this));
+        dicomModel
+            .firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.LOADING_START, dicomModel, null, this));
         addSelectionAndnotify(files, true);
         return true;
     }
 
     @Override
     protected void done() {
-        dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.LoadingStop, dicomModel, null,
-            this));
+        dicomModel
+            .firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.LOADING_STOP, dicomModel, null, this));
         LOGGER.info("End of loading DICOM locally"); //$NON-NLS-1$
     }
 
@@ -76,10 +78,14 @@ public class LoadLocalDicom extends ExplorerTask {
         if (file == null || file.length < 1) {
             return;
         }
-        final ArrayList<SeriesThumbnail> thumbs = new ArrayList<SeriesThumbnail>();
-        final ArrayList<File> folders = new ArrayList<File>();
+        final ArrayList<SeriesThumbnail> thumbs = new ArrayList<>();
+        final ArrayList<File> folders = new ArrayList<>();
 
         for (int i = 0; i < file.length; i++) {
+            if (isCancelled()) {
+                return;
+            }
+
             if (file[i] == null) {
                 continue;
             } else if (file[i].isDirectory()) {
@@ -99,16 +105,9 @@ public class LoadLocalDicom extends ExplorerTask {
                             }
 
                             File gpxFile = new File(file[i].getPath() + ".xml"); //$NON-NLS-1$
-
-                            if (gpxFile.canRead()) {
-                                try {
-                                    GraphicList list =
-                                        DefaultSerializer.getInstance().getSerializer()
-                                            .read(GraphicList.class, gpxFile);
-                                    loader.setTag(TagW.MeasurementGraphics, list);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
+                            GraphicModel graphicModel = XmlSerializer.readPresentationModel(gpxFile);
+                            if (graphicModel != null) {
+                                loader.setTag(TagW.PresentationModel, graphicModel);
                             }
                         }
                     }
@@ -116,17 +115,10 @@ public class LoadLocalDicom extends ExplorerTask {
             }
         }
         for (final SeriesThumbnail t : thumbs) {
-            MediaSeries series = t.getSeries();
+             MediaSeries<MediaElement> series = t.getSeries();
             // Avoid to rebuild most of CR series thumbnail
             if (series != null && series.size(null) > 2) {
-                GuiExecutor.instance().execute(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        t.reBuildThumbnail();
-                    }
-
-                });
+                GuiExecutor.instance().execute(t::reBuildThumbnail);
             }
         }
         for (int i = 0; i < folders.size(); i++) {
@@ -136,24 +128,25 @@ public class LoadLocalDicom extends ExplorerTask {
 
     private SeriesThumbnail buildDicomStructure(DicomMediaIO dicomReader, boolean open) {
         SeriesThumbnail thumb = null;
-        String patientPseudoUID = (String) dicomReader.getTagValue(TagW.PatientPseudoUID);
-        MediaSeriesGroup patient = dicomModel.getHierarchyNode(TreeModel.rootNode, patientPseudoUID);
+        String patientPseudoUID = (String) dicomReader.getTagValue(TagD.getUID(Level.PATIENT));
+        MediaSeriesGroup patient = dicomModel.getHierarchyNode(MediaSeriesGroupNode.rootNode, patientPseudoUID);
         if (patient == null) {
-            patient = new MediaSeriesGroupNode(TagW.PatientPseudoUID, patientPseudoUID, TagW.PatientName);
+            patient =
+                new MediaSeriesGroupNode(TagW.PatientPseudoUID, patientPseudoUID, DicomModel.patient.getTagView());
             dicomReader.writeMetaData(patient);
-            dicomModel.addHierarchyNode(TreeModel.rootNode, patient);
+            dicomModel.addHierarchyNode(MediaSeriesGroupNode.rootNode, patient);
             LOGGER.info("Adding patient: {}", patient); //$NON-NLS-1$
         }
 
-        String studyUID = (String) dicomReader.getTagValue(TagW.StudyInstanceUID);
+        String studyUID = (String) dicomReader.getTagValue(TagD.getUID(Level.STUDY));
         MediaSeriesGroup study = dicomModel.getHierarchyNode(patient, studyUID);
         if (study == null) {
-            study = new MediaSeriesGroupNode(TagW.StudyInstanceUID, studyUID, TagW.StudyDate);
+            study = new MediaSeriesGroupNode(TagD.getUID(Level.STUDY), studyUID, DicomModel.study.getTagView());
             dicomReader.writeMetaData(study);
             dicomModel.addHierarchyNode(patient, study);
         }
 
-        String seriesUID = (String) dicomReader.getTagValue(TagW.SeriesInstanceUID);
+        String seriesUID = (String) dicomReader.getTagValue(TagD.get(Tag.SeriesInstanceUID));
         Series dicomSeries = (Series) dicomModel.getHierarchyNode(study, seriesUID);
         try {
             if (dicomSeries == null) {
@@ -176,13 +169,14 @@ public class LoadLocalDicom extends ExplorerTask {
                 if (t == null) {
                     t = DicomExplorer.createThumbnail(dicomSeries, dicomModel, Thumbnail.DEFAULT_SIZE);
                     dicomSeries.setTag(TagW.Thumbnail, t);
+                    t.repaint();
                 }
 
                 if (DicomModel.isSpecialModality(dicomSeries)) {
                     dicomModel.addSpecialModality(dicomSeries);
                 } else {
-                    dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Add, dicomModel,
-                        null, dicomSeries));
+                    dicomModel.firePropertyChange(
+                        new ObservableEvent(ObservableEvent.BasicAction.ADD, dicomModel, null, dicomSeries));
                 }
 
                 // After the thumbnail is sent to interface, it will be return to be rebuilt later
@@ -191,8 +185,8 @@ public class LoadLocalDicom extends ExplorerTask {
                 Integer splitNb = (Integer) dicomSeries.getTagValue(TagW.SplitSeriesNumber);
                 Object dicomObject = dicomSeries.getTagValue(TagW.DicomSpecialElementList);
                 if (splitNb != null || dicomObject != null) {
-                    dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Update, dicomModel,
-                        null, dicomSeries));
+                    dicomModel.firePropertyChange(
+                        new ObservableEvent(ObservableEvent.BasicAction.UPDATE, dicomModel, null, dicomSeries));
                 }
 
                 if (open) {
@@ -202,13 +196,14 @@ public class LoadLocalDicom extends ExplorerTask {
                         ViewerPluginBuilder.openSequenceInPlugin(plugin, dicomSeries, dicomModel, true, true);
                     } else if (plugin != null) {
                         // Send event to select the related patient in Dicom Explorer.
-                        dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Select,
-                            dicomModel, null, dicomSeries));
+                        dicomModel.firePropertyChange(
+                            new ObservableEvent(ObservableEvent.BasicAction.SELECT, dicomModel, null, dicomSeries));
                     }
                 }
             } else {
                 // Test if SOPInstanceUID already exists
-                if (isSOPInstanceUIDExist(study, dicomSeries, seriesUID, dicomReader.getTagValue(TagW.SOPInstanceUID))) {
+                if (isSOPInstanceUIDExist(study, dicomSeries, seriesUID,
+                    TagD.getTagValue(dicomReader, Tag.SOPInstanceUID, String.class))) {
                     return null;
                 }
                 MediaElement[] medias = dicomReader.getMediaElement();
@@ -233,8 +228,8 @@ public class LoadLocalDicom extends ExplorerTask {
                     Integer splitNb = (Integer) dicomSeries.getTagValue(TagW.SplitSeriesNumber);
                     Object dicomObject = dicomSeries.getTagValue(TagW.DicomSpecialElementList);
                     if (splitNb != null || dicomObject != null) {
-                        dicomModel.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Update,
-                            dicomModel, null, dicomSeries));
+                        dicomModel.firePropertyChange(
+                            new ObservableEvent(ObservableEvent.BasicAction.UPDATE, dicomModel, null, dicomSeries));
                     }
                 }
             }
@@ -247,20 +242,21 @@ public class LoadLocalDicom extends ExplorerTask {
     }
 
     private boolean isSOPInstanceUIDExist(MediaSeriesGroup study, Series dicomSeries, String seriesUID, Object sopUID) {
-        if (dicomSeries.hasMediaContains(TagW.SOPInstanceUID, sopUID)) {
+        TagW sopTag = TagD.getUID(Level.INSTANCE);
+        if (dicomSeries.hasMediaContains(sopTag, sopUID)) {
             return true;
         }
         Object splitNb = dicomSeries.getTagValue(TagW.SplitSeriesNumber);
         if (splitNb != null && study != null) {
-            String uid = (String) dicomSeries.getTagValue(TagW.SeriesInstanceUID);
+            String uid = TagD.getTagValue(dicomSeries, Tag.SeriesInstanceUID, String.class);
             if (uid != null) {
                 Collection<MediaSeriesGroup> seriesList = dicomModel.getChildren(study);
                 for (Iterator<MediaSeriesGroup> it = seriesList.iterator(); it.hasNext();) {
                     MediaSeriesGroup group = it.next();
                     if (dicomSeries != group && group instanceof Series) {
                         Series s = (Series) group;
-                        if (uid.equals(s.getTagValue(TagW.SeriesInstanceUID))) {
-                            if (s.hasMediaContains(TagW.SOPInstanceUID, sopUID)) {
+                        if (uid.equals(TagD.getTagValue(group, Tag.SeriesInstanceUID))) {
+                            if (s.hasMediaContains(sopTag, sopUID)) {
                                 return true;
                             }
                         }

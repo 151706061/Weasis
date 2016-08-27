@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.core.ui.editor.image.dockable;
 
 import java.awt.Dimension;
@@ -37,6 +37,7 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
 
     private SliderChangeListener currentAction;
     private final JSliderW slider;
+    private boolean vertical = true;
 
     public MiniTool(String pluginName) {
         super(BUTTON_NAME, pluginName, POSITION.EAST, ExtendedMode.NORMALIZED, PluginTool.Type.TOOL, 5);
@@ -44,12 +45,11 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
         dockable.setTitleShown(false);
         setDockableWidth(40);
         currentAction = getActions()[0];
-        slider = createSlider(currentAction);
+        slider = createSlider(currentAction, vertical);
         jbInit();
     }
 
     private void jbInit() {
-        boolean vertical = true;
         // boolean vertical = ToolWindowAnchor.RIGHT.equals(getAnchor()) || ToolWindowAnchor.LEFT.equals(getAnchor());
         setLayout(new BoxLayout(this, vertical ? BoxLayout.Y_AXIS : BoxLayout.X_AXIS));
 
@@ -57,11 +57,11 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
         add(Box.createRigidArea(dim));
         final DropDownButton button = new DropDownButton("Mini", currentAction.getActionW().getSmallDropButtonIcon()) { //$NON-NLS-1$
 
-                @Override
-                protected JPopupMenu getPopupMenu() {
-                    return getPopupMenuScroll(this);
-                }
-            };
+            @Override
+            protected JPopupMenu getPopupMenu() {
+                return getPopupMenuScroll(this);
+            }
+        };
         button.setToolTipText(Messages.getString("MiniToolDockable.change")); //$NON-NLS-1$
         WtoolBar.installButtonUI(button);
         WtoolBar.configureButton(button);
@@ -79,9 +79,8 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
 
     public abstract SliderChangeListener[] getActions();
 
-    public static JSliderW createSlider(final SliderChangeListener action) {
+    public static JSliderW createSlider(final SliderChangeListener action, boolean vertical) {
         // boolean vertical = ToolWindowAnchor.RIGHT.equals(anchor) || ToolWindowAnchor.LEFT.equals(anchor);
-        boolean vertical = true;
         JSliderW slider = new JSliderW(action.getMin(), action.getMax(), action.getValue());
         slider.setdisplayValueInTitle(false);
         slider.setInverted(vertical);
@@ -103,8 +102,8 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
                 // UIManager.DOCKING_CONTROL.putProperty(StackDockStation.TAB_PLACEMENT, TabPlacement.LEFT_OF_DOCKABLE);
 
                 setLayout(new BoxLayout(this, vertical ? BoxLayout.Y_AXIS : BoxLayout.X_AXIS));
-                slider.getParent().setLayout(
-                    new BoxLayout(slider.getParent(), vertical ? BoxLayout.Y_AXIS : BoxLayout.X_AXIS));
+                slider.getParent()
+                    .setLayout(new BoxLayout(slider.getParent(), vertical ? BoxLayout.Y_AXIS : BoxLayout.X_AXIS));
                 slider.setInverted(vertical);
                 slider.setOrientation(vertical ? SwingConstants.VERTICAL : SwingConstants.HORIZONTAL);
                 slider.revalidate();
@@ -120,9 +119,8 @@ public abstract class MiniTool extends PluginTool implements ActionListener {
         ButtonGroup groupButtons = new ButtonGroup();
         SliderChangeListener[] actions = getActions();
         for (int i = 0; i < actions.length; i++) {
-            JRadioButtonMenuItem radio =
-                new JRadioButtonMenuItem(actions[i].toString(), actions[i].getActionW().getSmallIcon(),
-                    actions[i].equals(currentAction));
+            JRadioButtonMenuItem radio = new JRadioButtonMenuItem(actions[i].toString(),
+                actions[i].getActionW().getSmallIcon(), actions[i].equals(currentAction));
             radio.setActionCommand("" + i); //$NON-NLS-1$
             radio.addActionListener(this);
             popupMouseScroll.add(radio);

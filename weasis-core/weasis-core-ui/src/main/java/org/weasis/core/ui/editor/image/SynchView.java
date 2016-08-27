@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.core.ui.editor.image;
 
 import java.util.HashMap;
@@ -21,11 +21,11 @@ import org.weasis.core.ui.Messages;
 import org.weasis.core.ui.editor.image.SynchData.Mode;
 
 public class SynchView implements GUIEntry {
-    public static final SynchView NONE =
-        new SynchView(
-            Messages.getString("SynchView.none"), "None", Mode.None, new ImageIcon(SynchView.class.getResource("/icon/22x22/none.png")), new HashMap<String, Boolean>()); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    public static final SynchView NONE = new SynchView(Messages.getString("SynchView.none"), "None", Mode.None, //$NON-NLS-1$ //$NON-NLS-2$
+        new ImageIcon(SynchView.class.getResource("/icon/22x22/none.png")), new HashMap<String, Boolean>()); //$NON-NLS-1$
     public static final SynchView DEFAULT_TILE;
     public static final SynchView DEFAULT_STACK;
+
     static {
         HashMap<String, Boolean> actions = new HashMap<String, Boolean>();
         actions.put(ActionW.SCROLL_SERIES.cmd(), true);
@@ -38,7 +38,7 @@ public class SynchView implements GUIEntry {
         actions.put(ActionW.PRESET.cmd(), true);
         actions.put(ActionW.LUT_SHAPE.cmd(), true);
         actions.put(ActionW.LUT.cmd(), true);
-        actions.put(ActionW.INVERSELUT.cmd(), true);
+        actions.put(ActionW.INVERT_LUT.cmd(), true);
         actions.put(ActionW.FILTER.cmd(), true);
         actions.put(ActionW.INVERSESTACK.cmd(), true);
         actions.put(ActionW.SORTSTACK.cmd(), true);

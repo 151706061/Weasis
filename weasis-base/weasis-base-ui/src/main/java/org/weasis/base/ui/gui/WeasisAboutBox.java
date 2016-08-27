@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.base.ui.gui;
 
 import java.awt.BorderLayout;
@@ -16,6 +16,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.util.Enumeration;
 import java.util.Properties;
@@ -42,7 +43,7 @@ import org.weasis.core.api.service.BundleTools;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.ui.util.SimpleTableModel;
 
-public class WeasisAboutBox extends JDialog implements java.awt.event.ActionListener {
+public class WeasisAboutBox extends JDialog implements ActionListener {
 
     private final JPanel jpanelRoot = new JPanel();
     private final JPanel jPanelClose = new JPanel();
@@ -67,14 +68,13 @@ public class WeasisAboutBox extends JDialog implements java.awt.event.ActionList
     private final JScrollPane jScrollPane3 = new JScrollPane();
 
     public WeasisAboutBox() {
-        super(WeasisWin.getInstance().getFrame(), String.format(
-            Messages.getString("WeasisAboutBox.about"), AppProperties.WEASIS_NAME), true); //$NON-NLS-1$
+        super(WeasisWin.getInstance().getFrame(),
+            String.format(Messages.getString("WeasisAboutBox.about"), AppProperties.WEASIS_NAME), true); //$NON-NLS-1$
         try {
-            sysTable =
-                new JTable(
-                    new SimpleTableModel(
-                        new String[] {
-                            Messages.getString("WeasisAboutBox.prop"), Messages.getString("WeasisAboutBox.val") }, createSysInfo())); //$NON-NLS-1$ //$NON-NLS-2$
+            sysTable = new JTable(new SimpleTableModel(
+                new String[] { Messages.getString("WeasisAboutBox.prop"), //$NON-NLS-1$
+                    Messages.getString("WeasisAboutBox.val") }, //$NON-NLS-1$
+                createSysInfo()));
             sysTable.getColumnModel().setColumnMargin(5);
             JMVUtils.formatTableHeaders(sysTable, SwingConstants.CENTER);
             jbInit();
@@ -104,7 +104,9 @@ public class WeasisAboutBox extends JDialog implements java.awt.event.ActionList
         jTextPane1.setEditable(false);
         HTMLEditorKit kit = new HTMLEditorKit();
         StyleSheet ss = kit.getStyleSheet();
-        ss.addRule("body {font-family:sans-serif;font-size:12pt;background-color:#" + Integer.toHexString((jTextPane1.getBackground().getRGB() & 0xffffff) | 0x1000000).substring(1) + ";color:#" //$NON-NLS-1$ //$NON-NLS-2$
+        ss.addRule("body {font-family:sans-serif;font-size:12pt;background-color:#" //$NON-NLS-1$
+            + Integer.toHexString((jTextPane1.getBackground().getRGB() & 0xffffff) | 0x1000000).substring(1)
+            + ";color:#" //$NON-NLS-1$
             + Integer.toHexString((jTextPane1.getForeground().getRGB() & 0xffffff) | 0x1000000).substring(1)
             + ";margin:3;font-weight:normal;}"); //$NON-NLS-1$
         jTextPane1.setEditorKit(kit);

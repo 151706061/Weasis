@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.viewer2d.mpr;
 
 import java.awt.Dimension;
@@ -16,6 +26,10 @@ import java.net.URI;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -37,19 +51,21 @@ import org.weasis.core.api.explorer.model.DataExplorerModel;
 import org.weasis.core.api.image.util.ImageFiler;
 import org.weasis.core.api.image.util.LayoutUtil;
 import org.weasis.core.api.media.data.Codec;
-import org.weasis.core.api.media.data.ImageElement;
+import org.weasis.core.api.media.data.FileCache;
 import org.weasis.core.api.media.data.MediaElement;
-import org.weasis.core.api.media.data.MediaReader;
 import org.weasis.core.api.media.data.MediaSeries;
+import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.util.FileUtil;
+import org.weasis.dicom.codec.DcmMediaReader;
 import org.weasis.dicom.codec.DicomMediaIO;
+import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.utils.DicomMediaUtils;
 
 import com.sun.media.imageio.stream.RawImageInputStream;
 import com.sun.media.jai.util.ImageUtil;
 
-public class RawImageIO implements MediaReader<PlanarImage> {
+public class RawImageIO implements DcmMediaReader {
     private static final Logger LOGGER = LoggerFactory.getLogger(RawImageIO.class);
 
     private static final String mimeType = "image/raw"; //$NON-NLS-1$
@@ -58,31 +74,82 @@ public class RawImageIO implements MediaReader<PlanarImage> {
     private static final int[] OFFSETS_0_1_2 = { 0, 1, 2 };
 
     protected URI uri;
+    private final FileCache fileCache;
 
     private final HashMap<TagW, Object> tags;
     private final Codec codec;
     private ImageInputStream imageStream;
+    private Attributes attributes;
 
     public RawImageIO(URI media, Codec codec) {
-        if (media == null) {
-            throw new IllegalArgumentException("media uri is null"); //$NON-NLS-1$
-        }
-        this.tags = new HashMap<TagW, Object>();
-        this.uri = media;
+        this.uri = Objects.requireNonNull(media);
+        this.fileCache = new FileCache(this);
+        this.tags = new HashMap<>();
         this.codec = codec;
     }
 
+    public void setBaseAttributes(Attributes attributes) {
+        this.attributes = attributes;
+    }
+
+    public File getDicomFile() {
+        Attributes dcm = getDicomObject();
+
+        DicomOutputStream out = null;
+        try {
+            File file = new File(uri);
+            BulkData bdl = new BulkData(uri.toString(), 0, (int) file.length(), false);
+            dcm.setValue(Tag.PixelData, VR.OW, bdl);
+            File tmpFile = new File(DicomMediaIO.DICOM_EXPORT_DIR, dcm.getString(Tag.SOPInstanceUID));
+            out = new DicomOutputStream(tmpFile);
+            out.writeDataset(dcm.createFileMetaInformation(UID.ImplicitVRLittleEndian), dcm);
+            return tmpFile;
+        } catch (IOException e) {
+            LOGGER.error("Cannot write dicom file: {}", e.getMessage()); //$NON-NLS-1$
+        } finally {
+            FileUtil.safeClose(out);
+        }
+        return null;
+
+    }
+
     @Override
-    public PlanarImage getMediaFragment(MediaElement<PlanarImage> media) throws Exception {
+    public void writeMetaData(MediaSeriesGroup group) {
+        if (group == null) {
+            return;
+        }
+        // Get the dicom header
+        Attributes header = getDicomObject();
+        DicomMediaUtils.writeMetaData(group, header);
+
+        // Series Group
+        if (TagW.SubseriesInstanceUID.equals(group.getTagID())) {
+            // Information for series ToolTips
+            group.setTagNoNull(TagD.get(Tag.PatientName), getTagValue(TagD.get(Tag.PatientName)));
+            group.setTagNoNull(TagD.get(Tag.StudyDescription), header.getString(Tag.StudyDescription));
+
+            // if ("1.2.840.10008.1.2.4.94".equals(tsuid)) { //$NON-NLS-1$
+            // MediaElement[] elements = getMediaElement();
+            // if (elements != null) {
+            // for (MediaElement m : elements) {
+            // m.setTag(TagW.ExplorerModel, group.getTagValue(TagW.ExplorerModel));
+            // }
+            // }
+            // }
+        }
+    }
+
+    @Override
+    public PlanarImage getImageFragment(MediaElement media) throws Exception {
         if (media != null && media.getFile() != null) {
-            ImageParameters h =
-                new ImageParameters((Integer) media.getTagValue(TagW.Rows), (Integer) media.getTagValue(TagW.Columns),
-                    (Integer) media.getTagValue(TagW.BitsAllocated), (Integer) media.getTagValue(TagW.SamplesPerPixel),
-                    false);
+            Integer allocated = TagD.getTagValue(media, Tag.BitsAllocated, Integer.class);
+            Integer sample = TagD.getTagValue(media, Tag.SamplesPerPixel, Integer.class);
+            Integer rows = TagD.getTagValue(media, Tag.Rows, Integer.class);
+            Integer columns = TagD.getTagValue(media, Tag.Columns, Integer.class);
+            ImageParameters h = new ImageParameters(rows, columns, allocated, sample, false);
             // RawImageReader doesn't need to be disposed
-            ImageReader reader =
-                initRawImageReader(imageStream = ImageIO.createImageInputStream(media.getFile()), h, 1, 0, false,
-                    (Integer) media.getTagValue(TagW.PixelRepresentation));
+            ImageReader reader = initRawImageReader(imageStream = ImageIO.createImageInputStream(media.getFile()), h, 1,
+                0, false, TagD.getTagValue(media, Tag.PixelRepresentation, Integer.class));
 
             RenderedImage buffer = reader.readAsRenderedImage(0, null);
             PlanarImage img = null;
@@ -117,7 +184,7 @@ public class RawImageIO implements MediaReader<PlanarImage> {
     }
 
     @Override
-    public MediaElement<PlanarImage> getPreview() {
+    public MediaElement getPreview() {
         return null;
     }
 
@@ -132,7 +199,7 @@ public class RawImageIO implements MediaReader<PlanarImage> {
     }
 
     @Override
-    public MediaSeries<ImageElement> getMediaSeries() {
+    public MediaSeries<MediaElement> getMediaSeries() {
         return null;
     }
 
@@ -142,18 +209,13 @@ public class RawImageIO implements MediaReader<PlanarImage> {
     }
 
     @Override
-    public String getMediaFragmentMimeType(Object key) {
+    public String getMediaFragmentMimeType() {
         return mimeType;
     }
 
     @Override
-    public HashMap<TagW, Object> getMediaFragmentTags(Object key) {
+    public Map<TagW, Object> getMediaFragmentTags(Object key) {
         return tags;
-    }
-
-    @Override
-    public URI getMediaFragmentURI(Object key) {
-        return uri;
     }
 
     @Override
@@ -173,22 +235,32 @@ public class RawImageIO implements MediaReader<PlanarImage> {
 
     @Override
     public Object getTagValue(TagW tag) {
-        return tags.get(tag);
+        return tag == null ? null : tags.get(tag);
     }
 
+    @Override
     public void setTag(TagW tag, Object value) {
-        if (tag != null) {
-            tags.put(tag, value);
-        }
+        DicomMediaUtils.setTag(tags, tag, value);
     }
 
+    @Override
     public void setTagNoNull(TagW tag, Object value) {
-        if (tag != null && value != null) {
-            tags.put(tag, value);
+        if (value != null) {
+            setTag(tag, value);
         }
     }
 
-    public void copyTags(TagW[] tagList, MediaElement<?> media, boolean allowNullValue) {
+    @Override
+    public boolean containTagKey(TagW tag) {
+        return tags.containsKey(tag);
+    }
+
+    @Override
+    public Iterator<Entry<TagW, Object>> getTagEntrySetIterator() {
+        return tags.entrySet().iterator();
+    }
+
+    public void copyTags(TagW[] tagList, MediaElement media, boolean allowNullValue) {
         if (tagList != null && media != null) {
             for (TagW tag : tagList) {
                 Object value = media.getTagValue(tag);
@@ -217,9 +289,8 @@ public class RawImageIO implements MediaReader<PlanarImage> {
             Dimension[] imageDimensions = new Dimension[frames];
             Arrays.fill(imageDimensions, new Dimension(h.getWidth(), h.getHeight()));
 
-            RawImageInputStream riis =
-                new RawImageInputStream(imageStream, createImageTypeSpecifier(h, false, pixelRepresentation),
-                    frameOffsets, imageDimensions);
+            RawImageInputStream riis = new RawImageInputStream(imageStream,
+                createImageTypeSpecifier(h, false, pixelRepresentation), frameOffsets, imageDimensions);
             riis.setByteOrder(bigEndian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
             ImageReader reader = ImageIO.getImageReadersByFormatName("RAW").next(); //$NON-NLS-1$
             reader.setInput(riis);
@@ -228,7 +299,8 @@ public class RawImageIO implements MediaReader<PlanarImage> {
         return null;
     }
 
-    public static ImageTypeSpecifier createImageTypeSpecifier(ImageParameters h, boolean banded, int pixelRepresentation) {
+    public static ImageTypeSpecifier createImageTypeSpecifier(ImageParameters h, boolean banded,
+        int pixelRepresentation) {
         int width = h.getWidth();
         int height = h.getHeight();
         int bps = h.getBitsPerSample();
@@ -239,7 +311,7 @@ public class RawImageIO implements MediaReader<PlanarImage> {
         if (bps > 16 && spp == 1) {
             dataType = DataBuffer.TYPE_INT;
         }
-        ColorSpace cs = null;
+        ColorSpace cs;
         if (spp == 1) {
             cs = ColorSpace.getInstance(ColorSpace.CS_GRAY);
 
@@ -257,7 +329,7 @@ public class RawImageIO implements MediaReader<PlanarImage> {
         Arrays.fill(bits, bps);
         ComponentColorModel cm = new ComponentColorModel(cs, bits, false, false, Transparency.OPAQUE, dataType);
 
-        SampleModel sm = null;
+        SampleModel sm;
         if (spp == 1) {
             sm = new PixelInterleavedSampleModel(dataType, width, height, 1, width, OFFSETS_0);
         }
@@ -271,25 +343,21 @@ public class RawImageIO implements MediaReader<PlanarImage> {
         return new ImageTypeSpecifier(cm, sm);
     }
 
-    public File getDicomFile(Attributes cpTags) {
-        Attributes dcm = new Attributes(cpTags);
+    @Override
+    public Attributes getDicomObject() {
+        Attributes dcm = new Attributes();
         DicomMediaUtils.fillAttributes(tags, dcm);
+        dcm.addAll(attributes);
+        return dcm;
+    }
 
-        DicomOutputStream out = null;
-        try {
-            File file = new File(uri);
-            BulkData bdl = new BulkData(uri.toString(), 0, (int) file.length(), false);
-            dcm.setValue(Tag.PixelData, VR.OW, bdl);
-            File tmpFile = new File(DicomMediaIO.DICOM_EXPORT_DIR, dcm.getString(Tag.SOPInstanceUID));
-            out = new DicomOutputStream(tmpFile);
-            out.writeDataset(dcm.createFileMetaInformation(UID.ImplicitVRLittleEndian), dcm);
-            return tmpFile;
-        } catch (IOException e) {
-            LOGGER.error("Cannot write dicom file: {}", e.getMessage()); //$NON-NLS-1$
-        } finally {
-            FileUtil.safeClose(out);
-        }
-        return null;
+    @Override
+    public FileCache getFileCache() {
+        return fileCache;
+    }
 
+    @Override
+    public boolean buildFile(File ouptut) {
+        return false;
     }
 }

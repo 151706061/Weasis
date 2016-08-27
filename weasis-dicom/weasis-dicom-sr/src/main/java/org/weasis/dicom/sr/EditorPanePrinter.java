@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.sr;
 
 import java.awt.Color;
@@ -46,7 +56,8 @@ public class EditorPanePrinter extends JPanel implements Pageable, Printable {
         tmpPane.setContentType(pane.getContentType());
         HTMLEditorKit kit = new HTMLEditorKit();
         StyleSheet ss = kit.getStyleSheet();
-        ss.addRule("body {font-family:sans-serif;font-size:12pt;background-color:white;color:black;margin:3;font-weight:normal;}"); //$NON-NLS-1$
+        ss.addRule(
+            "body {font-family:sans-serif;font-size:12pt;background-color:white;color:black;margin:3;font-weight:normal;}"); //$NON-NLS-1$
         tmpPane.setEditorKit(kit);
         tmpPane.setBorder(null);
         tmpPane.setText(pane.getText());
@@ -93,18 +104,16 @@ public class EditorPanePrinter extends JPanel implements Pageable, Printable {
         int startY = 0;
         int endPageY = getEndPageY(startY);
         while (startY + pageHeight - margins.top - margins.bottom < sourcePane.getHeight()) {
-            Shape pageShape =
-                getPageShape(startY, pageWidth - margins.left - margins.right, pageHeight - margins.top
-                    - margins.bottom, sourcePane);
+            Shape pageShape = getPageShape(startY, pageWidth - margins.left - margins.right,
+                pageHeight - margins.top - margins.bottom, sourcePane);
             PagePanel p = new PagePanel(startY, endPageY, pageShape);
             updateUIToRemoveLF(p);
             pages.add(p);
             startY = endPageY;
             endPageY = getEndPageY(startY);
         }
-        Shape pageShape =
-            getPageShape(startY, pageWidth - margins.left - margins.right, pageHeight - margins.top - margins.bottom,
-                sourcePane);
+        Shape pageShape = getPageShape(startY, pageWidth - margins.left - margins.right,
+            pageHeight - margins.top - margins.bottom, sourcePane);
         PagePanel p = new PagePanel(startY, endPageY, pageShape);
         updateUIToRemoveLF(p);
         pages.add(p);
@@ -284,8 +293,8 @@ public class EditorPanePrinter extends JPanel implements Pageable, Printable {
             setSize(pageWidth, pageHeight);
             setLayout(null);
             add(innerPage);
-            innerPage.setBounds(margins.left, margins.top, pageWidth - margins.left - margins.right, pageHeight
-                - margins.top - margins.bottom);
+            innerPage.setBounds(margins.left, margins.top, pageWidth - margins.left - margins.right,
+                pageHeight - margins.top - margins.bottom);
         }
     }
 

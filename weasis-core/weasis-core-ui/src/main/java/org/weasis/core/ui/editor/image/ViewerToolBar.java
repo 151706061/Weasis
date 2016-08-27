@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.core.ui.editor.image;
 
 import java.awt.Component;
@@ -48,20 +48,20 @@ import org.weasis.core.ui.util.WtoolBar;
 
 public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements ActionListener {
 
-    public static final List<ActionW> actionsButtons = Collections.synchronizedList(new ArrayList<ActionW>(Arrays
-        .asList(new ActionW[] { ActionW.PAN, ActionW.WINLEVEL, ActionW.SCROLL_SERIES, ActionW.ZOOM, ActionW.ROTATION,
-            ActionW.MEASURE, ActionW.CONTEXTMENU, ActionW.CROSSHAIR, ActionW.NO_ACTION })));
+    public static final List<ActionW> actionsButtons = Collections.synchronizedList(new ArrayList<>(
+        Arrays.asList(new ActionW[] { ActionW.PAN, ActionW.WINLEVEL, ActionW.SCROLL_SERIES, ActionW.ZOOM,
+            ActionW.ROTATION, ActionW.MEASURE, ActionW.DRAW, ActionW.CONTEXTMENU, ActionW.CROSSHAIR, ActionW.NO_ACTION })));
 
-    public static final ActionW[] actionsScroll = { ActionW.SCROLL_SERIES, ActionW.ZOOM, ActionW.ROTATION,
-        ActionW.NO_ACTION };
+    public static final ActionW[] actionsScroll =
+        { ActionW.SCROLL_SERIES, ActionW.ZOOM, ActionW.ROTATION, ActionW.NO_ACTION };
     public static final Icon MouseLeftIcon =
         new ImageIcon(MouseActions.class.getResource("/icon/32x32/mouse-left.png")); //$NON-NLS-1$
-    public static final Icon MouseRightIcon = new ImageIcon(
-        MouseActions.class.getResource("/icon/32x32/mouse-right.png")); //$NON-NLS-1$
-    public static final Icon MouseMiddleIcon = new ImageIcon(
-        MouseActions.class.getResource("/icon/32x32/mouse-middle.png")); //$NON-NLS-1$
-    public static final Icon MouseWheelIcon = new ImageIcon(
-        MouseActions.class.getResource("/icon/32x32/mouse-wheel.png")); //$NON-NLS-1$
+    public static final Icon MouseRightIcon =
+        new ImageIcon(MouseActions.class.getResource("/icon/32x32/mouse-right.png")); //$NON-NLS-1$
+    public static final Icon MouseMiddleIcon =
+        new ImageIcon(MouseActions.class.getResource("/icon/32x32/mouse-middle.png")); //$NON-NLS-1$
+    public static final Icon MouseWheelIcon =
+        new ImageIcon(MouseActions.class.getResource("/icon/32x32/mouse-wheel.png")); //$NON-NLS-1$
 
     protected final ImageViewerEventManager<E> eventManager;
     private DropDownButton mouseLeft;
@@ -81,8 +81,8 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
 
         if (((activeMouse & InputEvent.BUTTON1_DOWN_MASK) == InputEvent.BUTTON1_DOWN_MASK)) {
             mouseLeft = buildMouseButton(actions, MouseActions.LEFT);
-            mouseLeft
-                .setToolTipText(Messages.getString("ViewerToolBar.change") + " " + Messages.getString("ViewerToolBar.m_action")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            mouseLeft.setToolTipText(
+                Messages.getString("ViewerToolBar.change") + " " + Messages.getString("ViewerToolBar.m_action")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
             add(mouseLeft);
         }
         if (((activeMouse & InputEvent.BUTTON2_DOWN_MASK) == InputEvent.BUTTON2_DOWN_MASK)) {
@@ -93,15 +93,14 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
         }
 
         if (((activeMouse & MouseActions.SCROLL_MASK) == MouseActions.SCROLL_MASK)) {
-            mouseWheel =
-                new DropDownButton(MouseActions.WHEEL, buildMouseIcon(MouseActions.WHEEL,
-                    actions.getAction(MouseActions.WHEEL))) {
+            mouseWheel = new DropDownButton(MouseActions.WHEEL,
+                buildMouseIcon(MouseActions.WHEEL, actions.getAction(MouseActions.WHEEL))) {
 
-                    @Override
-                    protected JPopupMenu getPopupMenu() {
-                        return getPopupMenuScroll(this);
-                    }
-                };
+                @Override
+                protected JPopupMenu getPopupMenu() {
+                    return getPopupMenuScroll(this);
+                }
+            };
             mouseWheel.setToolTipText(Messages.getString("ViewerToolBar.change")); //$NON-NLS-1$
             add(mouseWheel);
         }
@@ -204,15 +203,17 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
         synchronized (actionsButtons) {
             for (int i = 0; i < actionsButtons.size(); i++) {
                 ActionW b = actionsButtons.get(i);
-                JRadioButtonMenuItem radio =
-                    new JRadioButtonMenuItem(b.getTitle(), b.getIcon(), b.cmd().equals(action));
-                radio.setActionCommand(b.cmd());
-                radio.addActionListener(this);
-                if (MouseActions.LEFT.equals(type)) {
-                    radio.setAccelerator(KeyStroke.getKeyStroke(b.getKeyCode(), b.getModifier()));
+                if (eventManager.isActionRegistered(b)) {
+                    JRadioButtonMenuItem radio =
+                        new JRadioButtonMenuItem(b.getTitle(), b.getIcon(), b.cmd().equals(action));
+                    radio.setActionCommand(b.cmd());
+                    radio.addActionListener(this);
+                    if (MouseActions.LEFT.equals(type)) {
+                        radio.setAccelerator(KeyStroke.getKeyStroke(b.getKeyCode(), b.getModifier()));
+                    }
+                    popupMouseButtons.add(radio);
+                    groupButtons.add(radio);
                 }
-                popupMouseButtons.add(radio);
-                groupButtons.add(radio);
             }
         }
         return popupMouseButtons;
@@ -225,13 +226,14 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
         popupMouseScroll.setInvoker(dropButton);
         ButtonGroup groupButtons = new ButtonGroup();
         for (int i = 0; i < actionsScroll.length; i++) {
-            JRadioButtonMenuItem radio =
-                new JRadioButtonMenuItem(actionsScroll[i].getTitle(), actionsScroll[i].getIcon(), actionsScroll[i]
-                    .cmd().equals(action));
-            radio.setActionCommand(actionsScroll[i].cmd());
-            radio.addActionListener(this);
-            popupMouseScroll.add(radio);
-            groupButtons.add(radio);
+            if (eventManager.isActionRegistered(actionsScroll[i])) {
+                JRadioButtonMenuItem radio = new JRadioButtonMenuItem(actionsScroll[i].getTitle(),
+                    actionsScroll[i].getIcon(), actionsScroll[i].cmd().equals(action));
+                radio.setActionCommand(actionsScroll[i].cmd());
+                radio.addActionListener(this);
+                popupMouseScroll.add(radio);
+                groupButtons.add(radio);
+            }
         }
 
         return popupMouseScroll;
@@ -258,15 +260,11 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
 
     public boolean isCommandActive(String cmd) {
         int active = eventManager.getMouseActions().getActiveButtons();
-        if (cmd != null
-            && cmd.equals(mouseLeft.getActionCommand())
-            || (((active & InputEvent.BUTTON2_DOWN_MASK) == InputEvent.BUTTON2_DOWN_MASK) && ((mouseMiddle == null)
-                ? false : cmd.equals(mouseMiddle.getActionCommand())))
-            || (((active & InputEvent.BUTTON3_DOWN_MASK) == InputEvent.BUTTON3_DOWN_MASK) && ((mouseRight == null)
-                ? false : cmd.equals(mouseRight.getActionCommand())))) {
-            return true;
-        }
-        return false;
+        return cmd != null && cmd.equals(mouseLeft.getActionCommand())
+            || (((active & InputEvent.BUTTON2_DOWN_MASK) == InputEvent.BUTTON2_DOWN_MASK)
+                && ((mouseMiddle == null) ? false : cmd.equals(mouseMiddle.getActionCommand())))
+            || (((active & InputEvent.BUTTON3_DOWN_MASK) == InputEvent.BUTTON3_DOWN_MASK)
+                && ((mouseRight == null) ? false : cmd.equals(mouseRight.getActionCommand())));
     }
 
     public void changeButtonState(String type, String action) {
@@ -453,10 +451,7 @@ public class ViewerToolBar<E extends ImageElement> extends WtoolBar implements A
         return null;
     }
 
-    class SynchGroupMenu extends GroupRadioMenu {
-
-        public SynchGroupMenu() {
-        }
+    class SynchGroupMenu extends GroupRadioMenu<SynchView> {
 
         @Override
         public void contentsChanged(ListDataEvent e) {

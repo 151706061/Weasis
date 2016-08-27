@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.sr;
 
 import java.awt.BorderLayout;
@@ -35,9 +35,9 @@ import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 
 import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.Tag;
 import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.explorer.ObservableEvent;
-import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.Series;
@@ -49,12 +49,15 @@ import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.SeriesViewerListener;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
+import org.weasis.dicom.codec.DcmMediaReader;
 import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.DicomSpecialElement;
 import org.weasis.dicom.codec.KOSpecialElement;
-import org.weasis.dicom.codec.macro.ImageSOPInstanceReference;
+import org.weasis.dicom.codec.TagD;
+import org.weasis.dicom.codec.TagD.Level;
+import org.weasis.dicom.codec.macro.SOPInstanceReference;
 import org.weasis.dicom.codec.utils.DicomMediaUtils;
 import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
@@ -64,7 +67,7 @@ import org.weasis.dicom.explorer.MimeSystemAppFactory;
 public class SRView extends JScrollPane implements SeriesViewerListener {
 
     private final JTextPane htmlPanel = new JTextPane();
-    private final Map<String, SRImageReference> map = new HashMap<String, SRImageReference>();
+    private final Map<String, SRImageReference> map = new HashMap<>();
     private Series<?> series;
     private KOSpecialElement keyReferences;
 
@@ -100,7 +103,8 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
         });
         HTMLEditorKit kit = new HTMLEditorKit();
         StyleSheet ss = kit.getStyleSheet();
-        ss.addRule("body {font-family:sans-serif;font-size:12pt;background-color:#" + Integer.toHexString((htmlPanel.getBackground().getRGB() & 0xffffff) | 0x1000000).substring(1) + ";color:#" //$NON-NLS-1$ //$NON-NLS-2$
+        ss.addRule("body {font-family:sans-serif;font-size:12pt;background-color:#" //$NON-NLS-1$
+            + Integer.toHexString((htmlPanel.getBackground().getRGB() & 0xffffff) | 0x1000000).substring(1) + ";color:#" //$NON-NLS-1$
             + Integer.toHexString((htmlPanel.getForeground().getRGB() & 0xffffff) | 0x1000000).substring(1)
             + ";margin:3;font-weight:normal;}"); //$NON-NLS-1$
         htmlPanel.setEditorKit(kit);
@@ -123,7 +127,7 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
         if (oldsequence == null && newSeries == null) {
             return;
         }
-        if (oldsequence != null && oldsequence.equals(newSeries) && htmlPanel.getText().length() > 5) {
+        if (oldsequence != null && oldsequence.equals(newSeries)) {
             return;
         }
 
@@ -195,7 +199,7 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
     private void openRelatedSeries(String reference) {
         SRImageReference imgRef = map.get(reference);
         if (imgRef != null) {
-            ImageSOPInstanceReference ref = imgRef.getImageSOPInstanceReference();
+            SOPInstanceReference ref = imgRef.getSopInstanceReference();
             if (ref != null) {
                 DataExplorerView dicomView = org.weasis.core.ui.docking.UIManager.getExplorerplugin(DicomExplorer.NAME);
                 DicomModel model = null;
@@ -215,9 +219,9 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
                         if (keyReferences != null) {
                             // TODO Handle multiframe and select the current frame or SOPInstanceUID
                             // int[] frames = ref.getReferencedFrameNumber();
-                            keyReferences.addKeyObject((String) s.getTagValue(TagW.StudyInstanceUID),
-                                (String) s.getTagValue(TagW.SeriesInstanceUID), ref.getReferencedSOPInstanceUID(),
-                                ref.getReferencedSOPClassUID());
+                            keyReferences.addKeyObject(TagD.getTagValue(s, Tag.StudyInstanceUID, String.class),
+                                TagD.getTagValue(s, Tag.SeriesInstanceUID, String.class),
+                                ref.getReferencedSOPInstanceUID(), ref.getReferencedSOPClassUID());
                             SeriesViewerFactory plugin = UIManager.getViewerFactory(DicomMediaIO.SERIES_MIMETYPE);
                             if (plugin != null && !(plugin instanceof MimeSystemAppFactory)) {
                                 String uid = UUID.randomUUID().toString();
@@ -227,19 +231,18 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
                                 props.put(ViewerPluginBuilder.ICON,
                                     new ImageIcon(model.getClass().getResource("/icon/16x16/key-images.png"))); //$NON-NLS-1$
                                 props.put(ViewerPluginBuilder.UID, uid);
-                                List<MediaSeries<? extends MediaElement<?>>> seriesList =
-                                    new ArrayList<MediaSeries<? extends MediaElement<?>>>();
-                                seriesList.add(s);
+                                List<DicomSeries> seriesList = new ArrayList<>();
+                                seriesList.add((DicomSeries) s);
                                 ViewerPluginBuilder builder = new ViewerPluginBuilder(plugin, seriesList, model, props);
                                 ViewerPluginBuilder.openSequenceInPlugin(builder);
-                                model.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Select, uid,
-                                    null, keyReferences));
+                                model.firePropertyChange(
+                                    new ObservableEvent(ObservableEvent.BasicAction.SELECT, uid, null, keyReferences));
                             }
                         }
                     } else {
                         // TODO try to download if IHE IID has been configured
-                        JOptionPane.showMessageDialog(this,
-                            Messages.getString("SRView.msg"), Messages.getString("SRView.open"), //$NON-NLS-1$ //$NON-NLS-2$
+                        JOptionPane.showMessageDialog(this, Messages.getString("SRView.msg"), //$NON-NLS-1$
+                            Messages.getString("SRView.open"), //$NON-NLS-1$
                             JOptionPane.WARNING_MESSAGE);
                     }
 
@@ -259,17 +262,15 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
                 }
             }
 
-            if (series == null) {
-                Collection<MediaSeriesGroup> studyList = model.getChildren(patient);
-                synchronized (model) {
-                    for (Iterator<MediaSeriesGroup> it = studyList.iterator(); it.hasNext();) {
-                        MediaSeriesGroup st = it.next();
-                        if (st != study) {
-                            series = findSOPInstanceReference(model, st, sopUID);
-                        }
-                        if (series != null) {
-                            return series;
-                        }
+            Collection<MediaSeriesGroup> studyList = model.getChildren(patient);
+            synchronized (model) {
+                for (Iterator<MediaSeriesGroup> it = studyList.iterator(); it.hasNext();) {
+                    MediaSeriesGroup st = it.next();
+                    if (st != study) {
+                        series = findSOPInstanceReference(model, st, sopUID);
+                    }
+                    if (series != null) {
+                        return series;
                     }
                 }
             }
@@ -281,8 +282,8 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
         DicomSpecialElement dcmElement = DicomModel.getFirstSpecialElement(series, DicomSpecialElement.class);
         if (dcmElement != null) {
             DicomImageElement dcm = s.getMedia(MediaSeries.MEDIA_POSITION.FIRST, null, null);
-            if (dcm != null && dcm.getMediaReader() instanceof DicomMediaIO) {
-                Attributes dicomSourceAttribute = ((DicomMediaIO) dcm.getMediaReader()).getDicomObject();
+            if (dcm != null && dcm.getMediaReader() instanceof DcmMediaReader) {
+                Attributes dicomSourceAttribute = ((DcmMediaReader) dcm.getMediaReader()).getDicomObject();
                 Attributes attributes =
                     DicomMediaUtils.createDicomKeyObject(dicomSourceAttribute, dcmElement.getShortLabel(), null);
                 new LoadDicomObjects(model, attributes).addSelectionAndnotify(); // must be executed in the EDT
@@ -299,13 +300,14 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
 
     private Series<?> findSOPInstanceReference(DicomModel model, MediaSeriesGroup study, String sopUID) {
         if (model != null && study != null) {
+            TagW sopTag = TagD.getUID(Level.INSTANCE);
             Collection<MediaSeriesGroup> seriesList = model.getChildren(study);
             synchronized (model) {
                 for (Iterator<MediaSeriesGroup> it = seriesList.iterator(); it.hasNext();) {
                     MediaSeriesGroup seq = it.next();
                     if (seq instanceof Series) {
                         Series<?> s = (Series<?>) seq;
-                        if (s.hasMediaContains(TagW.SOPInstanceUID, sopUID)) {
+                        if (s.hasMediaContains(sopTag, sopUID)) {
                             return s;
                         }
                     }

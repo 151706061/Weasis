@@ -1,18 +1,31 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.viewer2d.mpr;
 
 import java.awt.Graphics2D;
+import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 
+import javax.swing.JPopupMenu;
 import javax.swing.JProgressBar;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.weasis.core.api.gui.util.ActionState;
 import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.image.OpManager;
 import org.weasis.core.api.image.WindowOp;
-import org.weasis.core.ui.editor.image.AnnotationsLayer;
-import org.weasis.core.ui.editor.image.DefaultView2d;
 import org.weasis.core.ui.editor.image.ImageViewerEventManager;
+import org.weasis.core.ui.editor.image.ViewCanvas;
+import org.weasis.core.ui.model.layer.LayerAnnotation;
 import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.SortSeriesStack;
 import org.weasis.dicom.viewer2d.View2d;
@@ -30,7 +43,7 @@ public class MprView extends View2d {
     public MprView(ImageViewerEventManager<DicomImageElement> eventManager) {
         super(eventManager);
         this.sliceOrientation = SliceOrientation.AXIAL;
-        infoLayer.setDisplayPreferencesValue(AnnotationsLayer.PRELOADING_BAR, false);
+        infoLayer.setDisplayPreferencesValue(LayerAnnotation.PRELOADING_BAR, false);
 
         // Remove PR and KO buttons
         getViewButtons().clear();
@@ -39,10 +52,11 @@ public class MprView extends View2d {
     @Override
     protected void initActionWState() {
         super.initActionWState();
-        actionsInView.put(DefaultView2d.zoomTypeCmd, ZoomType.CURRENT);
-        // Get the radiologist way to see stack (means in axial, the first image is from feet and last image is in the
-        // head direction)
-        // TODO This option should be fixed
+        actionsInView.put(ViewCanvas.zoomTypeCmd, ZoomType.CURRENT);
+        /*
+         * Get the radiologist way to see stack (means in axial, the first image is from feet and last image is in the
+         * head direction) This option may not be changed. Sorting stack must be disabled from menu in UI.
+         */
         actionsInView.put(ActionW.SORTSTACK.cmd(), SortSeriesStack.slicePosition);
 
         // Propagate the preset
@@ -63,6 +77,20 @@ public class MprView extends View2d {
     @Override
     protected void setImage(DicomImageElement img) {
         super.setImage(img);
+    }
+
+    @Override
+    protected JPopupMenu buildContexMenu(final MouseEvent evt) {
+        ActionState action = eventManager.getAction(ActionW.SORTSTACK);
+        if (action != null && action.isActionEnabled()) {
+            // Force to disable sort stack menu
+            action.enableAction(false);
+            JPopupMenu ctx = super.buildContexMenu(evt);
+            action.enableAction(true);
+            return ctx;
+        }
+
+        return super.buildContexMenu(evt);
     }
 
     @Override

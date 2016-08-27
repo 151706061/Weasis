@@ -4,7 +4,7 @@
 	<parent>
 		<artifactId>weasis-dicom-parent</artifactId>
 		<groupId>org.weasis.dicom</groupId>
-		<version>2.0.2</version>
+		<version>2.5.0-SNAPSHOT</version>
 		<relativePath>../weasis-dicom-parent/pom.xml</relativePath>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -14,6 +14,7 @@
 	<properties>
 		<bundle.namespace>org.weasis.dicom.codec</bundle.namespace>
 		<bundle.symbolicName>${project.artifactId}</bundle.symbolicName>
+		<dcm4che.version>dcm4chee-arc-light-5.2.1</dcm4che.version>
 	</properties>
 	<repositories>
 		<repository>
@@ -34,7 +35,7 @@
 				<configuration>
 					<instructions>
 						<Bundle-Activator>${bundle.namespace}.internal.Activator</Bundle-Activator>
-						<Export-Package>!${bundle.namespace}.internal.*,${bundle.namespace}.*,org.dcm4che3.*</Export-Package>
+						<Export-Package>!${bundle.namespace}.internal.*,${bundle.namespace}.*,org.weasis.dicom.*,org.dcm4che3.*</Export-Package>
 					</instructions>
 				</configuration>
 			</plugin>
@@ -44,22 +45,68 @@
 		<dependency>
 			<groupId>org.dcm4che</groupId>
 			<artifactId>dcm4che-core</artifactId>
-			<version>3.3.3</version>
+			<version>${dcm4che.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.dcm4che</groupId>
+			<artifactId>dcm4che-dict</artifactId>
+			<version>${dcm4che.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.dcm4che</groupId>
 			<artifactId>dcm4che-image</artifactId>
-			<version>3.3.3</version>
+			<version>${dcm4che.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.dcm4che</groupId>
+			<artifactId>dcm4che-imageio</artifactId>
+			<version>${dcm4che.version}-r1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.dcm4che</groupId>
+			<artifactId>dcm4che-imageio-rle</artifactId>
+			<version>${dcm4che.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.dcm4che</groupId>
 			<artifactId>dcm4che-net</artifactId>
-			<version>3.3.3</version>
+			<version>${dcm4che.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.weasis</groupId>
+			<artifactId>weasis-dicom-tools</artifactId>
+			<version>1.0.0</version>
+			<exclusions>
+				<exclusion>
+					<groupId>junit</groupId>
+					<artifactId>junit</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.dcm4che</groupId>
+					<artifactId>dcm4che-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.dcm4che</groupId>
+					<artifactId>dcm4che-net</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.dcm4che</groupId>
+					<artifactId>dcm4che-imageio</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.dcm4che</groupId>
+					<artifactId>dcm4che-imageio-rle</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.dcm4che</groupId>
+					<artifactId>dcm4che-image</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.weasis.imageio</groupId>
 			<artifactId>weasis-imageio-codec</artifactId>
-			<version>2.0.2</version>
+			<version>2.5.0-SNAPSHOT</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>

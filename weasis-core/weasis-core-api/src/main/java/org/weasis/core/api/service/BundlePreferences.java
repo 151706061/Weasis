@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2010, 2016 Nicolas Roduit.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
  ******************************************************************************/
@@ -17,9 +17,13 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.prefs.Preferences;
 import org.osgi.service.prefs.PreferencesService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.weasis.core.api.gui.util.AppProperties;
+import org.weasis.core.api.gui.util.MathUtil;
 
 public class BundlePreferences {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BundlePreferences.class);
 
     private BundlePreferences() {
     }
@@ -27,8 +31,7 @@ public class BundlePreferences {
     public static File getDataFolder(BundleContext context) {
         if (context != null) {
             File dataFolder =
-                new File(
-                    AppProperties.WEASIS_PATH + File.separator + "data", context.getBundle().getSymbolicName()); //$NON-NLS-1$
+                new File(AppProperties.WEASIS_PATH + File.separator + "data", context.getBundle().getSymbolicName()); //$NON-NLS-1$
             dataFolder.mkdirs();
             return dataFolder;
         }
@@ -58,7 +61,7 @@ public class BundlePreferences {
                     return context.getService(serviceRef);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.error("", e); //$NON-NLS-1$
             }
         }
         return null;
@@ -110,10 +113,11 @@ public class BundlePreferences {
                 try {
                     result = Double.parseDouble(s);
                 } catch (NumberFormatException ignore) {
+                    LOGGER.error("Cannot parse {} into double", s); //$NON-NLS-1$
                 }
             }
             // Update only if the value is different to avoid setting the changeSet to true
-            if (result == null || result.doubleValue() != value) {
+            if (result == null || !MathUtil.isEqual(result.doubleValue(), value)) {
                 pref.putDouble(key, value);
             }
         }
@@ -128,10 +132,11 @@ public class BundlePreferences {
                 try {
                     result = Float.parseFloat(s);
                 } catch (NumberFormatException ignore) {
+                    LOGGER.error("Cannot parse {} into float", s); //$NON-NLS-1$
                 }
             }
             // Update only if the value is different to avoid setting the changeSet to true
-            if (result == null || result.floatValue() != value) {
+            if (result == null || !MathUtil.isEqual(result.floatValue(), value)) {
                 pref.putFloat(key, value);
             }
         }
@@ -146,6 +151,7 @@ public class BundlePreferences {
                 try {
                     result = Integer.parseInt(s);
                 } catch (NumberFormatException ignore) {
+                    LOGGER.error("Cannot parse {} into int", s); //$NON-NLS-1$
                 }
             }
             // Update only if the value is different to avoid setting the changeSet to true
@@ -164,6 +170,7 @@ public class BundlePreferences {
                 try {
                     result = Long.parseLong(s);
                 } catch (NumberFormatException ignore) {
+                    LOGGER.error("Cannot parse {} into long", s); //$NON-NLS-1$
                 }
             }
             // Update only if the value is different to avoid setting the changeSet to true

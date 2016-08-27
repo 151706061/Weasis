@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.explorer;
 
 import java.awt.BorderLayout;
@@ -17,6 +17,9 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -38,8 +41,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -74,15 +79,15 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import org.dcm4che3.data.Tag;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.explorer.ObservableEvent;
 import org.weasis.core.api.explorer.model.DataExplorerModel;
-import org.weasis.core.api.gui.task.CircularProgressBar;
+import org.weasis.core.api.gui.util.AbstractItemDialogPage;
 import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.gui.util.JMVUtils;
-import org.weasis.core.api.gui.util.WinUtil;
 import org.weasis.core.api.media.data.ImageElement;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeries;
@@ -105,8 +110,8 @@ import org.weasis.core.ui.editor.SeriesViewerEvent.EVENT;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.SeriesViewerListener;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
-import org.weasis.core.ui.editor.image.DefaultView2d;
 import org.weasis.core.ui.editor.image.ImageViewerPlugin;
+import org.weasis.core.ui.editor.image.ViewCanvas;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
 import org.weasis.core.ui.util.ArrayListComboBoxModel;
 import org.weasis.core.ui.util.ColorLayerUI;
@@ -115,8 +120,9 @@ import org.weasis.core.ui.util.WrapLayout;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.DicomSpecialElement;
 import org.weasis.dicom.codec.KOSpecialElement;
+import org.weasis.dicom.codec.TagD;
+import org.weasis.dicom.codec.TagD.Level;
 import org.weasis.dicom.codec.geometry.ImageOrientation;
-import org.weasis.dicom.explorer.wado.DownloadManager;
 import org.weasis.dicom.explorer.wado.LoadSeries;
 
 import bibliothek.gui.dock.common.CLocation;
@@ -130,23 +136,19 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     public static final String PREFERENCE_NODE = "dicom.explorer"; //$NON-NLS-1$
     public static final String BUTTON_NAME = Messages.getString("DicomExplorer.btn_title"); //$NON-NLS-1$
     public static final String DESCRIPTION = Messages.getString("DicomExplorer.desc"); //$NON-NLS-1$
-    // private static final JMenuItem openDicomMenu = new JMenuItem(OpenMediaAction.getInstance());
     public static final String ALL_PATIENTS = Messages.getString("DicomExplorer.sel_all_pat"); //$NON-NLS-1$
     public static final String ALL_STUDIES = Messages.getString("DicomExplorer.sel_all_st"); //$NON-NLS-1$
     public static final Icon PATIENT_ICON = new ImageIcon(DicomExplorer.class.getResource("/icon/16x16/patient.png")); //$NON-NLS-1$
 
     private JPanel panel = null;
-    private JPanel panel_4 = null;
     private PatientPane selectedPatient = null;
-    final CircularProgressBar globalProgress = new CircularProgressBar(0, 100);
-    private final List<PatientPane> patientPaneList = new ArrayList<PatientPane>();
-    private final HashMap<MediaSeriesGroup, List<StudyPane>> patient2study =
-        new HashMap<MediaSeriesGroup, List<StudyPane>>();
-    private final HashMap<MediaSeriesGroup, List<SeriesPane>> study2series =
-        new HashMap<MediaSeriesGroup, List<SeriesPane>>();
+
+    private final List<PatientPane> patientPaneList = new ArrayList<>();
+    private final HashMap<MediaSeriesGroup, List<StudyPane>> patient2study = new HashMap<>();
+    private final HashMap<MediaSeriesGroup, List<SeriesPane>> study2series = new HashMap<>();
     private final JScrollPane thumnailView = new JScrollPane();
+    private final LoadingPanel loadingPanel = new LoadingPanel();
     private final SeriesSelectionModel selectionList;
-    private final ArrayList<ExplorerTask> tasks = new ArrayList<ExplorerTask>();
 
     private final DicomModel model;
 
@@ -178,24 +180,20 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
             }
         }
     };
-    private final JComboBox patientCombobox = new JComboBox(modelPatient);
-    private final JComboBox studyCombobox = new JComboBox(modelStudy);
+    private final JComboBox<?> patientCombobox = new JComboBox<>(modelPatient);
+    private final JComboBox<?> studyCombobox = new JComboBox<>(modelStudy);
     protected final PatientContainerPane patientContainer = new PatientContainerPane();
-    private final transient ItemListener patientChangeListener = new ItemListener() {
-
-        @Override
-        public void itemStateChanged(final ItemEvent e) {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                Object item = modelPatient.getSelectedItem();
-                if (item instanceof MediaSeriesGroupNode) {
-                    MediaSeriesGroupNode patient = (MediaSeriesGroupNode) item;
-                    selectPatient(patient);
-                } else if (item != null) {
-                    selectPatient(null);
-                }
-                patientContainer.revalidate();
-                patientContainer.repaint();
+    private final transient ItemListener patientChangeListener = e -> {
+        if (e.getStateChange() == ItemEvent.SELECTED) {
+            Object item = modelPatient.getSelectedItem();
+            if (item instanceof MediaSeriesGroupNode) {
+                MediaSeriesGroupNode patient = (MediaSeriesGroupNode) item;
+                selectPatient(patient);
+            } else if (item != null) {
+                selectPatient(null);
             }
+            patientContainer.revalidate();
+            patientContainer.repaint();
         }
     };
     private final transient ItemListener studyItemListener = new ItemListener() {
@@ -213,6 +211,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     private final JPanel panel_2 = new JPanel();
     private final JToggleButton btnMoreOptions = new JToggleButton(Messages.getString("DicomExplorer.more_opt")); //$NON-NLS-1$
     private final JPanel panel_3 = new JPanel();
+    private boolean verticalLayout = true;
 
     private final AbstractAction importAction = new AbstractAction(BUTTON_NAME) {
 
@@ -245,53 +244,6 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     private final JButton koOpen = new JButton(Messages.getString("DicomExplorer.open_ko"), new ImageIcon( //$NON-NLS-1$
         DicomExplorer.class.getResource("/icon/16x16/key-images.png"))); //$NON-NLS-1$
 
-    private final JLabel globalLoadingLabel = new JLabel();
-    private final JButton globalResumeButton = new JButton(new Icon() {
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setColor(Color.GREEN);
-            x += 3;
-            y += 3;
-            int[] xPoints = { x, x + 14, x };
-            int[] yPoints = { y, y + 7, y + 14 };
-            g2d.fillPolygon(xPoints, yPoints, xPoints.length);
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 20;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 20;
-        }
-    });
-
-    private final JButton globalStopButton = new JButton(new Icon() {
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setColor(Color.RED);
-            x += 3;
-            y += 3;
-            g2d.fillRect(x, y, 14, 14);
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 20;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 20;
-        }
-    });
-
     public DicomExplorer() {
         this(null);
     }
@@ -307,13 +259,6 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         thumnailView.setViewportView(patientContainer);
         changeToolWindowAnchor(getDockable().getBaseLocation());
 
-    }
-
-    private String getLimiteStringSize(String name, int limit) {
-        if (name.length() > limit) {
-            name = name.substring(0, limit - 2) + "..."; //$NON-NLS-1$
-        }
-        return name;
     }
 
     public SeriesSelectionModel getSelectionList() {
@@ -337,6 +282,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                     modelStudy.removeAllElements();
                     modelStudy.insertElementAt(ALL_STUDIES, 0);
                     modelStudy.setSelectedItem(ALL_STUDIES);
+                    koOpen.setVisible(false);
                 }
                 return;
             }
@@ -351,7 +297,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                 StudyPane st = studies.get(i);
                 if (st.isStudy(study)) {
                     studies.remove(i);
-                    if (studies.size() == 0) {
+                    if (studies.isEmpty()) {
                         patient2study.remove(patient);
                         // throw a new event for removing the patient
                         model.removePatient(patient);
@@ -380,7 +326,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                 SeriesPane se = seriesList.get(j);
                 if (se.isSeries(series)) {
                     seriesList.remove(j);
-                    if (seriesList.size() == 0) {
+                    if (seriesList.isEmpty()) {
                         study2series.remove(study);
                         // throw a new event for removing the patient
                         model.removeStudy(study);
@@ -537,8 +483,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
     class PatientContainerPane extends JPanel {
 
-        private final GridBagConstraints constraint = new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1,
-            0, GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0);
+        private final GridBagConstraints constraint = new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1, 0,
+            GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0);
         private final Component filler = Box.createRigidArea(new Dimension(5, 5));
 
         public PatientContainerPane() {
@@ -549,7 +495,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         List<PatientPane> getPatientPaneList() {
-            ArrayList<PatientPane> patientPaneList = new ArrayList<PatientPane>();
+            List<PatientPane> patientPaneList = new ArrayList<>();
             for (Component c : this.getComponents()) {
                 if (c instanceof PatientPane) {
                     patientPaneList.add((PatientPane) c);
@@ -582,18 +528,17 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         public void addPane(PatientPane patientPane, int position) {
-            boolean vertical = true;
-            // boolean vertical = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
+            // boolean verticalLayout = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
             // ToolWindowAnchor.LEFT.equals(getAnchor());
-            constraint.gridx = vertical ? 0 : position;
-            constraint.gridy = vertical ? position : 0;
+            constraint.gridx = verticalLayout ? 0 : position;
+            constraint.gridy = verticalLayout ? position : 0;
 
             remove(filler);
-            constraint.weightx = vertical ? 1.0 : 0.0;
-            constraint.weighty = vertical ? 0.0 : 1.0;
+            constraint.weightx = verticalLayout ? 1.0 : 0.0;
+            constraint.weighty = verticalLayout ? 0.0 : 1.0;
             add(patientPane, constraint);
-            constraint.weightx = vertical ? 0.0 : 1.0;
-            constraint.weighty = vertical ? 1.0 : 0.0;
+            constraint.weightx = verticalLayout ? 0.0 : 1.0;
+            constraint.weighty = verticalLayout ? 1.0 : 0.0;
             add(filler, constraint);
         }
 
@@ -642,8 +587,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     class PatientPane extends JPanel {
 
         private final MediaSeriesGroup patient;
-        private final GridBagConstraints constraint = new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1,
-            0, GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0);
+        private final GridBagConstraints constraint = new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1, 0,
+            GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0);
 
         public PatientPane(MediaSeriesGroup patient) {
             if (patient == null) {
@@ -696,7 +641,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         List<StudyPane> getStudyPaneList() {
-            ArrayList<StudyPane> studyPaneList = new ArrayList<StudyPane>();
+            ArrayList<StudyPane> studyPaneList = new ArrayList<>();
             for (Component c : this.getComponents()) {
                 if (c instanceof StudyPane) {
                     studyPaneList.add((StudyPane) c);
@@ -739,13 +684,12 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         public void addPane(StudyPane studyPane, int position) {
-            boolean vertical = true;
-            // boolean vertical = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
+            // boolean verticalLayout = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
             // ToolWindowAnchor.LEFT.equals(getAnchor());
-            constraint.gridx = vertical ? 0 : position;
-            constraint.gridy = vertical ? position : 0;
+            constraint.gridx = verticalLayout ? 0 : position;
+            constraint.gridy = verticalLayout ? position : 0;
 
-            constraint.weightx = vertical ? 1.0 : 0.0;
+            constraint.weightx = verticalLayout ? 1.0 : 0.0;
             constraint.weighty = 0.0;
 
             add(studyPane, constraint);
@@ -788,7 +732,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         List<SeriesPane> getSeriesPaneList() {
-            ArrayList<SeriesPane> seriesPaneList = new ArrayList<SeriesPane>();
+            ArrayList<SeriesPane> seriesPaneList = new ArrayList<>();
             for (Component c : this.getComponents()) {
                 if (c instanceof SeriesPane) {
                     seriesPaneList.add((SeriesPane) c);
@@ -798,10 +742,9 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         private void refreshLayout() {
-            boolean vertical = true;
-            // boolean vertical = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
+            // boolean verticalLayout = ToolWindowAnchor.RIGHT.equals(getAnchor()) ||
             // ToolWindowAnchor.LEFT.equals(getAnchor());
-            this.setLayout(vertical ? new WrapLayout(FlowLayout.LEFT) : new BoxLayout(this, BoxLayout.X_AXIS));
+            this.setLayout(verticalLayout ? new WrapLayout(FlowLayout.LEFT) : new BoxLayout(this, BoxLayout.X_AXIS));
         }
 
         private void showAllSeries() {
@@ -861,7 +804,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
             }
             this.setAlignmentX(LEFT_ALIGNMENT);
             this.setAlignmentY(TOP_ALIGNMENT);
-            String desc = (String) sequence.getTagValue(TagW.SeriesDescription);
+            String desc = TagD.getTagValue(sequence, Tag.SeriesDescription, String.class);
             label = new JLabel(desc == null ? "" : desc, SwingConstants.CENTER); //$NON-NLS-1$
             label.setFont(FontTools.getFont10());
             label.setFocusable(false);
@@ -890,7 +833,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         }
 
         public void updateText() {
-            String desc = (String) sequence.getTagValue(TagW.SeriesDescription);
+            String desc = TagD.getTagValue(sequence, Tag.SeriesDescription, String.class);
             label.setText(desc == null ? "" : desc); //$NON-NLS-1$
         }
 
@@ -979,7 +922,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                                 Collections.sort(list, DicomSpecialElement.ORDER_BY_DATE);
 
                                 JPopupMenu popupMenu = new JPopupMenu();
-                                popupMenu.add(new TitleMenuItem(ActionW.KO_SELECTION.getTitle(), popupMenu.getInsets()));
+                                popupMenu
+                                    .add(new TitleMenuItem(ActionW.KO_SELECTION.getTitle(), popupMenu.getInsets()));
                                 popupMenu.addSeparator();
 
                                 ButtonGroup group = new ButtonGroup();
@@ -1051,8 +995,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
             final JPanel palenSlider1 = new JPanel();
             palenSlider1.setLayout(new BoxLayout(palenSlider1, BoxLayout.Y_AXIS));
-            palenSlider1.setBorder(new TitledBorder(
-                Messages.getString("DicomExplorer.thmb_size") + " " + slider.getValue())); //$NON-NLS-1$ //$NON-NLS-2$
+            palenSlider1
+                .setBorder(new TitledBorder(Messages.getString("DicomExplorer.thmb_size") + " " + slider.getValue())); //$NON-NLS-1$ //$NON-NLS-2$
 
             slider.setPaintTicks(true);
             slider.setSnapToTicks(true);
@@ -1063,8 +1007,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                 public void stateChanged(ChangeEvent e) {
                     JSlider source = (JSlider) e.getSource();
                     if (!source.getValueIsAdjusting()) {
-                        ((TitledBorder) palenSlider1.getBorder()).setTitle(Messages
-                            .getString("DicomExplorer.thmb_size") + StringUtil.COLON_AND_SPACE + source.getValue()); //$NON-NLS-1$ 
+                        ((TitledBorder) palenSlider1.getBorder()).setTitle(Messages.getString("DicomExplorer.thmb_size") //$NON-NLS-1$
+                            + StringUtil.COLON_AND_SPACE + source.getValue());
                         palenSlider1.repaint();
                         updateThumbnailSize();
                     }
@@ -1083,10 +1027,35 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         return panel_1;
     }
 
-    public boolean isPatientHasOpenSeries(MediaSeriesGroup p) {
+    public Set<Series> getSelectedPatientOpenSeries() {
+        return getPatientOpenSeries(selectedPatient.patient);
+    }
 
-        Collection<MediaSeriesGroup> studies = model.getChildren(p);
+    public Set<Series> getPatientOpenSeries(MediaSeriesGroup patient) {
+        Set<Series> openSeriesSet = new LinkedHashSet<>();
+
+        if (patient != null) {
+            synchronized (model) {
+                Collection<MediaSeriesGroup> studies = model.getChildren(patient);
+                for (Iterator<MediaSeriesGroup> iterator = studies.iterator(); iterator.hasNext();) {
+                    MediaSeriesGroup study = iterator.next();
+                    Collection<MediaSeriesGroup> seriesList = model.getChildren(study);
+                    for (Iterator<MediaSeriesGroup> it = seriesList.iterator(); it.hasNext();) {
+                        MediaSeriesGroup seq = it.next();
+                        if (seq instanceof Series && Boolean.TRUE.equals(seq.getTagValue(TagW.SeriesOpen))) {
+                            openSeriesSet.add((Series) seq);
+                        }
+                    }
+                }
+            }
+        }
+        return openSeriesSet;
+    }
+
+    public boolean isPatientHasOpenSeries(MediaSeriesGroup patient) {
+
         synchronized (model) {
+            Collection<MediaSeriesGroup> studies = model.getChildren(patient);
             for (Iterator<MediaSeriesGroup> iterator = studies.iterator(); iterator.hasNext();) {
                 MediaSeriesGroup study = iterator.next();
                 Collection<MediaSeriesGroup> seriesList = model.getChildren(study);
@@ -1128,7 +1097,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                 patientContainer.addPane(selectedPatient);
                 koOpen.setVisible(DicomModel.hasSpecialElements(patient, KOSpecialElement.class));
                 // Send message for selecting related plug-ins window
-                model.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Select, model, null, patient));
+                model.firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.SELECT, model, null, patient));
             }
         }
     }
@@ -1136,19 +1105,19 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     private List<Series> getSplitSeries(Series dcm) {
         MediaSeriesGroup study = model.getParent(dcm, DicomModel.study);
         Object splitNb = dcm.getTagValue(TagW.SplitSeriesNumber);
-        List<Series> list = new ArrayList<Series>();
+        List<Series> list = new ArrayList<>();
         if (splitNb == null || study == null) {
             list.add(dcm);
             return list;
         }
-        String uid = (String) dcm.getTagValue(TagW.SeriesInstanceUID);
+        String uid = TagD.getTagValue(dcm, Tag.SeriesInstanceUID, String.class);
         if (uid != null) {
             Collection<MediaSeriesGroup> seriesList = model.getChildren(study);
             for (Iterator<MediaSeriesGroup> it = seriesList.iterator(); it.hasNext();) {
                 MediaSeriesGroup group = it.next();
                 if (group instanceof Series) {
                     Series s = (Series) group;
-                    if (uid.equals(s.getTagValue(TagW.SeriesInstanceUID))) {
+                    if (uid.equals(TagD.getTagValue(s, Tag.SeriesInstanceUID))) {
                         list.add(s);
                     }
                 }
@@ -1168,7 +1137,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
         List<SeriesPane> seriesList = study2series.get(study);
         if (seriesList == null) {
-            seriesList = new ArrayList<SeriesPane>();
+            seriesList = new ArrayList<>();
             study2series.put(study, seriesList);
         }
         boolean addSeries = patientContainer.isStudyVisible(study);
@@ -1285,7 +1254,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         boolean addSeries = selectedPatient == patientPane;
         List<StudyPane> studies = patient2study.get(patient);
         if (studies == null) {
-            studies = new ArrayList<StudyPane>();
+            studies = new ArrayList<>();
             patient2study.put(patient, studies);
         }
         Object selectedStudy = modelStudy.getSelectedItem();
@@ -1294,14 +1263,13 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
         List<SeriesPane> seriesList = study2series.get(study);
         if (seriesList == null) {
-            seriesList = new ArrayList<SeriesPane>();
+            seriesList = new ArrayList<>();
             study2series.put(study, seriesList);
         }
 
         int[] positionSeries = new int[1];
         createSeriesPaneInstance(series, positionSeries);
         if (addSeries && positionSeries[0] != -1) {
-            koOpen.setVisible(DicomModel.hasSpecialElements(patient, KOSpecialElement.class));
             // If new study
             if (positionStudy[0] != -1) {
                 if (modelStudy.getIndexOf(study) < 0) {
@@ -1331,7 +1299,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     public void changingViewContentEvent(SeriesViewerEvent event) {
         EVENT type = event.getEventType();
         if (EVENT.SELECT_VIEW.equals(type) && event.getSeriesViewer() instanceof ImageViewerPlugin) {
-            DefaultView2d<?> pane = ((ImageViewerPlugin<?>) event.getSeriesViewer()).getSelectedImagePane();
+            ViewCanvas<?> pane = ((ImageViewerPlugin<?>) event.getSeriesViewer()).getSelectedImagePane();
             if (pane != null) {
                 MediaSeries s = pane.getSeries();
                 if (s != null) {
@@ -1339,19 +1307,23 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                         SeriesPane p = getSeriesPane(s);
                         if (p != null) {
                             JViewport vp = thumnailView.getViewport();
-                            Point pt2 =
-                                SwingUtilities.convertPoint(p, new Point(0, p.getHeight() / 2), patientContainer);
-                            pt2.x = vp.getViewPosition().x;
-                            pt2.y -= vp.getHeight() / 2;
-                            int maxHeight = (int) (vp.getViewSize().getHeight() - vp.getExtentSize().getHeight());
-                            if (pt2.y < 0) {
-                                pt2.y = 0;
-                            } else if (pt2.y > maxHeight) {
-                                pt2.y = maxHeight;
+                            Rectangle bound = vp.getViewRect();
+                            Point ptmin = SwingUtilities.convertPoint(p, new Point(0, 0), patientContainer);
+                            Point ptmax = SwingUtilities.convertPoint(p, new Point(0, p.getHeight()), patientContainer);
+                            if (!bound.contains(ptmin.x, ptmin.y) || !bound.contains(ptmax.x, ptmax.y)) {
+                                Point pt = vp.getViewPosition();
+                                pt.y = ptmin.y + (ptmax.y - ptmin.y) / 2;
+                                pt.y -= vp.getHeight() / 2;
+                                int maxHeight = (int) (vp.getViewSize().getHeight() - vp.getExtentSize().getHeight());
+                                if (pt.y < 0) {
+                                    pt.y = 0;
+                                } else if (pt.y > maxHeight) {
+                                    pt.y = maxHeight;
+                                }
+                                vp.setViewPosition(pt);
+                                // Clear the selection when another view is selected
+                                getSelectionList().clear();
                             }
-                            vp.setViewPosition(pt2);
-                            // Clear the selection when another view is selected
-                            getSelectionList().clear();
                         }
                     }
                 }
@@ -1367,7 +1339,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
             ObservableEvent.BasicAction action = event.getActionCommand();
             Object newVal = event.getNewValue();
             if (model.equals(evt.getSource())) {
-                if (ObservableEvent.BasicAction.Select.equals(action)) {
+                if (ObservableEvent.BasicAction.SELECT.equals(action)) {
                     if (newVal instanceof Series) {
                         Series dcm = (Series) newVal;
                         MediaSeriesGroup patient = model.getParent(dcm, DicomModel.patient);
@@ -1375,29 +1347,29 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                             modelPatient.setSelectedItem(patient);
                         }
                     }
-                } else if (ObservableEvent.BasicAction.Add.equals(action)) {
+                } else if (ObservableEvent.BasicAction.ADD.equals(action)) {
                     if (newVal instanceof Series) {
                         addDicomSeries((Series) newVal);
                     }
-                } else if (ObservableEvent.BasicAction.Remove.equals(action)) {
+                } else if (ObservableEvent.BasicAction.REMOVE.equals(action)) {
                     if (newVal instanceof MediaSeriesGroup) {
                         MediaSeriesGroup group = (MediaSeriesGroup) newVal;
                         // Patient Group
-                        if (TagW.PatientPseudoUID.equals(group.getTagID())) {
+                        if (TagD.getUID(Level.PATIENT).equals(group.getTagID())) {
                             removePatientPane(group);
                         }
                         // Study Group
-                        else if (TagW.StudyInstanceUID.equals(group.getTagID())) {
+                        else if (TagD.getUID(Level.STUDY).equals(group.getTagID())) {
                             removeStudy(group);
                         }
                         // Series Group
-                        else if (TagW.SubseriesInstanceUID.equals(group.getTagID())) {
+                        else if (TagD.getUID(Level.SERIES).equals(group.getTagID())) {
                             removeSeries(group);
                         }
                     }
                 }
                 // Update patient and study infos from the series (when receiving the first downloaded image)
-                else if (ObservableEvent.BasicAction.UpdateParent.equals(action)) {
+                else if (ObservableEvent.BasicAction.UDPATE_PARENT.equals(action)) {
                     if (newVal instanceof Series) {
                         Series dcm = (Series) newVal;
                         MediaSeriesGroup patient = model.getParent(dcm, DicomModel.patient);
@@ -1417,25 +1389,28 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                     }
                 }
                 // update
-                else if (ObservableEvent.BasicAction.Update.equals(action)) {
+                else if (ObservableEvent.BasicAction.UPDATE.equals(action)) {
                     if (newVal instanceof Series) {
-                        Series dcm = (Series) newVal;
-                        Integer splitNb = (Integer) dcm.getTagValue(TagW.SplitSeriesNumber);
+                        Series series = (Series) newVal;
+                        Integer splitNb = (Integer) series.getTagValue(TagW.SplitSeriesNumber);
                         if (splitNb != null) {
-                            updateSplitSeries(dcm);
+                            updateSplitSeries(series);
+                        } else if ("KO".equals(TagD.getTagValue(series, Tag.Modality, String.class))) {
+                            MediaSeriesGroup patient = model.getParent(series, DicomModel.patient);
+                            koOpen.setVisible(DicomModel.hasSpecialElements(patient, KOSpecialElement.class));
                         }
                     }
-                } else if (ObservableEvent.BasicAction.LoadingStart.equals(action)) {
+                } else if (ObservableEvent.BasicAction.LOADING_START.equals(action)) {
                     if (newVal instanceof ExplorerTask) {
                         addTaskToGlobalProgression((ExplorerTask) newVal);
                     }
-                } else if (ObservableEvent.BasicAction.LoadingStop.equals(action)) {
+                } else if (ObservableEvent.BasicAction.LOADING_STOP.equals(action)) {
                     if (newVal instanceof ExplorerTask) {
                         removeTaskToGlobalProgression((ExplorerTask) newVal);
                     }
                 }
             } else if (evt.getSource() instanceof SeriesViewer) {
-                if (ObservableEvent.BasicAction.Select.equals(action)) {
+                if (ObservableEvent.BasicAction.SELECT.equals(action)) {
                     if (newVal instanceof MediaSeriesGroup) {
                         MediaSeriesGroup patient = (MediaSeriesGroup) newVal;
                         if (!isSelectedPatient(patient)) {
@@ -1480,9 +1455,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     @Override
     protected void changeToolWindowAnchor(CLocation clocation) {
         removeAll();
-        boolean vertical = true;
-        // boolean vertical = ToolWindowAnchor.RIGHT.equals(anchor) || ToolWindowAnchor.LEFT.equals(anchor);
-        add(getPanel(), vertical ? BorderLayout.NORTH : BorderLayout.WEST);
+        // boolean verticalLayout = ToolWindowAnchor.RIGHT.equals(anchor) || ToolWindowAnchor.LEFT.equals(anchor);
+        add(getPanel(), verticalLayout ? BorderLayout.NORTH : BorderLayout.WEST);
         patientContainer.refreshLayout();
         // ToolWindow win = getToolWindow();
         // if (win != null) {
@@ -1490,100 +1464,36 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
         // (DockedTypeDescriptor) win.getTypeDescriptor(ToolWindowType.DOCKED);
         // int width = this.getDockableWidth();
         // if (width > 0) {
-        // dockedTypeDescriptor.setDockLength(vertical ? width : width + 15);
+        // dockedTypeDescriptor.setDockLength(verticalLayout ? width : width + 15);
         // }
         // }
         add(thumnailView, BorderLayout.CENTER);
-        if (tasks.size() > 0) {
-            add(getLoadingPanel(), vertical ? BorderLayout.SOUTH : BorderLayout.EAST);
-        }
-
-    }
-
-    private JPanel getLoadingPanel() {
-        if (panel_4 == null) {
-            panel_4 = new JPanel();
-
-            globalResumeButton.setToolTipText(Messages.getString("DicomExplorer.resume_all")); //$NON-NLS-1$
-            globalResumeButton.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    DownloadManager.resume();
-                }
-            });
-            panel_4.add(globalResumeButton);
-            globalStopButton.setToolTipText(Messages.getString("DicomExplorer.stop_all")); //$NON-NLS-1$
-            globalStopButton.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    DownloadManager.stop();
-                }
-            });
-            panel_4.add(globalStopButton);
-            panel_4.add(globalProgress);
-            panel_4.add(globalLoadingLabel);
-        }
-        return panel_4;
+        add(loadingPanel, verticalLayout ? BorderLayout.SOUTH : BorderLayout.EAST);
     }
 
     public synchronized void addTaskToGlobalProgression(final ExplorerTask task) {
-        if (!tasks.contains(task)) {
-            tasks.add(task);
-            if (tasks.size() > 0) {
-                GuiExecutor.instance().invokeAndWait(new Runnable() {
-                    @Override
-                    public void run() {
-                        JPanel loadingPanel = getLoadingPanel();
-                        globalLoadingLabel.setText(task.getMessage());
-                        if (globalProgress.isVisible()) {
-                            if (task.isInterruptible()) {
-                                globalProgress.setVisible(false);
-                                globalResumeButton.setVisible(true);
-                                globalStopButton.setVisible(true);
-                            } else {
-                                globalResumeButton.setVisible(false);
-                                globalStopButton.setVisible(false);
-                            }
-                        }
-
-                        if (getComponentZOrder(loadingPanel) == -1) {
-                            if (globalProgress.isVisible()) {
-                                globalProgress.setIndeterminate(true);
-                            }
-                            boolean vertical = true;
-                            add(loadingPanel, vertical ? BorderLayout.SOUTH : BorderLayout.EAST);
-                            revalidate();
-                            repaint();
-                        }
-                    }
-                });
+        GuiExecutor.instance().invokeAndWait(new Runnable() {
+            @Override
+            public void run() {
+                loadingPanel.addTask(task);
+                revalidate();
+                repaint();
             }
-        }
-        add(thumnailView, BorderLayout.CENTER);
-        if (tasks.size() > 0) {
-            add(getLoadingPanel(), true ? BorderLayout.SOUTH : BorderLayout.EAST);
-        }
+        });
 
     }
 
-    public synchronized void removeTaskToGlobalProgression(ExplorerTask task) {
-        if (task != null) {
-            tasks.remove(task);
-            if (tasks.size() == 0) {
-                GuiExecutor.instance().invokeAndWait(new Runnable() {
+    public synchronized void removeTaskToGlobalProgression(final ExplorerTask task) {
+        GuiExecutor.instance().invokeAndWait(new Runnable() {
 
-                    @Override
-                    public void run() {
-                        remove(getLoadingPanel());
-                        globalProgress.setIndeterminate(false);
-                        globalProgress.setVisible(true);
-                        revalidate();
-                        repaint();
-                    }
-                });
-
+            @Override
+            public void run() {
+                if (loadingPanel.removeTask(task)) {
+                    revalidate();
+                    repaint();
+                }
             }
-        }
+        });
     }
 
     public static SeriesThumbnail createThumbnail(final Series series, final DicomModel dicomModel,
@@ -1594,23 +1504,18 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
             @Override
             public SeriesThumbnail call() throws Exception {
                 final SeriesThumbnail thumb = new SeriesThumbnail(series, thumbnailSize);
-                thumb.registerListeners();
-                thumb.addMouseListener(createThumbnailMouseAdapter(series, dicomModel, null));
-                thumb.addKeyListener(createThumbnailKeyListener(series, dicomModel));
                 if (series.getSeriesLoader() instanceof LoadSeries) {
                     // In case series is downloaded or canceled
                     LoadSeries loader = (LoadSeries) series.getSeriesLoader();
-                    if (loader.isDone()) {
-                        thumb.setProgressBar(null);
-                        thumb.repaint();
-                    } else {
-                        thumb.setProgressBar(loader.getProgressBar());
-                    }
+                    thumb.setProgressBar(loader.isDone() ? null : loader.getProgressBar());
                 }
+                thumb.registerListeners();
+                thumb.addMouseListener(createThumbnailMouseAdapter(series, dicomModel, null));
+                thumb.addKeyListener(createThumbnailKeyListener(series, dicomModel));
                 return thumb;
             }
         };
-        FutureTask<SeriesThumbnail> future = new FutureTask<SeriesThumbnail>(callable);
+        FutureTask<SeriesThumbnail> future = new FutureTask<>(callable);
         GuiExecutor.instance().invokeAndWait(future);
         SeriesThumbnail result = null;
         try {
@@ -1643,8 +1548,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                         plugin = DefaultMimeAppFactory.getInstance();
                     }
 
-                    ArrayList<MediaSeries<? extends MediaElement<?>>> list =
-                        new ArrayList<MediaSeries<? extends MediaElement<?>>>(1);
+                    ArrayList<MediaSeries<MediaElement>> list = new ArrayList<>(1);
                     list.add(series);
                     ViewerPluginBuilder builder = new ViewerPluginBuilder(plugin, list, dicomModel, props);
                     ViewerPluginBuilder.openSequenceInPlugin(builder);
@@ -1679,17 +1583,17 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                             break;
                         }
                     }
-                    final List<MediaSeries<? extends MediaElement<?>>> seriesList;
+                    final List<MediaSeries<? extends MediaElement>> seriesList;
                     if (multipleMimes) {
                         // Filter the list to have only one mime type
-                        seriesList = new ArrayList<MediaSeries<? extends MediaElement<?>>>();
+                        seriesList = new ArrayList<>();
                         for (Series s : selList) {
                             if (mime.equals(s.getMimeType())) {
                                 seriesList.add(s);
                             }
                         }
                     } else {
-                        seriesList = new ArrayList<MediaSeries<? extends MediaElement<?>>>(selList);
+                        seriesList = new ArrayList<>(selList);
                     }
                     for (final SeriesViewerFactory viewerFactory : plugins) {
                         JMenu menuFactory = new JMenu(viewerFactory.getUIName());
@@ -1722,6 +1626,29 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                                 }
                             });
                             menuFactory.add(item4);
+
+                            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+                            final GraphicsDevice[] gd = ge.getScreenDevices();
+                            if (gd.length > 0) {
+                                JMenu subMenu = new JMenu(Messages.getString("DicomExplorer.open_screen")); //$NON-NLS-1$
+                                for (int i = 0; i < gd.length; i++) {
+                                    GraphicsConfiguration config = gd[i].getDefaultConfiguration();
+                                    final Rectangle b = config.getBounds();
+                                    item4 = new JMenuItem(config.getDevice().toString());
+                                    item4.addActionListener(new ActionListener() {
+
+                                        @Override
+                                        public void actionPerformed(ActionEvent e) {
+                                            selList.setOpenningSeries(true);
+                                            ViewerPluginBuilder.openSequenceInPlugin(viewerFactory, seriesList,
+                                                dicomModel, false, true, b);
+                                            selList.setOpenningSeries(false);
+                                        }
+                                    });
+                                    subMenu.add(item4);
+                                }
+                                menuFactory.add(subMenu);
+                            }
                         }
 
                         if (viewerFactory.canAddSeries()) {
@@ -1750,9 +1677,9 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                                     JFrame frame = new JFrame(Messages.getString("DicomExplorer.dcmInfo")); //$NON-NLS-1$
                                     frame.setSize(500, 630);
                                     DicomFieldsView view = new DicomFieldsView();
-                                    view.changingViewContentEvent(new SeriesViewerEvent(viewerFactory
-                                        .createSeriesViewer(null), series, series.getMedia(MEDIA_POSITION.FIRST, null,
-                                        null), EVENT.SELECT));
+                                    view.changingViewContentEvent(
+                                        new SeriesViewerEvent(viewerFactory.createSeriesViewer(null), series,
+                                            series.getMedia(MEDIA_POSITION.FIRST, null, null), EVENT.SELECT));
                                     JPanel panel = new JPanel();
                                     panel.setLayout(new BorderLayout());
                                     panel.add(view);
@@ -1771,8 +1698,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
                                 @Override
                                 public void actionPerformed(ActionEvent e) {
-
-                                    String fruid = (String) series.getTagValue(TagW.FrameOfReferenceUID);
+                                    String fruid = TagD.getTagValue(series, Tag.FrameOfReferenceUID, String.class);
                                     if (fruid != null) {
                                         selList.clear();
                                         MediaSeriesGroup studyGroup = dicomModel.getParent(series, DicomModel.study);
@@ -1782,7 +1708,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                                                 MediaSeriesGroup seq = it.next();
                                                 if (seq instanceof Series) {
                                                     Series s = (Series) seq;
-                                                    if (fruid.equals(s.getTagValue(TagW.FrameOfReferenceUID))) {
+                                                    if (fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))) {
                                                         selList.add(s);
                                                     }
                                                 }
@@ -1798,7 +1724,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
                                 @Override
                                 public void actionPerformed(ActionEvent e) {
-                                    String fruid = (String) series.getTagValue(TagW.FrameOfReferenceUID);
+                                    String fruid = TagD.getTagValue(series, Tag.FrameOfReferenceUID, String.class);
                                     if (fruid != null) {
                                         selList.clear();
                                         MediaSeriesGroup studyGroup = dicomModel.getParent(series, DicomModel.study);
@@ -1808,7 +1734,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                                                 MediaSeriesGroup seq = it.next();
                                                 if (seq instanceof Series) {
                                                     Series s = (Series) seq;
-                                                    if (fruid.equals(s.getTagValue(TagW.FrameOfReferenceUID))) {
+                                                    if (fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))) {
                                                         if (ImageOrientation.hasSameOrientation(series, s)) {
                                                             selList.add(s);
                                                         }
@@ -1850,11 +1776,11 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
                         Object splitNb = series.getTagValue(TagW.SplitSeriesNumber);
                         if (splitNb != null && seriesList.size() > 1) {
-                            String uid = (String) series.getTagValue(TagW.SeriesInstanceUID);
+                            String uid = TagD.getTagValue(series, Tag.SeriesInstanceUID, String.class);
                             boolean sameOrigin = true;
                             if (uid != null) {
                                 for (MediaSeries s : seriesList) {
-                                    if (!uid.equals(s.getTagValue(TagW.SeriesInstanceUID))) {
+                                    if (!uid.equals(TagD.getTagValue(s, Tag.SeriesInstanceUID))) {
                                         sameOrigin = false;
                                         break;
                                     }
@@ -1905,9 +1831,8 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
 
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                MediaSeriesGroup patientGroup =
-                                    dicomModel.getParent(dicomModel.getParent(series, DicomModel.study),
-                                        DicomModel.patient);
+                                MediaSeriesGroup patientGroup = dicomModel
+                                    .getParent(dicomModel.getParent(series, DicomModel.study), DicomModel.patient);
                                 dicomModel.removePatient(patientGroup);
                                 selList.clear();
                             }
@@ -1978,7 +1903,7 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                     }
                     selList.setOpenningSeries(true);
                     ViewerPluginBuilder.openSequenceInDefaultPlugin(
-                        new ArrayList<MediaSeries<? extends MediaElement<?>>>(selList), dicomModel, true, true);
+                        new ArrayList<MediaSeries<? extends MediaElement>>(selList), dicomModel, true, true);
                     selList.setOpenningSeries(false);
                     if (e.getSource() instanceof JComponent) {
                         ((JComponent) e.getSource()).requestFocusInWindow();
@@ -2016,20 +1941,20 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
     @Override
     public void importFiles(File[] files, boolean recursive) {
         if (files != null) {
-            DicomModel.loadingExecutor.execute(new LoadLocalDicom(files, recursive, model));
+            DicomModel.LOADING_EXECUTOR.execute(new LoadLocalDicom(files, recursive, model));
         }
     }
 
     @Override
     public List<Action> getOpenExportDialogAction() {
-        ArrayList<Action> actions = new ArrayList<Action>(1);
+        ArrayList<Action> actions = new ArrayList<>(1);
         actions.add(exportAction);
         return actions;
     }
 
     @Override
     public List<Action> getOpenImportDialogAction() {
-        ArrayList<Action> actions = new ArrayList<Action>(2);
+        ArrayList<Action> actions = new ArrayList<>(2);
         actions.add(importAction);
         AbstractAction importCDAction =
             new AbstractAction("DICOM CD", new ImageIcon(DicomExplorer.class.getResource("/icon/16x16/cd.png"))) { //$NON-NLS-1$ //$NON-NLS-2$
@@ -2039,20 +1964,43 @@ public class DicomExplorer extends PluginTool implements DataExplorerView, Serie
                     File file = DicomDirImport.getDcmDirFromMedia();
                     if (file == null) {
                         int response =
-                            JOptionPane
-                                .showConfirmDialog(
-                                    SwingUtilities.getWindowAncestor(DicomExplorer.this),
-                                    "Cannot find DICOMDIR on media device, do you want to import manually?", (String) this.getValue(Action.NAME),//$NON-NLS-1$ 
-                                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                            JOptionPane.showConfirmDialog(SwingUtilities.getWindowAncestor(DicomExplorer.this),
+                                "Cannot find DICOMDIR on media device, do you want to import manually?", //$NON-NLS-1$
+                                (String) this.getValue(Action.NAME), JOptionPane.YES_NO_OPTION,
+                                JOptionPane.WARNING_MESSAGE);
 
-                        if (response == 0) {
+                        if (response == JOptionPane.YES_OPTION) {
                             ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(DicomExplorer.this);
-                            DicomImport dialog = new DicomImport(SwingUtilities.getWindowAncestor(DicomExplorer.this), model);
+                            DicomImport dialog =
+                                new DicomImport(SwingUtilities.getWindowAncestor(DicomExplorer.this), model);
                             dialog.showPage(Messages.getString("DicomDirImport.dicomdir")); //$NON-NLS-1$
                             ColorLayerUI.showCenterScreen(dialog, layer);
                         }
                     } else {
-                        DicomDirImport.loadDicomDir(file, model, true);
+                        List<LoadSeries> loadSeries = DicomDirImport.loadDicomDir(file, model, true);
+                        if (loadSeries != null && loadSeries.size() > 0) {
+                            DicomModel.LOADING_EXECUTOR.execute(new LoadDicomDir(loadSeries, model));
+                        } else {
+                            LOGGER.error("Cannot import DICOM from {}", file); //$NON-NLS-1$
+
+                            int response =
+                                JOptionPane.showConfirmDialog(SwingUtilities.getWindowAncestor(DicomExplorer.this),
+                                    Messages.getString("DicomExplorer.mes_import_manual"), //$NON-NLS-1$
+                                    (String) this.getValue(Action.NAME), JOptionPane.YES_NO_OPTION,
+                                    JOptionPane.WARNING_MESSAGE);
+
+                            if (response == JOptionPane.YES_OPTION) {
+                                ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(DicomExplorer.this);
+                                DicomImport dialog =
+                                    new DicomImport(SwingUtilities.getWindowAncestor(DicomExplorer.this), model);
+                                dialog.showPage(Messages.getString("LocalImport.local_dev")); //$NON-NLS-1$
+                                AbstractItemDialogPage page = dialog.getCurrentPage();
+                                if (page instanceof LocalImport) {
+                                    ((LocalImport) page).setImportPath(file.getParent());
+                                }
+                                ColorLayerUI.showCenterScreen(dialog, layer);
+                            }
+                        }
                     }
 
                 }

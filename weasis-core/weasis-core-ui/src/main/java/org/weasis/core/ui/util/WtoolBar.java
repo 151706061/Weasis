@@ -1,16 +1,13 @@
-/*
- * VLDocking Framework 3.0 Copyright VLSOLUTIONS, 2004-2009
- * 
- * email : info at vlsolutions.com ------------------------------------------------------------------------ This
- * software is distributed under the LGPL license
- * 
- * The fact that you are presently reading this and using this class means that you have had knowledge of the LGPL
- * license and that you accept its terms.
- * 
- * You can read the complete license here :
- * 
- * http://www.gnu.org/licenses/lgpl.html
- */
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 
 package org.weasis.core.ui.util;
 
@@ -197,7 +194,7 @@ public class WtoolBar extends JPanel implements Toolbar {
      * If true, when one of the toolbar buttons is rolled-over, its content will be filled.
      * <p>
      * Default value is <b>false</b> to accomodate with VLButtonUI which paints itself the button interiors.
-     * 
+     *
      */
 
     public void setRolloverContentAreaFilled(boolean filled) {

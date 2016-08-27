@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.explorer;
 
 import java.util.Dictionary;
@@ -40,10 +50,7 @@ public class DicomExplorerFactory implements DataExplorerViewFactory {
         if (model == null) {
             model = new DicomModel();
             if (context != null) {
-                Dictionary<String, Object> dict = new Hashtable<String, Object>();
-                dict.put(CommandProcessor.COMMAND_SCOPE, "dicom"); //$NON-NLS-1$
-                dict.put(CommandProcessor.COMMAND_FUNCTION, DicomModel.functions);
-                context.getBundleContext().registerService(DicomModel.class.getName(), model, dict);
+                registerCommands(context);
             }
         } else if (context != null) {
             ServiceReference<?>[] val = null;
@@ -53,12 +60,16 @@ public class DicomExplorerFactory implements DataExplorerViewFactory {
                 // Do nothing
             }
             if (val == null || val.length == 0) {
-                Dictionary<String, Object> dict = new Hashtable<String, Object>();
-                dict.put(CommandProcessor.COMMAND_SCOPE, "dicom"); //$NON-NLS-1$
-                dict.put(CommandProcessor.COMMAND_FUNCTION, DicomModel.functions);
-                context.getBundleContext().registerService(DicomModel.class.getName(), model, dict);
+                registerCommands(context);
             }
         }
+    }
+
+    private void registerCommands(ComponentContext context) {
+        Dictionary<String, Object> dict = new Hashtable<>();
+        dict.put(CommandProcessor.COMMAND_SCOPE, "dicom"); //$NON-NLS-1$
+        dict.put(CommandProcessor.COMMAND_FUNCTION, DicomModel.functions);
+        context.getBundleContext().registerService(DicomModel.class.getName(), model, dict);
     }
 
     @Activate
@@ -69,10 +80,8 @@ public class DicomExplorerFactory implements DataExplorerViewFactory {
     @Deactivate
     protected void deactivate(ComponentContext context) {
         if (explorer != null) {
-            DataExplorerModel model = explorer.getDataExplorerModel();
-            model.removePropertyChangeListener(explorer);
-            explorer = null;
+            DataExplorerModel dataModel = explorer.getDataExplorerModel();
+            dataModel.removePropertyChangeListener(explorer);
         }
-        model = null;
     }
 }

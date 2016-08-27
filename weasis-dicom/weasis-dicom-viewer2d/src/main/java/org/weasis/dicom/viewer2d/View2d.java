@@ -1,31 +1,28 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.viewer2d;
 
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.RenderedImage;
@@ -34,16 +31,13 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 
-import javax.media.jai.PlanarImage;
 import javax.swing.ButtonGroup;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
-import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
@@ -55,6 +49,7 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 
+import org.dcm4che3.data.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.explorer.DataExplorerView;
@@ -65,11 +60,8 @@ import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.gui.util.ComboItemListener;
 import org.weasis.core.api.gui.util.Filter;
 import org.weasis.core.api.gui.util.JMVUtils;
+import org.weasis.core.api.gui.util.MathUtil;
 import org.weasis.core.api.gui.util.MouseActionAdapter;
-import org.weasis.core.api.gui.util.RadioMenuItem;
-import org.weasis.core.api.gui.util.SliderChangeListener;
-import org.weasis.core.api.gui.util.ToggleButtonListener;
-import org.weasis.core.api.image.CropOp;
 import org.weasis.core.api.image.FilterOp;
 import org.weasis.core.api.image.FlipOp;
 import org.weasis.core.api.image.ImageOpEvent;
@@ -88,8 +80,8 @@ import org.weasis.core.api.media.data.SeriesThumbnail;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.service.AuditLog;
 import org.weasis.core.api.service.BundleTools;
-import org.weasis.core.api.service.WProperties;
 import org.weasis.core.api.util.StringUtil;
+import org.weasis.core.ui.dialog.MeasureDialog;
 import org.weasis.core.ui.docking.UIManager;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
@@ -104,22 +96,19 @@ import org.weasis.core.ui.editor.image.SynchData;
 import org.weasis.core.ui.editor.image.SynchData.Mode;
 import org.weasis.core.ui.editor.image.SynchEvent;
 import org.weasis.core.ui.editor.image.ViewButton;
-import org.weasis.core.ui.editor.image.ViewerPlugin;
+import org.weasis.core.ui.editor.image.ViewCanvas;
 import org.weasis.core.ui.editor.image.ViewerToolBar;
-import org.weasis.core.ui.graphic.AbstractDragGraphic;
-import org.weasis.core.ui.graphic.BasicGraphic;
-import org.weasis.core.ui.graphic.DragLayer;
-import org.weasis.core.ui.graphic.Graphic;
-import org.weasis.core.ui.graphic.InvalidShapeException;
-import org.weasis.core.ui.graphic.LineGraphic;
-import org.weasis.core.ui.graphic.LineWithGapGraphic;
-import org.weasis.core.ui.graphic.MeasureDialog;
-import org.weasis.core.ui.graphic.PolygonGraphic;
-import org.weasis.core.ui.graphic.RectangleGraphic;
-import org.weasis.core.ui.graphic.TempLayer;
-import org.weasis.core.ui.graphic.model.AbstractLayer;
-import org.weasis.core.ui.graphic.model.AbstractLayerModel;
-import org.weasis.core.ui.graphic.model.DefaultViewModel;
+import org.weasis.core.ui.model.AbstractGraphicModel;
+import org.weasis.core.ui.model.graphic.DragGraphic;
+import org.weasis.core.ui.model.graphic.Graphic;
+import org.weasis.core.ui.model.graphic.imp.area.PolygonGraphic;
+import org.weasis.core.ui.model.graphic.imp.area.RectangleGraphic;
+import org.weasis.core.ui.model.graphic.imp.line.LineGraphic;
+import org.weasis.core.ui.model.graphic.imp.line.LineWithGapGraphic;
+import org.weasis.core.ui.model.layer.GraphicLayer;
+import org.weasis.core.ui.model.layer.LayerType;
+import org.weasis.core.ui.model.utils.exceptions.InvalidShapeException;
+import org.weasis.core.ui.model.utils.imp.DefaultViewModel;
 import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.ui.util.MouseEventDouble;
 import org.weasis.core.ui.util.TitleMenuItem;
@@ -132,6 +121,7 @@ import org.weasis.dicom.codec.KOSpecialElement;
 import org.weasis.dicom.codec.PRSpecialElement;
 import org.weasis.dicom.codec.PresentationStateReader;
 import org.weasis.dicom.codec.SortSeriesStack;
+import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.display.OverlayOp;
 import org.weasis.dicom.codec.display.PresetWindowLevel;
 import org.weasis.dicom.codec.display.ShutterOp;
@@ -139,11 +129,13 @@ import org.weasis.dicom.codec.display.WindowAndPresetsOp;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.dicom.codec.geometry.ImageOrientation;
 import org.weasis.dicom.codec.geometry.IntersectSlice;
+import org.weasis.dicom.codec.geometry.IntersectVolume;
 import org.weasis.dicom.codec.geometry.LocalizerPoster;
 import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.LoadLocalDicom;
 import org.weasis.dicom.explorer.MimeSystemAppFactory;
+import org.weasis.dicom.explorer.PrGraphicUtil;
 import org.weasis.dicom.explorer.SeriesSelectionModel;
 import org.weasis.dicom.viewer2d.KOComponentFactory.KOViewButton;
 import org.weasis.dicom.viewer2d.KOComponentFactory.KOViewButton.eState;
@@ -167,24 +159,16 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
         SimpleOpManager manager = imageLayer.getDisplayOpManager();
         manager.addImageOperationAction(new WindowAndPresetsOp());
-        manager.addImageOperationAction(new OverlayOp());
         manager.addImageOperationAction(new FilterOp());
         manager.addImageOperationAction(new PseudoColorOp());
         manager.addImageOperationAction(new ShutterOp());
+        manager.addImageOperationAction(new OverlayOp());
         // Zoom and Rotation must be the last operations for the lens
         manager.addImageOperationAction(new ZoomOp());
         manager.addImageOperationAction(new RotationOp());
         manager.addImageOperationAction(new FlipOp());
 
         infoLayer = new InfoLayer(this);
-        DragLayer layer = new DragLayer(getLayerModel(), AbstractLayer.CROSSLINES);
-        layer.setLocked(true);
-        getLayerModel().addLayer(layer);
-        layer = new DragLayer(getLayerModel(), AbstractLayer.MEASURE);
-        getLayerModel().addLayer(layer);
-        TempLayer layerTmp = new TempLayer(getLayerModel());
-        getLayerModel().addLayer(layerTmp);
-
         oldSize = new Dimension(0, 0);
 
         // TODO should be a lazy instantiation
@@ -202,37 +186,41 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
             @Override
             public void componentResized(ComponentEvent e) {
-                Double currentZoom = (Double) actionsInView.get(ActionW.ZOOM.cmd());
-                /*
-                 * Negative value means a default value according to the zoom type (pixel size, best fit...). Set again
-                 * to default value to compute again the position. For instance, the image cannot be center aligned
-                 * until the view has been repaint once (because the size is null).
-                 */
-                if (currentZoom <= 0.0) {
-                    zoom(0.0);
-                }
-                if (panner != null) {
-                    panner.updateImageSize();
-                }
-                if (lens != null) {
-                    int w = getWidth();
-                    int h = getHeight();
-                    if (w != 0 && h != 0) {
-                        Rectangle bound = lens.getBounds();
-                        if (oldSize.width != 0 && oldSize.height != 0) {
-                            int centerx = bound.width / 2;
-                            int centery = bound.height / 2;
-                            bound.x = (bound.x + centerx) * w / oldSize.width - centerx;
-                            bound.y = (bound.y + centery) * h / oldSize.height - centery;
-                            lens.setLocation(bound.x, bound.y);
-                        }
-                        oldSize.width = w;
-                        oldSize.height = h;
-                    }
-                    lens.updateZoom();
-                }
+                View2d.this.componentResized();
             }
         });
+    }
+
+    private void componentResized() {
+        Double currentZoom = (Double) actionsInView.get(ActionW.ZOOM.cmd());
+        /*
+         * Negative value means a default value according to the zoom type (pixel size, best fit...). Set again to
+         * default value to compute again the position. For instance, the image cannot be center aligned until the view
+         * has been repaint once (because the size is null).
+         */
+        if (currentZoom <= 0.0) {
+            zoom(0.0);
+        }
+        if (panner != null) {
+            panner.updateImageSize();
+        }
+        if (lens != null) {
+            int w = getWidth();
+            int h = getHeight();
+            if (w != 0 && h != 0) {
+                Rectangle bound = lens.getBounds();
+                if (oldSize.width != 0 && oldSize.height != 0) {
+                    int centerx = bound.width / 2;
+                    int centery = bound.height / 2;
+                    bound.x = (bound.x + centerx) * w / oldSize.width - centerx;
+                    bound.y = (bound.y + centery) * h / oldSize.height - centery;
+                    lens.setLocation(bound.x, bound.y);
+                }
+                oldSize.width = w;
+                oldSize.height = h;
+            }
+            lens.updateZoom();
+        }
     }
 
     @Override
@@ -257,7 +245,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     protected void initKOActionWState() {
         actionsInView.put(ActionW.KO_FILTER.cmd(), false);
         actionsInView.put(ActionW.KO_TOOGLE_STATE.cmd(), false);
-        actionsInView.put(ActionW.KO_SELECTION.cmd(), ActionState.NONE);
+        actionsInView.put(ActionW.KO_SELECTION.cmd(), ActionState.NoneLabel.NONE);
     }
 
     @Override
@@ -292,19 +280,19 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                         DicomImageElement img = getImage();
                         ImageOpNode node = disOp.getNode(WindowOp.OP_NAME);
 
-                        if (img == null || !img.containsPreset(preset)) {
-                            // When series synchronization, do not synch preset from other series
-                            node.setParam(ActionW.PRESET.cmd(), null);
-                        }
                         if (node != null) {
-                            boolean pixelPadding =
-                                JMVUtils.getNULLtoTrue(disOp.getParamValue(WindowOp.OP_NAME,
-                                    ActionW.IMAGE_PIX_PADDING.cmd()));
+                            // boolean pixelPadding =
+                            // JMVUtils.getNULLtoTrue(disOp.getParamValue(WindowOp.OP_NAME,
+                            // ActionW.IMAGE_PIX_PADDING.cmd()));
                             node.setParam(ActionW.WINDOW.cmd(), preset.getWindow());
                             node.setParam(ActionW.LEVEL.cmd(), preset.getLevel());
                             // node.setParam(ActionW.LEVEL_MIN.cmd(), img.getMinValue(pixelPadding));
                             // node.setParam(ActionW.LEVEL_MAX.cmd(), img.getMinValue(pixelPadding));
                             node.setParam(ActionW.LUT_SHAPE.cmd(), preset.getLutShape());
+                            // When series synchronization, do not synch preset from other series
+                            // TODO should search to the complete list when PR is applied
+                            node.setParam(ActionW.PRESET.cmd(),
+                                (img == null || !img.containsPreset(preset)) ? null : preset);
                         }
                         imageLayer.updateDisplayOperations();
                     }
@@ -329,57 +317,60 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     KOManager.updateKOFilter(this, val,
                         (Boolean) (tile ? synch.getView().getActionValue(ActionW.KO_FILTER.cmd()) : null), frameIndex);
                 } else if (command.equals(ActionW.KO_FILTER.cmd())) {
-                    int frameIndex =
-                        tile ? JMVUtils.getNULLtoFalse(val) ? 0 : synch.getView().getFrameIndex()
-                            - synch.getView().getTileOffset() : -1;
-                    KOManager.updateKOFilter(this, tile ? synch.getView().getActionValue(ActionW.KO_SELECTION.cmd())
-                        : null, (Boolean) val, frameIndex);
+                    int frameIndex = tile ? JMVUtils.getNULLtoFalse(val) ? 0
+                        : synch.getView().getFrameIndex() - synch.getView().getTileOffset() : -1;
+                    KOManager.updateKOFilter(this,
+                        tile ? synch.getView().getActionValue(ActionW.KO_SELECTION.cmd()) : null, (Boolean) val,
+                        frameIndex);
                 } else if (command.equals(ActionW.CROSSHAIR.cmd())) {
                     if (series != null && val instanceof Point2D.Double) {
                         Point2D.Double p = (Point2D.Double) val;
-                        GeometryOfSlice sliceGeometry = this.getImage().getSliceGeometry();
-                        String fruid = (String) series.getTagValue(TagW.FrameOfReferenceUID);
+                        GeometryOfSlice sliceGeometry = this.getImage().getDispSliceGeometry();
+                        String fruid = TagD.getTagValue(series, Tag.FrameOfReferenceUID, String.class);
                         if (sliceGeometry != null && fruid != null) {
                             Point3d p3 = Double.isNaN(p.x) ? null : sliceGeometry.getPosition(p);
                             ImageViewerPlugin<DicomImageElement> container =
                                 this.eventManager.getSelectedView2dContainer();
                             if (container != null) {
-                                ArrayList<DefaultView2d<DicomImageElement>> viewpanels = container.getImagePanels();
+                                List<ViewCanvas<DicomImageElement>> viewpanels = container.getImagePanels();
                                 if (p3 != null) {
-                                    for (DefaultView2d<DicomImageElement> v : viewpanels) {
+                                    for (ViewCanvas<DicomImageElement> v : viewpanels) {
                                         MediaSeries<DicomImageElement> s = v.getSeries();
                                         if (s == null) {
                                             continue;
                                         }
                                         if (v instanceof View2d
-                                            && fruid.equals(s.getTagValue(TagW.FrameOfReferenceUID))) {
+                                            && fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))) {
                                             if (v != container.getSelectedImagePane()) {
-                                                GeometryOfSlice geometry = v.getImage().getSliceGeometry();
-                                                if (geometry != null) {
-                                                    Vector3d vn = geometry.getNormal();
-                                                    // vn.absolute();
-                                                    double location = p3.x * vn.x + p3.y * vn.y + p3.z * vn.z;
-                                                    DicomImageElement img =
-                                                        s.getNearestImage(location, 0,
+                                                DicomImageElement imgToUpdate = v.getImage();
+                                                if (imgToUpdate != null) {
+                                                    GeometryOfSlice geometry = imgToUpdate.getDispSliceGeometry();
+                                                    if (geometry != null) {
+                                                        Vector3d vn = geometry.getNormal();
+                                                        // vn.absolute();
+                                                        double location = p3.x * vn.x + p3.y * vn.y + p3.z * vn.z;
+                                                        DicomImageElement img = s.getNearestImage(location, 0,
                                                             (Filter<DicomImageElement>) actionsInView
-                                                                .get(ActionW.FILTERED_SERIES.cmd()), v
-                                                                .getCurrentSortComparator());
-                                                    if (img != null) {
-                                                        ((View2d) v).setImage(img);
+                                                                .get(ActionW.FILTERED_SERIES.cmd()),
+                                                            v.getCurrentSortComparator());
+                                                        if (img != null) {
+                                                            ((View2d) v).setImage(img);
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                                for (DefaultView2d<DicomImageElement> v : viewpanels) {
+                                for (ViewCanvas<DicomImageElement> v : viewpanels) {
                                     MediaSeries<DicomImageElement> s = v.getSeries();
                                     if (s == null) {
                                         continue;
                                     }
-                                    if (v instanceof View2d && fruid.equals(s.getTagValue(TagW.FrameOfReferenceUID))) {
+                                    if (v instanceof View2d
+                                        && fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))) {
                                         ((View2d) v).computeCrosshair(p3);
-                                        v.repaint();
+                                        v.getJComponent().repaint();
                                     }
                                 }
                             }
@@ -425,14 +416,14 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         PresentationStateReader pr =
             val instanceof PRSpecialElement ? new PresentationStateReader((PRSpecialElement) val) : null;
         actionsInView.put(ActionW.PR_STATE.cmd(), pr == null ? val : pr);
+        boolean spatialTransformation = actionsInView.get(ActionW.PREPROCESSING.cmd()) != null;
         actionsInView.put(ActionW.PREPROCESSING.cmd(), null);
 
         // Delete previous PR Layers
-        ArrayList<AbstractLayer.Identifier> dcmLayers =
-            (ArrayList<AbstractLayer.Identifier>) actionsInView.get(PresentationStateReader.TAG_DICOM_LAYERS);
+        List<GraphicLayer> dcmLayers = (List<GraphicLayer>) actionsInView.get(PRManager.TAG_DICOM_LAYERS);
         if (dcmLayers != null) {
-            PRManager.deleteDicomLayers(dcmLayers, getLayerModel());
-            actionsInView.remove(PresentationStateReader.TAG_DICOM_LAYERS);
+            PRManager.deleteDicomLayers(dcmLayers, graphicManager);
+            actionsInView.remove(PRManager.TAG_DICOM_LAYERS);
         }
 
         DicomImageElement m = getImage();
@@ -441,38 +432,26 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         imageLayer.setEnableDispOperations(false);
         imageLayer.fireOpEvent(new ImageOpEvent(ImageOpEvent.OpEvent.ResetDisplay, series, m, null));
 
+        boolean changePixConfig = JMVUtils.getNULLtoFalse(actionsInView.get(PRManager.TAG_CHANGE_PIX_CONFIG));
         if (m != null) {
             // Restore the original image pixel size
-            double[] prPixSize = (double[]) actionsInView.get(PresentationStateReader.TAG_OLD_PIX_SIZE);
-            if (prPixSize != null && prPixSize.length == 2) {
-                m.setPixelSize(prPixSize[0], prPixSize[1]);
-                actionsInView.remove(PresentationStateReader.TAG_OLD_PIX_SIZE);
-            }
-
-            // Restore Modality LUT Sequence
-            if (actionsInView.containsKey(PresentationStateReader.TAG_OLD_ModalityLUTData)) {
-                m.setTag(TagW.ModalityLUTData, actionsInView.get(PresentationStateReader.TAG_OLD_ModalityLUTData));
-                actionsInView.remove(PresentationStateReader.TAG_OLD_ModalityLUTData);
-            } else {
-                if (actionsInView.containsKey(PresentationStateReader.TAG_OLD_RescaleSlope)) {
-                    m.setTag(TagW.RescaleSlope, actionsInView.get(PresentationStateReader.TAG_OLD_RescaleSlope));
-                    m.setTag(TagW.RescaleIntercept, actionsInView.get(PresentationStateReader.TAG_OLD_RescaleIntercept));
-                    m.setTag(TagW.RescaleType, actionsInView.get(PresentationStateReader.TAG_OLD_RescaleType));
-                    actionsInView.remove(PresentationStateReader.TAG_OLD_RescaleSlope);
-                    actionsInView.remove(PresentationStateReader.TAG_OLD_RescaleIntercept);
-                    actionsInView.remove(PresentationStateReader.TAG_OLD_RescaleType);
+            if (changePixConfig) {
+                m.initPixelConfiguration();
+                ActionState spUnitAction = eventManager.getAction(ActionW.SPATIAL_UNIT);
+                if (spUnitAction instanceof ComboItemListener) {
+                    ((ComboItemListener) spUnitAction).setSelectedItem(m.getPixelSpacingUnit());
                 }
             }
 
             // Restore presets
-            actionsInView.remove(PresentationStateReader.PR_PRESETS);
+            actionsInView.remove(PRManager.PR_PRESETS);
+
+            // Restore zoom
+            actionsInView.remove(PRManager.TAG_PR_ZOOM);
 
             // Reset crop
-            final Rectangle modelArea = getImageBounds(m);
-            if (!modelArea.equals(getViewModel().getModelArea())) {
-                ((DefaultViewModel) getViewModel()).adjustMinViewScaleFromImage(modelArea.width, modelArea.height);
-                getViewModel().setModelArea(modelArea);
-            }
+            updateCanvas(false);
+            actionsInView.remove(DefaultView2d.PROP_LAYER_OFFSET);
         }
         // If no Presentation State use the current image
         if (pr == null) {
@@ -482,20 +461,21 @@ public class View2d extends DefaultView2d<DicomImageElement> {
             initActionWState();
             setActionsInView(ActionW.KO_SELECTION.cmd(), ko);
             setActionsInView(ActionW.FILTERED_SERIES.cmd(), filter);
-            if (ActionState.NONE_SERIES.equals(val)) {
+            if (ActionState.NoneLabel.NONE_SERIES.equals(val)) {
                 // Keeps no PS property (for all the series)
                 actionsInView.put(ActionW.PR_STATE.cmd(), val);
             }
             // setDefautWindowLevel(getImage());
             // setShutter(m);
         } else {
-            applyPresentationState(pr, m);
+            PRManager.applyPresentationState(this, pr, m);
         }
 
         Rectangle area = (Rectangle) actionsInView.get(ActionW.CROP.cmd());
         if (area != null && !area.equals(getViewModel().getModelArea())) {
             ((DefaultViewModel) getViewModel()).adjustMinViewScaleFromImage(area.width, area.height);
-            getViewModel().setModelArea(area);
+            getViewModel().setModelArea(new Rectangle(0, 0, area.width, area.height));
+            actionsInView.put(DefaultView2d.PROP_LAYER_OFFSET, new Point(area.x, area.y));
         }
         imageLayer.setPreprocessing((OpManager) actionsInView.get(ActionW.PREPROCESSING.cmd()));
         if (pr != null) {
@@ -509,110 +489,30 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                 flip.setParam(FlipOp.P_FLIP, actionsInView.get(ActionW.FLIP.cmd()));
             }
         }
-        ZoomType type = (ZoomType) actionsInView.get(zoomTypeCmd);
-        if (!ZoomType.CURRENT.equals(type)) {
-            Double zoom = (Double) actionsInView.get(ActionW.ZOOM.cmd());
-            zoom(zoom == null ? 0.0 : zoom);
+
+        Double zoom = (Double) actionsInView.get(PRManager.TAG_PR_ZOOM);
+        // Special Cases: -200.0 => best fit, -100.0 => real world size
+        if (zoom != null && MathUtil.isDifferent(zoom, -200.0) && MathUtil.isDifferent(zoom, -100.0)) {
+            actionsInView.put(ViewCanvas.zoomTypeCmd, ZoomType.CURRENT);
+            zoom(zoom);
+        } else if (zoom != null) {
+            actionsInView.put(ViewCanvas.zoomTypeCmd,
+                MathUtil.isEqual(zoom, -100.0) ? ZoomType.REAL : ZoomType.BEST_FIT);
+            zoom(0.0);
+        } else if (changePixConfig || spatialTransformation) {
+            zoom(0.0);
         }
 
         ((DefaultViewModel) getViewModel()).setEnableViewModelChangeListeners(true);
         imageLayer.setEnableDispOperations(true);
         eventManager.updateComponentsListener(this);
-
-    }
-
-    private void applyPresentationState(PresentationStateReader reader, DicomImageElement img) {
-        HashMap<TagW, Object> tags = reader.getDicom().geTags();
-        // Set Modality LUT before creating presets
-        Object mLUT = tags.get(TagW.ModalityLUTData);
-        if (mLUT != null) {
-            actionsInView.put(PresentationStateReader.TAG_OLD_ModalityLUTData, img.getTagValue(TagW.ModalityLUTData));
-            img.setTag(TagW.ModalityLUTData, mLUT);
-        } else {
-            Object rs = tags.get(TagW.RescaleSlope);
-            Object ri = tags.get(TagW.RescaleIntercept);
-            Object rt = tags.get(TagW.RescaleType);
-            if (rs != null && ri != null && rt != null) {
-                actionsInView.put(PresentationStateReader.TAG_OLD_RescaleSlope, img.getTagValue(TagW.RescaleSlope));
-                actionsInView.put(PresentationStateReader.TAG_OLD_RescaleIntercept,
-                    img.getTagValue(TagW.RescaleIntercept));
-                actionsInView.put(PresentationStateReader.TAG_OLD_RescaleType, img.getTagValue(TagW.RescaleType));
-                img.setTag(TagW.RescaleSlope, rs);
-                img.setTag(TagW.RescaleIntercept, ri);
-                img.setTag(TagW.RescaleType, rt);
-            }
-        }
-
-        PRManager.applyPresentationState(this, reader, img);
-        actionsInView.put(ActionW.ROTATION.cmd(), reader.getTagValue(ActionW.ROTATION.cmd(), 0));
-        actionsInView.put(ActionW.FLIP.cmd(), reader.getTagValue(ActionW.FLIP.cmd(), false));
-
-        List<PresetWindowLevel> presets = (List<PresetWindowLevel>) reader.getTagValue(ActionW.PRESET.cmd(), null);
-        if (presets != null && presets.size() > 0) {
-            PresetWindowLevel p = presets.get(0);
-            actionsInView.put(ActionW.WINDOW.cmd(), p.getWindow());
-            actionsInView.put(ActionW.LEVEL.cmd(), p.getLevel());
-            boolean pixelPadding =
-                JMVUtils.getNULLtoTrue(getDisplayOpManager().getParamValue(WindowOp.OP_NAME,
-                    ActionW.IMAGE_PIX_PADDING.cmd()));
-            // actionsInView.put(ActionW.LEVEL_MIN.cmd(), img.getMinValue(pixelPadding));
-            // actionsInView.put(ActionW.LEVEL_MAX.cmd(), img.getMinValue(pixelPadding));
-            actionsInView.put(PresentationStateReader.PR_PRESETS, presets);
-            actionsInView.put(ActionW.PRESET.cmd(), p);
-            actionsInView.put(ActionW.LUT_SHAPE.cmd(), p.getLutShape());
-            actionsInView.put(ActionW.DEFAULT_PRESET.cmd(), true);
-        }
-
-        // setShutter(reader.getDicom());
-        Rectangle area = (Rectangle) reader.getTagValue(ActionW.CROP.cmd(), null);
-
-        double[] prPixSize = (double[]) reader.getTagValue(TagW.PixelSpacing.getName(), null);
-        if (prPixSize != null && prPixSize.length == 2) {
-            actionsInView.put(PresentationStateReader.TAG_OLD_PIX_SIZE, img.getDisplayPixelSize());
-            img.setPixelSize(prPixSize[0], prPixSize[1]);
-
-            // if (area != null && img.getRescaleX() != img.getRescaleY()) {
-            // area =
-            // new Rectangle((int) Math.ceil(area.getX() * img.getRescaleX() - 0.5), (int) Math.ceil(area.getY()
-            // * img.getRescaleY() - 0.5), (int) Math.ceil(area.getWidth() * img.getRescaleX() - 0.5),
-            // (int) Math.ceil(area.getHeight() * img.getRescaleY() - 0.5));
-            // }
-
-        }
-        if (area != null) {
-            Area shape = (Area) actionsInView.get(TagW.ShutterFinalShape.getName());
-            if (shape != null) {
-                Area trArea = new Area(shape);
-                trArea.transform(AffineTransform.getTranslateInstance(-area.getX(), -area.getY()));
-                actionsInView.put(TagW.ShutterFinalShape.getName(), trArea);
-            }
-            RenderedImage source = getSourceImage();
-            if (source != null) {
-                area =
-                    area.intersection(new Rectangle(source.getMinX(), source.getMinY(), source.getWidth(), source
-                        .getHeight()));
-                if (area.width > 1 && area.height > 1 && !area.equals(getViewModel().getModelArea())) {
-                    SimpleOpManager manager = new SimpleOpManager();
-                    CropOp crop = new CropOp();
-                    crop.setParam(CropOp.P_AREA, area);
-                    crop.setParam(CropOp.P_SHIFT_TO_ORIGIN, true);
-                    manager.addImageOperationAction(crop);
-                    actionsInView.put(ActionW.PREPROCESSING.cmd(), manager);
-                }
-            }
-        }
-        actionsInView.put(ActionW.CROP.cmd(), area);
-        actionsInView.put(CropOp.P_SHIFT_TO_ORIGIN, true);
-        double zoom = (Double) reader.getTagValue(ActionW.ZOOM.cmd(), 0.0d);
-        actionsInView.put(ActionW.ZOOM.cmd(), zoom);
     }
 
     public void updateKOButtonVisibleState() {
 
         Collection<KOSpecialElement> koElements = DicomModel.getKoSpecialElements(getSeries());
-        boolean koElementExist = (koElements != null && koElements.size() > 0);
+        boolean koElementExist = koElements != null && !koElements.isEmpty();
         // TODO try a given parameter so it wouldn't have to be computed again
-
         boolean needToRepaint = false;
 
         for (ViewButton vb : getViewButtons()) {
@@ -657,11 +557,11 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         Object selectedKO = getActionValue(ActionW.KO_SELECTION.cmd());
 
         if (img != null) {
-            String sopInstanceUID = (String) img.getTagValue(TagW.SOPInstanceUID);
-            String seriesInstanceUID = (String) img.getTagValue(TagW.SeriesInstanceUID);
+            String sopInstanceUID = TagD.getTagValue(img, Tag.SOPInstanceUID, String.class);
+            String seriesInstanceUID = TagD.getTagValue(img, Tag.SeriesInstanceUID, String.class);
 
             if (sopInstanceUID != null && seriesInstanceUID != null) {
-                if ((selectedKO instanceof KOSpecialElement)) {
+                if (selectedKO instanceof KOSpecialElement) {
                     KOSpecialElement koElement = (KOSpecialElement) selectedKO;
                     if (koElement.containsSopInstanceUIDReference(seriesInstanceUID, sopInstanceUID)) {
                         newSelectionState = eState.SELECTED;
@@ -686,7 +586,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         Boolean selected = koStarButton.getState().equals(eState.SELECTED) ? true : false;
         actionsInView.put(ActionW.KO_TOOGLE_STATE.cmd(), selected);
 
-        return (previousState != newSelectionState);
+        return previousState != newSelectionState;
     }
 
     @Override
@@ -712,7 +612,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
         if (series != null) {
             AuditLog.LOGGER.info("open:series nb:{} modality:{}", series.getSeriesNumber(), //$NON-NLS-1$
-                series.getTagValue(TagW.Modality));
+                TagD.getTagValue(series, Tag.Modality));
         }
 
         updateKOButtonVisibleState();
@@ -721,7 +621,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     @Override
     protected void setImage(DicomImageElement img) {
         boolean newImg = img != null && !img.equals(imageLayer.getSourceImage());
-
+        if (newImg) {
+            PrGraphicUtil.applyPresentationModel(img);
+        }
         super.setImage(img);
 
         updatePrButtonState(img, newImg);
@@ -737,20 +639,16 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         }
     }
 
-    private void updatePrButtonState(DicomImageElement img, boolean newImg) {
-        if (img == null || newImg) {
+    private synchronized void updatePrButtonState(DicomImageElement img, boolean newImg) {
+        if (img == null) {
             // Remove old PR button
-            for (int i = getViewButtons().size() - 1; i >= 0; i--) {
-                ViewButton vb = getViewButtons().get(i);
-                if (vb != null && (vb.getIcon() == View2d.PR_ICON)) {
-                    getViewButtons().remove(i);
-                }
-            }
+            getViewButtons().removeIf(b -> b == null || b.getIcon() == View2d.PR_ICON);
         }
         if (newImg) {
             Object oldPR = getActionValue(ActionW.PR_STATE.cmd());
             ViewButton prButton = PRManager.buildPrSelection(this, series, img);
             if (prButton != null) {
+                getViewButtons().removeIf(b -> b == null || b.getIcon() == View2d.PR_ICON);
                 getViewButtons().add(prButton);
             } else if (oldPR != null) {
                 setPresentationState(null);
@@ -769,9 +667,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     protected void computeCrosslines(double location) {
         DicomImageElement image = this.getImage();
         if (image != null) {
-            GeometryOfSlice sliceGeometry = image.getSliceGeometry();
+            GeometryOfSlice sliceGeometry = image.getDispSliceGeometry();
             if (sliceGeometry != null) {
-                DefaultView2d<DicomImageElement> view2DPane = eventManager.getSelectedViewPane();
+                ViewCanvas<DicomImageElement> view2DPane = eventManager.getSelectedViewPane();
                 MediaSeries<DicomImageElement> selSeries = view2DPane == null ? null : view2DPane.getSeries();
                 if (selSeries != null) {
                     // Get the current image of the selected Series
@@ -782,10 +680,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     DicomImageElement lastImage = null;
                     double min = Double.MAX_VALUE;
                     double max = -Double.MAX_VALUE;
-                    final Iterable<DicomImageElement> list =
-                        selSeries.getMedias(
-                            (Filter<DicomImageElement>) view2DPane.getActionValue(ActionW.FILTERED_SERIES.cmd()),
-                            getCurrentSortComparator());
+                    final Iterable<DicomImageElement> list = selSeries.getMedias(
+                        (Filter<DicomImageElement>) view2DPane.getActionValue(ActionW.FILTERED_SERIES.cmd()),
+                        getCurrentSortComparator());
                     synchronized (selSeries) {
                         for (DicomImageElement dcm : list) {
                             double[] loc = (double[]) dcm.getTagValue(TagW.SlicePosition);
@@ -803,16 +700,18 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                         }
                     }
 
+                    GraphicLayer layer = AbstractGraphicModel.getOrBuildLayer(this, LayerType.CROSSLINES);
+                    // IntersectSlice: display a line representing the center of the slice
                     IntersectSlice slice = new IntersectSlice(sliceGeometry);
-                    // IntersectVolume slice = new IntersectVolume(sliceGeometry);
-                    if (firstImage != null) {
-                        addCrossline(firstImage, slice, false);
+                    if (firstImage != null && firstImage != lastImage) {
+                        addCrossline(firstImage, layer, slice, false);
                     }
-                    if (lastImage != null) {
-                        addCrossline(lastImage, slice, false);
+                    if (lastImage != null && firstImage != lastImage) {
+                        addCrossline(lastImage, layer, slice, false);
                     }
                     if (selImage != null) {
-                        addCrossline(selImage, slice, true);
+                        // IntersectVolume: display a rectangle to show the slice thickness
+                        addCrossline(selImage, layer, new IntersectVolume(sliceGeometry), true);
                     }
                     repaint();
                 }
@@ -821,22 +720,28 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
     }
 
-    protected void addCrossline(DicomImageElement selImage, LocalizerPoster localizer, boolean fill) {
-        GeometryOfSlice sliceGeometry = selImage.getSliceGeometry();
+    protected void addCrossline(DicomImageElement selImage, GraphicLayer layer, LocalizerPoster localizer,
+        boolean center) {
+        GeometryOfSlice sliceGeometry = selImage.getDispSliceGeometry();
         if (sliceGeometry != null) {
             List<Point2D.Double> pts = localizer.getOutlineOnLocalizerForThisGeometry(sliceGeometry);
-            if (pts != null && pts.size() > 0) {
-                Color color = fill ? Color.blue : Color.cyan;
+            if (pts != null && !pts.isEmpty()) {
+                Color color = center ? Color.blue : Color.cyan;
                 try {
-                    Graphic graphic =
-                        pts.size() == 2 ? new LineGraphic(pts.get(0), pts.get(1), 1.0f, color, false)
-                            : new PolygonGraphic(pts, color, 1.0f, false, false);
-                    AbstractLayer layer = getLayerModel().getLayer(AbstractLayer.CROSSLINES);
-                    if (layer != null) {
-                        layer.addGraphic(graphic);
+                    Graphic graphic;
+                    if (pts.size() == 2) {
+                        graphic = new LineGraphic().buildGraphic(pts);
+                    } else {
+                        graphic = new PolygonGraphic().buildGraphic(pts);
                     }
+                    graphic.setPaint(color);
+                    graphic.setLabelVisible(Boolean.FALSE);
+                    graphic.setLayer(layer);
+
+                    graphicManager.addGraphic(graphic);
+
                 } catch (InvalidShapeException e) {
-                    LOGGER.error(e.getMessage());
+                    LOGGER.error("Building crossline", e);
                 }
             }
         }
@@ -850,24 +755,18 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         // Set the butonMask to 0 of all the actions
         resetMouseAdapter();
 
-        this.setCursor(AbstractLayerModel.DEFAULT_CURSOR);
+        this.setCursor(DefaultView2d.DEFAULT_CURSOR);
 
         addMouseAdapter(actions.getLeft(), InputEvent.BUTTON1_DOWN_MASK); // left mouse button
         if (actions.getMiddle().equals(actions.getLeft())) {
             // If mouse action is already registered, only add the modifier mask
-            MouseActionAdapter adapter = getMouseAdapter(actions.getMiddle());
-            if (adapter != null) {
-                adapter.setButtonMaskEx(adapter.getButtonMaskEx() | InputEvent.BUTTON2_DOWN_MASK);
-            }
+            addModifierMask(actions.getMiddle(), InputEvent.BUTTON2_DOWN_MASK);
         } else {
             addMouseAdapter(actions.getMiddle(), InputEvent.BUTTON2_DOWN_MASK);// middle mouse button
         }
         if (actions.getRight().equals(actions.getLeft()) || actions.getRight().equals(actions.getMiddle())) {
             // If mouse action is already registered, only add the modifier mask
-            MouseActionAdapter adapter = getMouseAdapter(actions.getRight());
-            if (adapter != null) {
-                adapter.setButtonMaskEx(adapter.getButtonMaskEx() | InputEvent.BUTTON3_DOWN_MASK);
-            }
+            addModifierMask(actions.getRight(), InputEvent.BUTTON3_DOWN_MASK);
         } else {
             addMouseAdapter(actions.getRight(), InputEvent.BUTTON3_DOWN_MASK); // right mouse button
         }
@@ -884,7 +783,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
             return;
         }
         adapter.setButtonMaskEx(adapter.getButtonMaskEx() | buttonMask);
-        if (adapter == mouseClickHandler) {
+        if (adapter == graphicMouseHandler) {
             this.addKeyListener(drawingsKeyListeners);
         } else if (adapter instanceof PannerListener) {
             ((PannerListener) adapter).reset();
@@ -911,9 +810,22 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         this.addMouseMotionListener(adapter);
     }
 
+    private void addModifierMask(String action, int mask) {
+        MouseActionAdapter adapter = getMouseAdapter(action);
+        if (adapter != null) {
+            adapter.setButtonMaskEx(adapter.getButtonMaskEx() | mask);
+            if (ActionW.WINLEVEL.cmd().equals(action)) {
+                MouseActionAdapter win = getMouseAdapter(ActionW.WINDOW.cmd());
+                if (win != null) {
+                    win.setButtonMaskEx(win.getButtonMaskEx() | mask);
+                }
+            }
+        }
+    }
+
     protected MouseActionAdapter getMouseAdapter(String action) {
-        if (action.equals(ActionW.MEASURE.cmd())) {
-            return mouseClickHandler;
+        if (action.equals(ActionW.MEASURE.cmd()) || action.equals(ActionW.DRAW.cmd())) {
+            return graphicMouseHandler;
         } else if (action.equals(ActionW.PAN.cmd())) {
             return getAction(ActionW.PAN);
         } else if (action.equals(ActionW.CONTEXTMENU.cmd())) {
@@ -938,19 +850,19 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
     public void computeCrosshair(Point3d p3) {
         DicomImageElement image = this.getImage();
-        AbstractLayer layer = getLayerModel().getLayer(AbstractLayer.CROSSLINES);
-        if (image != null && layer != null) {
-            layer.deleteAllGraphic();
-            GeometryOfSlice sliceGeometry = image.getSliceGeometry();
+        if (image != null) {
+            graphicManager.deleteByLayerType(LayerType.CROSSLINES);
+            GraphicLayer layer = AbstractGraphicModel.getOrBuildLayer(this, LayerType.CROSSLINES);
+            GeometryOfSlice sliceGeometry = image.getDispSliceGeometry();
             if (sliceGeometry != null) {
                 SliceOrientation sliceOrientation = this.getSliceOrientation();
                 if (sliceOrientation != null && p3 != null) {
                     Point2D p = sliceGeometry.getImagePosition(p3);
                     Tuple3d dimensions = sliceGeometry.getDimensions();
-                    boolean axial = SliceOrientation.AXIAL.equals((sliceOrientation));
+                    boolean axial = SliceOrientation.AXIAL.equals(sliceOrientation);
                     Point2D centerPt = new Point2D.Double(p.getX(), p.getY());
 
-                    List<Point2D.Double> pts = new ArrayList<Point2D.Double>();
+                    List<Point2D.Double> pts = new ArrayList<>();
                     pts.add(new Point2D.Double(p.getX(), 0.0));
                     pts.add(new Point2D.Double(p.getX(), dimensions.x));
 
@@ -958,7 +870,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     Color color1 = sagittal ? Color.GREEN : Color.BLUE;
                     addCrosshairLine(layer, pts, color1, centerPt);
 
-                    List<Point2D.Double> pts2 = new ArrayList<Point2D.Double>();
+                    List<Point2D.Double> pts2 = new ArrayList<>();
                     Color color2 = axial ? Color.GREEN : Color.RED;
                     pts2.add(new Point2D.Double(0.0, p.getY()));
                     pts2.add(new Point2D.Double(dimensions.y, p.getY()));
@@ -966,10 +878,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
                     RenderedImage dispImg = image.getImage();
                     if (dispImg != null) {
-                        Rectangle2D rect =
-                            new Rectangle2D.Double(dispImg.getMinX() * image.getRescaleX(), dispImg.getMinY()
-                                * image.getRescaleY(), dispImg.getWidth() * image.getRescaleX(), dispImg.getHeight()
-                                * image.getRescaleY());
+                        Rectangle2D rect = new Rectangle2D.Double(dispImg.getMinX() * image.getRescaleX(),
+                            dispImg.getMinY() * image.getRescaleY(), dispImg.getWidth() * image.getRescaleX(),
+                            dispImg.getHeight() * image.getRescaleY());
                         addRectangle(layer, rect, axial ? Color.RED : sagittal ? Color.BLUE : Color.GREEN);
                     }
                 }
@@ -977,26 +888,43 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         }
     }
 
-    protected void addCrosshairLine(AbstractLayer layer, List<Point2D.Double> pts, Color color, Point2D center) {
-        if (pts != null && pts.size() > 0 && layer != null) {
+    protected void addCrosshairLine(GraphicLayer layer, List<Point2D.Double> pts, Color color, Point2D center) {
+        if (pts != null && !pts.isEmpty()) {
             try {
-                Graphic graphic =
-                    pts.size() == 2 ? new LineWithGapGraphic(pts.get(0), pts.get(1), 1.0f, color, false, center, 75)
-                        : new PolygonGraphic(pts, color, 1.0f, false, false);
-                layer.addGraphic(graphic);
+                Graphic graphic;
+                if (pts.size() == 2) {
+                    LineWithGapGraphic line = new LineWithGapGraphic();
+                    line.setCenterGap(center);
+                    line.setGapSize(75);
+                    graphic = line.buildGraphic(pts);
+                } else {
+                    graphic = new PolygonGraphic().buildGraphic(pts);
+                }
+                graphic.setPaint(color);
+                graphic.setLabelVisible(Boolean.FALSE);
+                graphic.setLayer(layer);
+
+                graphicManager.addGraphic(graphic);
             } catch (InvalidShapeException e) {
-                LOGGER.error(e.getMessage());
+                LOGGER.error("Add crosshair line", e);
             }
 
         }
     }
 
-    protected void addRectangle(AbstractLayer layer, Rectangle2D rect, Color color) {
+    protected void addRectangle(GraphicLayer layer, Rectangle2D rect, Color color) {
         if (rect != null && layer != null) {
             try {
-                layer.addGraphic(new RectangleGraphic(rect, 1.0f, color, false, false));
+                Graphic graphic = new RectangleGraphic().buildGraphic(rect);
+                graphic.setPaint(color);
+                graphic.setLabelVisible(Boolean.FALSE);
+                graphic.setFilled(Boolean.FALSE);
+                graphic.setLayer(layer);
+
+                graphicManager.addGraphic(graphic);
+
             } catch (InvalidShapeException e) {
-                LOGGER.error(e.getMessage());
+                LOGGER.error("Add rectangle", e);
             }
         }
     }
@@ -1007,11 +935,10 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         if (s != null) {
             Object img = s.getMedia(MediaSeries.MEDIA_POSITION.MIDDLE, null, null);
             if (img instanceof DicomImageElement) {
-                double[] v = (double[]) ((DicomImageElement) img).getTagValue(TagW.ImageOrientationPatient);
+                double[] v = TagD.getTagValue((DicomImageElement) img, Tag.ImageOrientationPatient, double[].class);
                 if (v != null && v.length == 6) {
-                    String orientation =
-                        ImageOrientation.makeImageOrientationLabelFromImageOrientationPatient(v[0], v[1], v[2], v[3],
-                            v[4], v[5]);
+                    String orientation = ImageOrientation.makeImageOrientationLabelFromImageOrientationPatient(v[0],
+                        v[1], v[2], v[3], v[4], v[5]);
                     if (ImageOrientation.LABELS[1].equals(orientation)) {
                         sliceOrientation = SliceOrientation.AXIAL;
                     } else if (ImageOrientation.LABELS[3].equals(orientation)) {
@@ -1033,7 +960,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         }
         // reset context menu that is a field of this instance
         contextMenuHandler.setButtonMaskEx(0);
-        mouseClickHandler.setButtonMaskEx(0);
+        graphicMouseHandler.setButtonMaskEx(0);
     }
 
     protected MouseActionAdapter getAction(ActionW action) {
@@ -1045,18 +972,17 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     }
 
     @Override
-    protected PlanarImage getPreprocessedImage(DicomImageElement imageElement) {
-        return imageElement.getImage();
-    }
-
-    @Override
     protected void fillPixelInfo(final PixelInfo pixelInfo, final DicomImageElement imageElement, final double[] c) {
         if (c != null && c.length >= 1) {
-            boolean pixelPadding =
-                JMVUtils.getNULLtoTrue(getDisplayOpManager().getParamValue(WindowOp.OP_NAME,
-                    ActionW.IMAGE_PIX_PADDING.cmd()));
+            boolean pixelPadding = JMVUtils
+                .getNULLtoTrue(getDisplayOpManager().getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd()));
+
+            Object val = getActionValue(ActionW.PR_STATE.cmd());
+            PresentationStateReader prReader =
+                (PresentationStateReader) (val instanceof PresentationStateReader ? val : null);
+
             for (int i = 0; i < c.length; i++) {
-                c[i] = imageElement.pixel2mLUT((float) c[i], pixelPadding);
+                c[i] = imageElement.pixel2mLUT(c[i], prReader, pixelPadding);
             }
             pixelInfo.setValues(c);
         }
@@ -1073,6 +999,253 @@ public class View2d extends DefaultView2d<DicomImageElement> {
             ImageViewerPlugin<DicomImageElement> pane = eventManager.getSelectedView2dContainer();
             if (pane != null && pane.isContainingView(this)) {
                 pane.setSelectedImagePaneFromFocus(this);
+            }
+        }
+    }
+
+    protected JPopupMenu buildGraphicContextMenu(final MouseEvent evt, final List<Graphic> selected) {
+        if (selected != null) {
+            final JPopupMenu popupMenu = new JPopupMenu();
+            TitleMenuItem itemTitle = new TitleMenuItem(Messages.getString("View2d.selection"), popupMenu.getInsets()); //$NON-NLS-1$
+            popupMenu.add(itemTitle);
+            popupMenu.addSeparator();
+            boolean graphicComplete = true;
+            if (selected.size() == 1) {
+                final Graphic graph = selected.get(0);
+                if (graph instanceof DragGraphic) {
+                    final DragGraphic absgraph = (DragGraphic) graph;
+                    if (!absgraph.isGraphicComplete()) {
+                        graphicComplete = false;
+                    }
+                    if (absgraph.getVariablePointsNumber()) {
+                        if (graphicComplete) {
+                            /*
+                             * Convert mouse event point to real image coordinate point (without geometric
+                             * transformation)
+                             */
+                            final MouseEventDouble mouseEvt = new MouseEventDouble(View2d.this,
+                                MouseEvent.MOUSE_RELEASED, evt.getWhen(), 16, 0, 0, 0, 0, 1, true, 1);
+                            mouseEvt.setSource(View2d.this);
+                            mouseEvt.setImageCoordinates(getImageCoordinatesFromMouse(evt.getX(), evt.getY()));
+                            final int ptIndex = absgraph.getHandlePointIndex(mouseEvt);
+                            if (ptIndex >= 0) {
+                                JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.rmv_pt")); //$NON-NLS-1$
+                                menuItem.addActionListener(e -> absgraph.removeHandlePoint(ptIndex, mouseEvt));
+                                popupMenu.add(menuItem);
+
+                                menuItem = new JMenuItem(Messages.getString("View2d.draw_pt")); //$NON-NLS-1$
+                                menuItem.addActionListener(e -> {
+                                    absgraph.forceToAddPoints(ptIndex);
+                                    MouseEventDouble evt2 =
+                                        new MouseEventDouble(View2d.this, MouseEvent.MOUSE_PRESSED, evt.getWhen(), 16,
+                                            evt.getX(), evt.getY(), evt.getXOnScreen(), evt.getYOnScreen(), 1, true, 1);
+                                    graphicMouseHandler.mousePressed(evt2);
+                                });
+                                popupMenu.add(menuItem);
+                                popupMenu.add(new JSeparator());
+                            }
+                        } else if (graphicMouseHandler.getDragSequence() != null
+                            && absgraph.getPtsNumber() == Graphic.UNDEFINED) {
+                            final JMenuItem item2 = new JMenuItem(Messages.getString("View2d.stop_draw")); //$NON-NLS-1$
+                            item2.addActionListener(e -> {
+                                MouseEventDouble event =
+                                    new MouseEventDouble(View2d.this, 0, 0, 16, 0, 0, 0, 0, 2, true, 1);
+                                graphicMouseHandler.getDragSequence().completeDrag(event);
+                                graphicMouseHandler.mouseReleased(event);
+                            });
+                            popupMenu.add(item2);
+                            popupMenu.add(new JSeparator());
+                        }
+                    }
+                }
+            }
+
+            if (graphicComplete) {
+                JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.delete_sel")); //$NON-NLS-1$
+                menuItem
+                    .addActionListener(e -> View2d.this.getGraphicManager().deleteSelectedGraphics(View2d.this, true));
+                popupMenu.add(menuItem);
+
+                menuItem = new JMenuItem(Messages.getString("View2d.cut")); //$NON-NLS-1$
+                menuItem.addActionListener(e -> {
+                    DefaultView2d.GRAPHIC_CLIPBOARD.setGraphics(selected);
+                    View2d.this.getGraphicManager().deleteSelectedGraphics(View2d.this, false);
+                });
+                popupMenu.add(menuItem);
+                menuItem = new JMenuItem(Messages.getString("View2d.copy")); //$NON-NLS-1$
+                menuItem.addActionListener(e -> DefaultView2d.GRAPHIC_CLIPBOARD.setGraphics(selected));
+                popupMenu.add(menuItem);
+                popupMenu.add(new JSeparator());
+            }
+
+            // TODO separate AbstractDragGraphic and ClassGraphic for properties
+            final ArrayList<DragGraphic> list = new ArrayList<>();
+            for (Graphic graphic : selected) {
+                if (graphic instanceof DragGraphic) {
+                    list.add((DragGraphic) graphic);
+                }
+            }
+
+            if (selected.size() == 1) {
+                final Graphic graph = selected.get(0);
+                JMenuItem item = new JMenuItem(Messages.getString("View2d.to_front")); //$NON-NLS-1$
+                item.addActionListener(e -> graph.toFront());
+                popupMenu.add(item);
+                item = new JMenuItem(Messages.getString("View2d.to_back")); //$NON-NLS-1$
+                item.addActionListener(e -> graph.toBack());
+                popupMenu.add(item);
+                popupMenu.add(new JSeparator());
+
+                if (graphicComplete && graph instanceof LineGraphic) {
+
+                    final JMenuItem calibMenu = new JMenuItem(Messages.getString("View2d.chg_calib")); //$NON-NLS-1$
+                    calibMenu.addActionListener(e -> {
+                        String title = Messages.getString("View2d.clibration"); //$NON-NLS-1$
+                        CalibrationView calibrationDialog = new CalibrationView((LineGraphic) graph, View2d.this, true);
+                        ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(View2d.this);
+                        int res = JOptionPane.showConfirmDialog(ColorLayerUI.getContentPane(layer), calibrationDialog,
+                            title, JOptionPane.OK_CANCEL_OPTION);
+                        if (layer != null) {
+                            layer.hideUI();
+                        }
+                        if (res == JOptionPane.OK_OPTION) {
+                            calibrationDialog.applyNewCalibration();
+                        }
+                    });
+                    popupMenu.add(calibMenu);
+                    popupMenu.add(new JSeparator());
+                }
+            }
+
+            if (!list.isEmpty()) {
+                JMenuItem properties = new JMenuItem(Messages.getString("View2d.draw_prop")); //$NON-NLS-1$
+                properties.addActionListener(e -> {
+                    ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(View2d.this);
+                    JDialog dialog = new MeasureDialog(View2d.this, list);
+                    ColorLayerUI.showCenterScreen(dialog, layer);
+
+                });
+                popupMenu.add(properties);
+            }
+            return popupMenu;
+        }
+        return null;
+    }
+
+    protected JPopupMenu buildContexMenu(final MouseEvent evt) {
+        JPopupMenu popupMenu = new JPopupMenu();
+        TitleMenuItem itemTitle =
+            new TitleMenuItem(Messages.getString("View2d.left_mouse") + StringUtil.COLON, popupMenu.getInsets()); //$NON-NLS-1$
+        popupMenu.add(itemTitle);
+        popupMenu.setLabel(MouseActions.LEFT);
+        String action = eventManager.getMouseActions().getLeft();
+        ButtonGroup groupButtons = new ButtonGroup();
+        int count = popupMenu.getComponentCount();
+        ImageViewerPlugin<DicomImageElement> view = eventManager.getSelectedView2dContainer();
+        if (view != null) {
+            final ViewerToolBar<?> toolBar = view.getViewerToolBar();
+            if (toolBar != null) {
+                ActionListener leftButtonAction = event -> {
+                    if (event.getSource() instanceof JRadioButtonMenuItem) {
+                        JRadioButtonMenuItem item = (JRadioButtonMenuItem) event.getSource();
+                        toolBar.changeButtonState(MouseActions.LEFT, item.getActionCommand());
+                    }
+                };
+
+                List<ActionW> actionsButtons = ViewerToolBar.actionsButtons;
+                synchronized (actionsButtons) {
+                    for (int i = 0; i < actionsButtons.size(); i++) {
+                        ActionW b = actionsButtons.get(i);
+                        if (eventManager.isActionRegistered(b)) {
+                            JRadioButtonMenuItem radio =
+                                new JRadioButtonMenuItem(b.getTitle(), b.getIcon(), b.cmd().equals(action));
+                            radio.setActionCommand(b.cmd());
+                            radio.setAccelerator(KeyStroke.getKeyStroke(b.getKeyCode(), b.getModifier()));
+                            // Trigger the selected mouse action
+                            radio.addActionListener(toolBar);
+                            // Update the state of the button in the toolbar
+                            radio.addActionListener(leftButtonAction);
+                            popupMenu.add(radio);
+                            groupButtons.add(radio);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count < popupMenu.getComponentCount()) {
+            popupMenu.add(new JSeparator());
+            count = popupMenu.getComponentCount();
+        }
+
+        if (DefaultView2d.GRAPHIC_CLIPBOARD.hasGraphics()) {
+            JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.paste_draw")); //$NON-NLS-1$
+            menuItem.addActionListener(e -> copyGraphicsFromClipboard());
+            popupMenu.add(menuItem);
+        }
+
+        if (count < popupMenu.getComponentCount()) {
+            popupMenu.add(new JSeparator());
+            count = popupMenu.getComponentCount();
+        }
+
+        if (eventManager instanceof EventManager) {
+            EventManager manager = (EventManager) eventManager;
+            JMVUtils.addItemToMenu(popupMenu, manager.getPresetMenu("weasis.contextmenu.presets")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getLutShapeMenu("weasis.contextmenu.lutShape")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getLutMenu("weasis.contextmenu.lut")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getLutInverseMenu("weasis.contextmenu.invertLut")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getFilterMenu("weasis.contextmenu.filter")); //$NON-NLS-1$
+
+            if (count < popupMenu.getComponentCount()) {
+                popupMenu.add(new JSeparator());
+                count = popupMenu.getComponentCount();
+            }
+
+            JMVUtils.addItemToMenu(popupMenu, manager.getZoomMenu("weasis.contextmenu.zoom")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getOrientationMenu("weasis.contextmenu.orientation")); //$NON-NLS-1$
+            JMVUtils.addItemToMenu(popupMenu, manager.getSortStackMenu("weasis.contextmenu.sortstack")); //$NON-NLS-1$
+
+            if (count < popupMenu.getComponentCount()) {
+                popupMenu.add(new JSeparator());
+            }
+
+            JMVUtils.addItemToMenu(popupMenu, manager.getResetMenu("weasis.contextmenu.reset")); //$NON-NLS-1$
+        }
+
+        if (BundleTools.SYSTEM_PREFERENCES.getBooleanProperty("weasis.contextmenu.close", true)) { //$NON-NLS-1$
+            JMenuItem close = new JMenuItem(Messages.getString("View2d.close")); //$NON-NLS-1$
+            close.addActionListener(e -> View2d.this.setSeries(null, null));
+            popupMenu.add(close);
+        }
+        return popupMenu;
+    }
+
+    class ContextMenuHandler extends MouseActionAdapter {
+
+        @Override
+        public void mousePressed(final MouseEvent evt) {
+            showPopup(evt);
+        }
+
+        @Override
+        public void mouseReleased(final MouseEvent evt) {
+            showPopup(evt);
+        }
+
+        private void showPopup(final MouseEvent evt) {
+            // Context menu
+            if ((evt.getModifiersEx() & getButtonMaskEx()) != 0) {
+                JPopupMenu popupMenu = null;
+                final List<Graphic> selected = View2d.this.getGraphicManager().getSelectedGraphics();
+                if (!selected.isEmpty() && isDrawActionActive()) {
+                    popupMenu = View2d.this.buildGraphicContextMenu(evt, selected);
+                } else if (View2d.this.getSourceImage() != null) {
+                    popupMenu = View2d.this.buildContexMenu(evt);
+                }
+                if (popupMenu != null) {
+                    popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
+                }
             }
         }
     }
@@ -1116,16 +1289,16 @@ public class View2d extends DefaultView2d<DicomImageElement> {
             Transferable transferable = support.getTransferable();
 
             List<File> files = null;
-            // Not supported on Linux
+            // Not supported by some OS
             if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                 try {
                     files = (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.error("Get dragable files", e);
                 }
                 return dropDicomFiles(files);
             }
-            // When dragging a file or group of files from a Gnome or Kde environment
+            // When dragging a file or group of files
             // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4899516
             else if (support.isDataFlavorSupported(UriListFlavor.uriListFlavor)) {
                 try {
@@ -1134,7 +1307,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     String val = (String) transferable.getTransferData(UriListFlavor.uriListFlavor);
                     files = UriListFlavor.textURIListToFileList(val);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.error("Get dragable URIs", e);
                 }
                 return dropDicomFiles(files);
             }
@@ -1145,13 +1318,14 @@ public class View2d extends DefaultView2d<DicomImageElement> {
             if (dicomView != null) {
                 selList = ((DicomExplorer) dicomView).getSelectionList();
             }
-            ImageViewerPlugin<DicomImageElement> selPlugin = eventManager.getSelectedView2dContainer();
+            View2dContainer selPlugin = (View2dContainer) UIManager.VIEWER_PLUGINS.stream()
+                .filter(p -> p instanceof View2dContainer && ((View2dContainer) p).isContainingView(View2d.this))
+                .findFirst().get();
 
             Series seq;
             try {
                 seq = (Series) transferable.getTransferData(Series.sequenceDataFlavor);
-                // Do not add series without medias. BUG WEA-100
-                if (seq == null || seq.size(null) == 0) {
+                if (seq == null) {
                     return false;
                 }
                 model = (DataExplorerModel) seq.getTagValue(TagW.ExplorerModel);
@@ -1162,25 +1336,11 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     }
                     MediaSeriesGroup p1 = treeModel.getParent(seq, model.getTreeModelNodeForNewPlugin());
                     MediaSeriesGroup p2 = null;
-                    ViewerPlugin openPlugin = null;
                     if (p1 == null) {
                         return false;
                     }
-                    if (selPlugin instanceof View2dContainer
-                        && ((View2dContainer) selPlugin).isContainingView(View2d.this)
-                        && p1.equals(selPlugin.getGroupID())) {
+                    if (p1.equals(selPlugin.getGroupID())) {
                         p2 = p1;
-                    } else {
-                        synchronized (UIManager.VIEWER_PLUGINS) {
-                            plugin: for (final ViewerPlugin<?> p : UIManager.VIEWER_PLUGINS) {
-                                if (p1.equals(p.getGroupID())) {
-                                    if (!((View2dContainer) p).isContainingView(View2d.this)) {
-                                        openPlugin = p;
-                                    }
-                                    break plugin;
-                                }
-                            }
-                        }
                     }
 
                     if (!p1.equals(p2)) {
@@ -1188,11 +1348,6 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                         if (plugin != null && !(plugin instanceof MimeSystemAppFactory)) {
                             ViewerPluginBuilder.openSequenceInPlugin(plugin, seq, model, true, true);
                         }
-                        return false;
-                    } else if (openPlugin != null) {
-                        openPlugin.setSelectedAndGetFocus();
-                        openPlugin.addSeries(seq);
-                        // openPlugin.setSelected(true);
                         return false;
                     }
                 } else if (seq instanceof DicomEncapDocSeries || seq instanceof DicomVideoSeries) {
@@ -1203,6 +1358,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     return false;
                 }
             } catch (Exception e) {
+                LOGGER.error("Get dragable series", e);
                 return false;
             } finally {
                 if (selList != null) {
@@ -1213,7 +1369,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                 selList.setOpenningSeries(true);
             }
 
-            if (selPlugin != null && SynchData.Mode.Tile.equals(selPlugin.getSynchView().getSynchData().getMode())) {
+            if (SynchData.Mode.Tile.equals(selPlugin.getSynchView().getSynchData().getMode())) {
                 selPlugin.addSeries(seq);
                 if (selList != null) {
                     selList.setOpenningSeries(false);
@@ -1223,8 +1379,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
             setSeries(seq);
             // Getting the focus has a delay and so it will trigger the view selection later
-            // requestFocusInWindow();
-            if (selPlugin != null && selPlugin.isContainingView(View2d.this)) {
+            if (selPlugin.isContainingView(View2d.this)) {
                 selPlugin.setSelectedImagePaneFromFocus(View2d.this);
             }
             if (selList != null) {
@@ -1240,423 +1395,12 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                     return false;
                 }
                 DicomModel model = (DicomModel) dicomView.getDataExplorerModel();
-                LoadLocalDicom dicom = new LoadLocalDicom(files.toArray(new File[files.size()]), true, model);
-                DicomModel.loadingExecutor.execute(dicom);
+
+                LoadLocalDicom dicom = new LoadLocalDicom(files.stream().toArray(File[]::new), true, model);
+                DicomModel.LOADING_EXECUTOR.execute(dicom);
                 return true;
             }
             return false;
-        }
-    }
-
-    protected JPopupMenu buildGraphicContextMenu(final MouseEvent evt, final ArrayList<Graphic> selected) {
-        if (selected != null) {
-            final JPopupMenu popupMenu = new JPopupMenu();
-            TitleMenuItem itemTitle = new TitleMenuItem(Messages.getString("View2d.selection"), popupMenu.getInsets()); //$NON-NLS-1$
-            popupMenu.add(itemTitle);
-            popupMenu.addSeparator();
-            boolean graphicComplete = true;
-            if (selected.size() == 1) {
-                final Graphic graph = selected.get(0);
-                if (graph instanceof AbstractDragGraphic) {
-                    final AbstractDragGraphic absgraph = (AbstractDragGraphic) graph;
-                    if (!absgraph.isGraphicComplete()) {
-                        graphicComplete = false;
-                    }
-                    if (absgraph.isVariablePointsNumber()) {
-                        if (graphicComplete) {
-                            /*
-                             * Convert mouse event point to real image coordinate point (without geometric
-                             * transformation)
-                             */
-                            final MouseEventDouble mouseEvt =
-                                new MouseEventDouble(View2d.this, MouseEvent.MOUSE_RELEASED, evt.getWhen(), 16, 0, 0,
-                                    0, 0, 1, true, 1);
-                            mouseEvt.setSource(View2d.this);
-                            mouseEvt.setImageCoordinates(getImageCoordinatesFromMouse(evt.getX(), evt.getY()));
-                            final int ptIndex = absgraph.getHandlePointIndex(mouseEvt);
-                            if (ptIndex >= 0) {
-                                JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.rmv_pt")); //$NON-NLS-1$
-                                menuItem.addActionListener(new ActionListener() {
-
-                                    @Override
-                                    public void actionPerformed(ActionEvent e) {
-                                        absgraph.removeHandlePoint(ptIndex, mouseEvt);
-                                    }
-                                });
-                                popupMenu.add(menuItem);
-
-                                menuItem = new JMenuItem(Messages.getString("View2d.draw_pt")); //$NON-NLS-1$
-                                menuItem.addActionListener(new ActionListener() {
-
-                                    @Override
-                                    public void actionPerformed(ActionEvent e) {
-                                        absgraph.forceToAddPoints(ptIndex);
-                                        MouseEventDouble evt2 =
-                                            new MouseEventDouble(View2d.this, MouseEvent.MOUSE_PRESSED, evt.getWhen(),
-                                                16, evt.getX(), evt.getY(), evt.getXOnScreen(), evt.getYOnScreen(), 1,
-                                                true, 1);
-                                        mouseClickHandler.mousePressed(evt2);
-                                    }
-                                });
-                                popupMenu.add(menuItem);
-                                popupMenu.add(new JSeparator());
-                            }
-                        } else if (ds != null && absgraph.getHandlePointTotalNumber() == BasicGraphic.UNDEFINED) {
-                            final JMenuItem item2 = new JMenuItem(Messages.getString("View2d.stop_draw")); //$NON-NLS-1$
-                            item2.addActionListener(new ActionListener() {
-
-                                @Override
-                                public void actionPerformed(ActionEvent e) {
-                                    MouseEventDouble event =
-                                        new MouseEventDouble(View2d.this, 0, 0, 16, 0, 0, 0, 0, 2, true, 1);
-                                    ds.completeDrag(event);
-                                    mouseClickHandler.mouseReleased(event);
-                                }
-                            });
-                            popupMenu.add(item2);
-                            popupMenu.add(new JSeparator());
-                        }
-                    }
-                }
-            }
-            if (graphicComplete) {
-                JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.delete_sel")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        View2d.this.getLayerModel().deleteSelectedGraphics(true);
-                    }
-                });
-                popupMenu.add(menuItem);
-
-                menuItem = new JMenuItem(Messages.getString("View2d.cut")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        AbstractLayerModel.GraphicClipboard.setGraphics(selected);
-                        View2d.this.getLayerModel().deleteSelectedGraphics(false);
-                    }
-                });
-                popupMenu.add(menuItem);
-                menuItem = new JMenuItem(Messages.getString("View2d.copy")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        AbstractLayerModel.GraphicClipboard.setGraphics(selected);
-                    }
-                });
-                popupMenu.add(menuItem);
-                popupMenu.add(new JSeparator());
-            }
-            // TODO separate AbstractDragGraphic and ClassGraphic for properties
-            final ArrayList<AbstractDragGraphic> list = new ArrayList<AbstractDragGraphic>();
-            for (Graphic graphic : selected) {
-                if (graphic instanceof AbstractDragGraphic) {
-                    list.add((AbstractDragGraphic) graphic);
-                }
-            }
-
-            if (selected.size() == 1) {
-                final Graphic graph = selected.get(0);
-                JMenuItem item = new JMenuItem(Messages.getString("View2d.to_front")); //$NON-NLS-1$
-                item.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        graph.toFront();
-                    }
-                });
-                popupMenu.add(item);
-                item = new JMenuItem(Messages.getString("View2d.to_back")); //$NON-NLS-1$
-                item.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        graph.toBack();
-                    }
-                });
-                popupMenu.add(item);
-                popupMenu.add(new JSeparator());
-
-                if (graphicComplete && graph instanceof LineGraphic) {
-
-                    final JMenuItem calibMenu = new JMenuItem(Messages.getString("View2d.chg_calib")); //$NON-NLS-1$
-                    calibMenu.addActionListener(new ActionListener() {
-
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            String title = Messages.getString("View2d.clibration"); //$NON-NLS-1$
-                            CalibrationView calibrationDialog = new CalibrationView((LineGraphic) graph, View2d.this);
-                            ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(View2d.this);
-                            int res =
-                                JOptionPane.showConfirmDialog(ColorLayerUI.getContentPane(layer), calibrationDialog,
-                                    title, JOptionPane.OK_CANCEL_OPTION);
-                            if (layer != null) {
-                                layer.hideUI();
-                            }
-                            if (res == JOptionPane.OK_OPTION) {
-                                calibrationDialog.applyNewCalibration();
-                            }
-                        }
-                    });
-                    popupMenu.add(calibMenu);
-                    popupMenu.add(new JSeparator());
-                }
-            }
-            if (list.size() > 0) {
-                JMenuItem properties = new JMenuItem(Messages.getString("View2d.draw_prop")); //$NON-NLS-1$
-                properties.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        ColorLayerUI layer = ColorLayerUI.createTransparentLayerUI(View2d.this);
-                        JDialog dialog = new MeasureDialog(View2d.this, list);
-                        ColorLayerUI.showCenterScreen(dialog, layer);
-                    }
-                });
-                popupMenu.add(properties);
-            }
-            return popupMenu;
-        }
-        return null;
-    }
-
-    protected JPopupMenu buildContexMenu(final MouseEvent evt) {
-        JPopupMenu popupMenu = new JPopupMenu();
-        TitleMenuItem itemTitle =
-            new TitleMenuItem(Messages.getString("View2d.left_mouse") + StringUtil.COLON, popupMenu.getInsets()); //$NON-NLS-1$
-        popupMenu.add(itemTitle);
-        final EventManager event = EventManager.getInstance();
-        popupMenu.setLabel(MouseActions.LEFT);
-        String action = event.getMouseActions().getLeft();
-        ButtonGroup groupButtons = new ButtonGroup();
-        ImageViewerPlugin<DicomImageElement> view = eventManager.getSelectedView2dContainer();
-        if (view != null) {
-            final ViewerToolBar toolBar = view.getViewerToolBar();
-            if (toolBar != null) {
-                ActionListener leftButtonAction = new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        if (e.getSource() instanceof JRadioButtonMenuItem) {
-                            JRadioButtonMenuItem item = (JRadioButtonMenuItem) e.getSource();
-                            toolBar.changeButtonState(MouseActions.LEFT, item.getActionCommand());
-                        }
-                    }
-                };
-
-                List<ActionW> actionsButtons = ViewerToolBar.actionsButtons;
-                synchronized (actionsButtons) {
-                    for (int i = 0; i < actionsButtons.size(); i++) {
-                        ActionW b = actionsButtons.get(i);
-                        JRadioButtonMenuItem radio =
-                            new JRadioButtonMenuItem(b.getTitle(), b.getIcon(), b.cmd().equals(action));
-                        radio.setActionCommand(b.cmd());
-                        radio.setAccelerator(KeyStroke.getKeyStroke(b.getKeyCode(), b.getModifier()));
-                        // Trigger the selected mouse action
-                        radio.addActionListener(toolBar);
-                        // Update the state of the button in the toolbar
-                        radio.addActionListener(leftButtonAction);
-                        popupMenu.add(radio);
-                        groupButtons.add(radio);
-                    }
-                }
-            }
-        }
-        if (AbstractLayerModel.GraphicClipboard.getGraphics() != null) {
-            popupMenu.add(new JSeparator());
-            JMenuItem menuItem = new JMenuItem(Messages.getString("View2d.paste_draw")); //$NON-NLS-1$
-            menuItem.addActionListener(new ActionListener() {
-
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    List<Graphic> graphs = AbstractLayerModel.GraphicClipboard.getGraphics();
-                    if (graphs != null) {
-                        Rectangle2D area = View2d.this.getViewModel().getModelArea();
-                        for (Graphic g : graphs) {
-                            if (!g.getBounds(null).intersects(area)) {
-                                int option =
-                                    JOptionPane.showConfirmDialog(View2d.this,
-                                        "At least one graphic is outside the image.\n Do you want to continue?"); //$NON-NLS-1$
-                                if (option == JOptionPane.YES_OPTION) {
-                                    break;
-                                } else {
-                                    return;
-                                }
-                            }
-                        }
-                        for (Graphic g : graphs) {
-                            AbstractLayer layer = View2d.this.getLayerModel().getLayer(g.getLayerID());
-                            if (layer != null) {
-                                Graphic graph = g.deepCopy();
-                                if (graph != null) {
-                                    graph.updateLabel(true, View2d.this);
-                                    layer.addGraphic(graph);
-                                }
-                            }
-                        }
-                        // Repaint all because labels are not drawn
-                        View2d.this.getLayerModel().repaint();
-                    }
-                }
-            });
-            popupMenu.add(menuItem);
-        }
-        popupMenu.add(new JSeparator());
-
-        // ActionState viewingAction = eventManager.getAction(ActionW.VIEWINGPROTOCOL);
-        // if (viewingAction instanceof ComboItemListener) {
-        // popupMenu.add(((ComboItemListener) viewingAction).createUnregisteredRadioMenu(Messages
-        //                            .getString("View2dContainer.view_protocols"))); //$NON-NLS-1$
-        // }
-
-        WProperties p = BundleTools.SYSTEM_PREFERENCES;
-        if (p.getBooleanProperty("weasis.contextmenu.presets", true)) { //$NON-NLS-1$
-            ActionState presetAction = eventManager.getAction(ActionW.PRESET);
-            if (presetAction instanceof ComboItemListener) {
-                JMenu menu =
-                    ((ComboItemListener) presetAction).createUnregisteredRadioMenu(Messages
-                        .getString("View2dContainer.presets"));//$NON-NLS-1$
-                menu.setIcon(new ImageIcon(DefaultView2d.class.getResource("/icon/16x16/winLevel.png"))); //$NON-NLS-1$
-                for (Component mitem : menu.getMenuComponents()) {
-                    RadioMenuItem ritem = ((RadioMenuItem) mitem);
-                    PresetWindowLevel preset = (PresetWindowLevel) ritem.getUserObject();
-                    if (preset.getKeyCode() > 0) {
-                        ritem.setAccelerator(KeyStroke.getKeyStroke(preset.getKeyCode(), 0));
-                    }
-                }
-                popupMenu.add(menu);
-            }
-        }
-
-        // if (p.getBooleanProperty("weasis.contextmenu.lut", true)) {
-        // ActionState lutShapeAction = eventManager.getAction(ActionW.LUT_SHAPE);
-        // if (lutShapeAction instanceof ComboItemListener) {
-        //                popupMenu.add(((ComboItemListener) lutShapeAction).createMenu(ActionW.LUT_SHAPE.getTitle())); //$NON-NLS-1$
-        // }
-        // }
-
-        if (p.getBooleanProperty("weasis.contextmenu.sortstack", true)) { //$NON-NLS-1$
-            ActionState stackAction = eventManager.getAction(ActionW.SORTSTACK);
-            if (stackAction instanceof ComboItemListener) {
-                JMenu menu =
-                    ((ComboItemListener) stackAction).createUnregisteredRadioMenu(Messages
-                        .getString("View2dContainer.sort_stack")); //$NON-NLS-1$
-                ActionState invstackAction = eventManager.getAction(ActionW.INVERSESTACK);
-                if (invstackAction instanceof ToggleButtonListener) {
-                    menu.add(new JSeparator());
-                    menu.add(((ToggleButtonListener) invstackAction).createUnregiteredJCheckBoxMenuItem(Messages
-                        .getString("View2dContainer.inv_stack"))); //$NON-NLS-1$
-                }
-                popupMenu.add(menu);
-            }
-        }
-
-        if (p.getBooleanProperty("weasis.contextmenu.orientation", true)) { //$NON-NLS-1$
-            ActionState rotateAction = eventManager.getAction(ActionW.ROTATION);
-            if (rotateAction instanceof SliderChangeListener) {
-                popupMenu.add(new JSeparator());
-                JMenu menu = new JMenu(Messages.getString("View2dContainer.orientation")); //$NON-NLS-1$
-                JMenuItem menuItem = new JMenuItem(Messages.getString("ResetTools.reset")); //$NON-NLS-1$
-                final SliderChangeListener rotation = (SliderChangeListener) rotateAction;
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        rotation.setValue(0);
-                    }
-                });
-                menu.add(menuItem);
-                menuItem = new JMenuItem(Messages.getString("View2dContainer.-90")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        rotation.setValue((rotation.getValue() - 90 + 360) % 360);
-                    }
-                });
-                menu.add(menuItem);
-                menuItem = new JMenuItem(Messages.getString("View2dContainer.+90")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        rotation.setValue((rotation.getValue() + 90) % 360);
-                    }
-                });
-                menu.add(menuItem);
-                menuItem = new JMenuItem(Messages.getString("View2dContainer.+180")); //$NON-NLS-1$
-                menuItem.addActionListener(new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        rotation.setValue((rotation.getValue() + 180) % 360);
-                    }
-                });
-                menu.add(menuItem);
-                ActionState flipAction = eventManager.getAction(ActionW.FLIP);
-                if (flipAction instanceof ToggleButtonListener) {
-                    menu.add(new JSeparator());
-                    menu.add(((ToggleButtonListener) flipAction).createUnregiteredJCheckBoxMenuItem(Messages
-                        .getString("View2dContainer.flip_h"))); //$NON-NLS-1$
-                }
-                popupMenu.add(menu);
-            }
-        }
-
-        popupMenu.add(new JSeparator());
-
-        if (p.getBooleanProperty("weasis.contextmenu.reset", true)) { //$NON-NLS-1$
-            JMenu menu = ResetTools.createUnregisteredJMenu();
-            menu.setIcon(new ImageIcon(DefaultView2d.class.getResource("/icon/16x16/reset.png"))); //$NON-NLS-1$
-            popupMenu.add(menu);
-        }
-
-        if (p.getBooleanProperty("weasis.contextmenu.close", true)) { //$NON-NLS-1$
-            JMenuItem close = new JMenuItem(Messages.getString("View2d.close")); //$NON-NLS-1$
-            close.addActionListener(new ActionListener() {
-
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    event.getSelectedView2dContainer();
-                    View2d.this.setSeries(null, null);
-                }
-            });
-            popupMenu.add(close);
-        }
-        return popupMenu;
-    }
-
-    class ContextMenuHandler extends MouseActionAdapter {
-
-        @Override
-        public void mousePressed(final MouseEvent evt) {
-            showPopup(evt);
-        }
-
-        @Override
-        public void mouseReleased(final MouseEvent evt) {
-            showPopup(evt);
-        }
-
-        private void showPopup(final MouseEvent evt) {
-            // Context menu
-            if ((evt.getModifiersEx() & getButtonMaskEx()) != 0) {
-                JPopupMenu popupMenu = null;
-                final ArrayList<Graphic> selected =
-                    new ArrayList<Graphic>(View2d.this.getLayerModel().getSelectedGraphics());
-                if (selected.size() > 0) {
-                    popupMenu = View2d.this.buildGraphicContextMenu(evt, selected);
-                } else if (View2d.this.getSourceImage() != null) {
-                    popupMenu = View2d.this.buildContexMenu(evt);
-                }
-                if (popupMenu != null) {
-                    popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
-                }
-            }
         }
     }
 }

@@ -1,9 +1,17 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.dicom.sr;
 
-import java.util.List;
 import java.util.Map;
 
-import javax.swing.Action;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
@@ -48,7 +56,7 @@ public class SRFactory implements SeriesViewerFactory {
     }
 
     @Override
-    public SeriesViewer<? extends MediaElement<?>> createSeriesViewer(Map<String, Object> properties) {
+    public SeriesViewer<?> createSeriesViewer(Map<String, Object> properties) {
         GridBagLayoutModel model = SRContainer.VIEWS_1x1;
         String uid = null;
         if (properties != null) {
@@ -89,7 +97,7 @@ public class SRFactory implements SeriesViewerFactory {
     }
 
     @Override
-    public boolean isViewerCreatedByThisFactory(SeriesViewer<? extends MediaElement<?>> viewer) {
+    public boolean isViewerCreatedByThisFactory(SeriesViewer<? extends MediaElement> viewer) {
         if (viewer instanceof SRContainer) {
             return true;
         }
@@ -99,11 +107,6 @@ public class SRFactory implements SeriesViewerFactory {
     @Override
     public int getLevel() {
         return 25;
-    }
-
-    @Override
-    public List<Action> getOpenActions() {
-        return null;
     }
 
     @Override

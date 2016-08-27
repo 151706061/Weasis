@@ -1,9 +1,21 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.core.ui.editor.image;
 
 import java.awt.GraphicsConfiguration;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.ImageIcon;
 import javax.swing.JMenuItem;
@@ -26,7 +38,7 @@ import org.weasis.core.ui.util.WtoolBar;
 
 public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
 
-    public ZoomToolBar(final ImageViewerEventManager<E> eventManager, int index) {
+    public ZoomToolBar(final ImageViewerEventManager<E> eventManager, int index, boolean showLens) {
         super(Messages.getString("ZoomToolBar.zoomBar"), index); //$NON-NLS-1$
         if (eventManager == null) {
             throw new IllegalArgumentException("EventManager cannot be null"); //$NON-NLS-1$
@@ -35,11 +47,11 @@ public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
         final DropDownButton zoom = new DropDownButton("zoom", new DropButtonIcon(new ImageIcon(MouseActions.class //$NON-NLS-1$
             .getResource("/icon/32x32/zoom.png")))) { //$NON-NLS-1$
 
-                @Override
-                protected JPopupMenu getPopupMenu() {
-                    return getZoomPopupMenuButton(this, eventManager);
-                }
-            };
+            @Override
+            protected JPopupMenu getPopupMenu() {
+                return getZoomPopupMenuButton(this, eventManager);
+            }
+        };
         zoom.setToolTipText(Messages.getString("ZoomToolBar.zoom_type")); //$NON-NLS-1$
         add(zoom);
 
@@ -48,23 +60,32 @@ public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
             zoomAction.registerActionState(zoom);
         }
 
-        final JToggleButton jButtonLens =
-            new JToggleButton(new ImageIcon(MouseActions.class.getResource("/icon/32x32/zoom-lens.png"))); //$NON-NLS-1$
-        jButtonLens.setToolTipText(Messages.getString("ViewerToolBar.show_lens")); //$NON-NLS-1$
-        ActionState lens = eventManager.getAction(ActionW.LENS);
-        if (lens instanceof ToggleButtonListener) {
-            ((ToggleButtonListener) lens).registerActionState(jButtonLens);
+        if (showLens) {
+            final JToggleButton jButtonLens =
+                new JToggleButton(new ImageIcon(MouseActions.class.getResource("/icon/32x32/zoom-lens.png"))); //$NON-NLS-1$
+            jButtonLens.setToolTipText(Messages.getString("ViewerToolBar.show_lens")); //$NON-NLS-1$
+            ActionState lens = eventManager.getAction(ActionW.LENS);
+            if (lens instanceof ToggleButtonListener) {
+                ((ToggleButtonListener) lens).registerActionState(jButtonLens);
+            }
+            add(jButtonLens);
         }
-        add(jButtonLens);
     }
 
     private JPopupMenu getZoomPopupMenuButton(DropDownButton dropDownButton,
         final ImageViewerEventManager<E> eventManager) {
         JPopupMenu popupMouseButtons = new JPopupMenu();
+        for (JMenuItem jMenuItem : getZoomListMenuItems(eventManager)) {
+            popupMouseButtons.add(jMenuItem);
+        }
+        return popupMouseButtons;
+    }
 
-        final JMenuItem actualZoomMenu =
-            new JMenuItem(
-                Messages.getString("ViewerToolBar.zoom_1"), new ImageIcon(MouseActions.class.getResource("/icon/22x22/zoom-original.png"))); //$NON-NLS-1$ //$NON-NLS-2$
+    public static List<JMenuItem> getZoomListMenuItems(final ImageViewerEventManager<?> eventManager) {
+
+        List<JMenuItem> list = new ArrayList<JMenuItem>();
+        final JMenuItem actualZoomMenu = new JMenuItem(Messages.getString("ViewerToolBar.zoom_1"), //$NON-NLS-1$
+            new ImageIcon(MouseActions.class.getResource("/icon/22x22/zoom-original.png"))); //$NON-NLS-1$
         actualZoomMenu.addActionListener(new ActionListener() {
 
             @Override
@@ -75,9 +96,10 @@ public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
                 }
             }
         });
-        popupMouseButtons.add(actualZoomMenu);
+        list.add(actualZoomMenu);
 
-        Window win = SwingUtilities.getWindowAncestor(this);
+        ImageViewerPlugin<?> selCt = eventManager.getSelectedView2dContainer();
+        Window win = selCt == null ? null : SwingUtilities.getWindowAncestor(selCt);
         if (win != null) {
             GraphicsConfiguration config = win.getGraphicsConfiguration();
             Monitor monitor = MeasureTool.viewSetting.getMonitor(config.getDevice());
@@ -94,31 +116,30 @@ public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
                             // Pass the value -100.0 (convention: -100.0 => real world size) directly to the property
                             // change,
                             // otherwise the value is adjusted by the BoundedRangeModel
-                            eventManager.firePropertyChange(ActionW.SYNCH.cmd(), null, new SynchEvent(null,
-                                ActionW.ZOOM.cmd(), -100.0));
+                            eventManager.firePropertyChange(ActionW.SYNCH.cmd(), null,
+                                new SynchEvent(null, ActionW.ZOOM.cmd(), -100.0));
                             AuditLog.LOGGER.info("action:{} val:-100.0", ActionW.ZOOM.cmd()); //$NON-NLS-1$
                         }
                     });
-                    popupMouseButtons.add(realSizeMenu);
+                    list.add(realSizeMenu);
                 }
             }
         }
 
-        final JMenuItem bestFitMenu =
-            new JMenuItem(
-                Messages.getString("ViewerToolBar.zoom_b"), new ImageIcon(MouseActions.class.getResource("/icon/22x22/zoom-bestfit.png"))); //$NON-NLS-1$ //$NON-NLS-2$
+        final JMenuItem bestFitMenu = new JMenuItem(Messages.getString("ViewerToolBar.zoom_b"), //$NON-NLS-1$
+            new ImageIcon(MouseActions.class.getResource("/icon/22x22/zoom-bestfit.png"))); //$NON-NLS-1$
         bestFitMenu.addActionListener(new ActionListener() {
 
             @Override
             public void actionPerformed(ActionEvent e) {
                 // Pass the value -200.0 (convention: -200.0 = > best fit zoom value) directly to the property change,
                 // otherwise the value is adjusted by the BoundedRangeModel
-                eventManager.firePropertyChange(ActionW.SYNCH.cmd(), null, new SynchEvent(null, ActionW.ZOOM.cmd(),
-                    -200.0));
+                eventManager.firePropertyChange(ActionW.SYNCH.cmd(), null,
+                    new SynchEvent(null, ActionW.ZOOM.cmd(), -200.0));
                 AuditLog.LOGGER.info("action:{} val:-200.0", ActionW.ZOOM.cmd()); //$NON-NLS-1$
             }
         });
-        popupMouseButtons.add(bestFitMenu);
+        list.add(bestFitMenu);
 
         // final JMenuItem areaZoomMenu =
         // new JMenuItem("Area selection", new ImageIcon(
@@ -130,8 +151,8 @@ public class ZoomToolBar<E extends ImageElement> extends WtoolBar {
         //
         // }
         // });
-        // popupMouseButtons.add(areaZoomMenu);
+        // list.add(areaZoomMenu);
 
-        return popupMouseButtons;
+        return list;
     }
 }

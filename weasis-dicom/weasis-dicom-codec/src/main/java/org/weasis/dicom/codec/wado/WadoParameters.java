@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.codec.wado;
 
 import java.util.ArrayList;
@@ -33,6 +33,7 @@ public class WadoParameters {
     private final boolean requireOnlySOPInstanceUID;
     private final String additionnalParameters;
     private final int[] overrideDicomTagIDList;
+    private final String overrideDicomTagsList;
     private final String webLogin;
     private final List<WadoParameters.HttpTag> httpTaglist;
 
@@ -54,7 +55,8 @@ public class WadoParameters {
         this.webLogin = webLogin == null ? null : webLogin.trim();
         this.requireOnlySOPInstanceUID = requireOnlySOPInstanceUID;
         this.additionnalParameters = additionnalParameters == null ? "" : additionnalParameters; //$NON-NLS-1$
-        if (StringUtil.hasText(overrideDicomTagsList)) { //$NON-NLS-1$
+        this.overrideDicomTagsList = overrideDicomTagsList;
+        if (StringUtil.hasText(overrideDicomTagsList)) {
             String[] val = overrideDicomTagsList.split(","); //$NON-NLS-1$
             overrideDicomTagIDList = new int[val.length];
             for (int i = 0; i < val.length; i++) {
@@ -97,6 +99,10 @@ public class WadoParameters {
 
     public int[] getOverrideDicomTagIDList() {
         return overrideDicomTagIDList;
+    }
+
+    public String getOverrideDicomTagsList() {
+        return overrideDicomTagsList;
     }
 
     public boolean isOverrideTag(TagW tagElement) {

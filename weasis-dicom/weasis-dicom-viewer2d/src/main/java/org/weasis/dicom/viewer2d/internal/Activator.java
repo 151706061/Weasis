@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2010 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.dicom.viewer2d.internal;
 
 import java.util.Arrays;
@@ -60,8 +60,8 @@ public class Activator implements BundleActivator, ServiceListener {
         bundleContext.registerService(EventManager.class.getName(), EventManager.getInstance(), dict);
 
         try {
-            for (ServiceReference<InsertableFactory> serviceReference : bundleContext.getServiceReferences(
-                InsertableFactory.class, null)) {
+            for (ServiceReference<InsertableFactory> serviceReference : bundleContext
+                .getServiceReferences(InsertableFactory.class, null)) {
                 // The View2dContainer name should be referenced as a property in the provided service
                 if (Boolean.valueOf((String) serviceReference.getProperty(View2dContainer.class.getName()))) {
                     registerComponent(bundleContext, bundleContext.getService(serviceReference));
@@ -127,7 +127,7 @@ public class Activator implements BundleActivator, ServiceListener {
                             }
                         }
                         if (updateGUI) {
-                            updateViewerUI(ObservableEvent.BasicAction.UpdateToolbars);
+                            updateViewerUI(ObservableEvent.BasicAction.UPDTATE_TOOLBARS);
                         }
                     } else if (Type.TOOL.equals(factory.getType())) {
                         synchronized (View2dContainer.TOOLS) {
@@ -165,7 +165,7 @@ public class Activator implements BundleActivator, ServiceListener {
                         if (instance instanceof Toolbar && !View2dContainer.TOOLBARS.contains(instance)) {
                             Toolbar bar = (Toolbar) instance;
                             View2dContainer.TOOLBARS.add(bar);
-                            updateViewerUI(ObservableEvent.BasicAction.UpdateToolbars);
+                            updateViewerUI(ObservableEvent.BasicAction.UPDTATE_TOOLBARS);
                             LOGGER.debug("Add Toolbar [{}] for {}", bar, View2dContainer.class.getName()); //$NON-NLS-1$
                         }
                     } else if (Type.TOOL.equals(factory.getType())) {

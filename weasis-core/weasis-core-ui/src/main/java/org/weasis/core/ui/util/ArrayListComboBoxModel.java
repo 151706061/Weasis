@@ -1,18 +1,19 @@
 /*******************************************************************************
- * Copyright (c) 2011 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.core.ui.util;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 
 import javax.swing.AbstractListModel;
 import javax.swing.ComboBoxModel;
@@ -20,13 +21,13 @@ import javax.swing.MutableComboBoxModel;
 
 public class ArrayListComboBoxModel extends AbstractListModel implements MutableComboBoxModel, ComboBoxModel {
     private Object selectedItem;
-    private final ArrayList items;
+    private final List items;
 
     public ArrayListComboBoxModel() {
         items = new ArrayList();
     }
 
-    public ArrayListComboBoxModel(ArrayList arrayList) {
+    public ArrayListComboBoxModel(List arrayList) {
         items = arrayList;
     }
 

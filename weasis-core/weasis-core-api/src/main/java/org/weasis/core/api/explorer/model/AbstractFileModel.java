@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.core.api.explorer.model;
 
 import java.beans.PropertyChangeListener;
@@ -19,21 +29,27 @@ import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.media.data.Codec;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
+import org.weasis.core.api.media.data.MediaSeriesGroupNode;
 import org.weasis.core.api.media.data.Series;
+import org.weasis.core.api.media.data.TagView;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.service.BundleTools;
 
-public class AbstractFileModel implements TreeModel, DataExplorerModel {
+public abstract class AbstractFileModel implements TreeModel, DataExplorerModel {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractFileModel.class);
 
     public static final String[] functions = { "get", "close" }; //$NON-NLS-1$ //$NON-NLS-2$
+    
     public static final String NAME = "All Files"; //$NON-NLS-1$
-    public static final TreeModelNode group = new TreeModelNode(1, 0, TagW.Group);
-    public static final TreeModelNode series = new TreeModelNode(2, 0, TagW.SubseriesInstanceUID);
+    public static final TreeModelNode group =
+        new TreeModelNode(1, 0, TagW.Group, new TagView(TagW.Group, TagW.FileName));
+    public static final TreeModelNode series =
+        new TreeModelNode(2, 0, TagW.SubseriesInstanceUID, new TagView(TagW.FileName));
 
-    public static final ArrayList<TreeModelNode> modelStrucure = new ArrayList<TreeModelNode>(5);
+    private static final List<TreeModelNode> modelStrucure = new ArrayList<>(5);
+
     static {
-        modelStrucure.add(root);
+        modelStrucure.add(TreeModelNode.ROOT);
         modelStrucure.add(group);
         modelStrucure.add(series);
     }
@@ -42,7 +58,7 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
     private PropertyChangeSupport propertyChange = null;
 
     public AbstractFileModel() {
-        model = new Tree<MediaSeriesGroup>(rootNode);
+        model = new Tree<>(MediaSeriesGroupNode.rootNode);
     }
 
     @Override
@@ -96,7 +112,7 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
                 Tree<MediaSeriesGroup> tree = model.getTree(node);
                 if (tree != null) {
 
-                    Tree<MediaSeriesGroup> parent = null;
+                    Tree<MediaSeriesGroup> parent;
                     while ((parent = tree.getParent()) != null) {
                         if (parent.getHead().getTagID().equals(modelNode.getTagElement())) {
                             return parent.getHead();
@@ -111,8 +127,8 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
 
     public void dispose() {
         synchronized (model) {
-            for (Iterator<MediaSeriesGroup> iterator = this.getChildren(TreeModel.rootNode).iterator(); iterator
-                .hasNext();) {
+            for (Iterator<MediaSeriesGroup> iterator =
+                this.getChildren(MediaSeriesGroupNode.rootNode).iterator(); iterator.hasNext();) {
                 MediaSeriesGroup s = iterator.next();
                 if (s instanceof Series) {
                     ((Series) s).dispose();
@@ -157,27 +173,21 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
             if (SwingUtilities.isEventDispatchThread()) {
                 propertyChange.firePropertyChange(event);
             } else {
-                SwingUtilities.invokeLater(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        propertyChange.firePropertyChange(event);
-                    }
-                });
+                SwingUtilities.invokeLater(() -> propertyChange.firePropertyChange(event));
             }
         }
     }
 
     public void removeTopGroup(MediaSeriesGroup topGroup) {
         if (topGroup != null) {
-            firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Remove, AbstractFileModel.this, null,
-                topGroup));
+            firePropertyChange(
+                new ObservableEvent(ObservableEvent.BasicAction.REMOVE, AbstractFileModel.this, null, topGroup));
             Collection<MediaSeriesGroup> seriesList = getChildren(topGroup);
             for (Iterator<MediaSeriesGroup> it = seriesList.iterator(); it.hasNext();) {
                 MediaSeriesGroup s = it.next();
                 s.dispose();
             }
-            removeHierarchyNode(rootNode, topGroup);
+            removeHierarchyNode(MediaSeriesGroupNode.rootNode, topGroup);
             LOGGER.info("Remove Group: {}", topGroup); //$NON-NLS-1$
         }
     }
@@ -185,8 +195,8 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
     public void removeSeries(MediaSeriesGroup seriesGroup) {
         if (seriesGroup != null) {
             // remove first series in UI (Viewer using this series)
-            firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Remove, AbstractFileModel.this, null,
-                seriesGroup));
+            firePropertyChange(
+                new ObservableEvent(ObservableEvent.BasicAction.REMOVE, AbstractFileModel.this, null, seriesGroup));
             // remove in the data model
             MediaSeriesGroup topGroup = getParent(seriesGroup, AbstractFileModel.group);
             removeHierarchyNode(topGroup, seriesGroup);
@@ -200,12 +210,10 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
         return false;
     }
 
-    public void get(String[] argv) throws IOException {
-
-    }
+    public abstract void get(String[] argv) throws IOException;
 
     public void close(String[] argv) throws IOException {
-        final String[] usage = { "Remove DICOM files in Dicom Explorer", //$NON-NLS-1$
+        final String[] usage = { "Close imgage series", //$NON-NLS-1$
             "Usage: dicom:close [series] [ARGS]", //$NON-NLS-1$
             "  -a --all Close all series", //$NON-NLS-1$
             "  -s --series <args>	Close series, [arg] is Series UID", "  -? --help		show help" }; //$NON-NLS-1$ //$NON-NLS-2$
@@ -217,24 +225,20 @@ public class AbstractFileModel implements TreeModel, DataExplorerModel {
             return;
         }
 
-        GuiExecutor.instance().execute(new Runnable() {
-
-            @Override
-            public void run() {
-                firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.Select, AbstractFileModel.this,
-                    null, AbstractFileModel.this));
-                if (opt.isSet("all")) { //$NON-NLS-1$
-                    for (MediaSeriesGroup g : model.getSuccessors(rootNode)) {
-                        removeTopGroup(g);
-                    }
-                } else if (opt.isSet("series")) { //$NON-NLS-1$
-                    for (String seriesUID : args) {
-                        for (MediaSeriesGroup topGroup : model.getSuccessors(rootNode)) {
-                            MediaSeriesGroup s = getHierarchyNode(topGroup, seriesUID);
-                            if (s instanceof Series) {
-                                removeSeries(s);
-                                break;
-                            }
+        GuiExecutor.instance().execute(() -> {
+            AbstractFileModel dataModel = AbstractFileModel.this;
+            firePropertyChange(new ObservableEvent(ObservableEvent.BasicAction.SELECT, dataModel, null, dataModel));
+            if (opt.isSet("all")) { //$NON-NLS-1$
+                for (MediaSeriesGroup g : model.getSuccessors(MediaSeriesGroupNode.rootNode)) {
+                    dataModel.removeTopGroup(g);
+                }
+            } else if (opt.isSet("series")) { //$NON-NLS-1$
+                for (String seriesUID : args) {
+                    for (MediaSeriesGroup topGroup : model.getSuccessors(MediaSeriesGroupNode.rootNode)) {
+                        MediaSeriesGroup s = getHierarchyNode(topGroup, seriesUID);
+                        if (s instanceof Series) {
+                            removeSeries(s);
+                            break;
                         }
                     }
                 }

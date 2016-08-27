@@ -1,13 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2011 Nicolas Roduit.
+ * Copyright (c) 2016 Weasis Team and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- * 
+ *
  * Contributors:
  *     Nicolas Roduit - initial API and implementation
- ******************************************************************************/
+ *******************************************************************************/
 package org.weasis.core.ui.editor.image;
 
 import java.awt.event.ActionEvent;
@@ -24,11 +24,11 @@ import org.weasis.core.api.gui.util.ActionState;
 import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.gui.util.SliderChangeListener;
 import org.weasis.core.ui.Messages;
-import org.weasis.core.ui.editor.image.ZoomWin.SYNCH_TYPE;
+import org.weasis.core.ui.editor.image.ZoomWin.SyncType;
 
 /**
  * The Class PopUpMenuOnZoom.
- * 
+ *
  * @author Nicolas Roduit
  */
 public class PopUpMenuOnZoom extends JPopupMenu {
@@ -79,7 +79,7 @@ public class PopUpMenuOnZoom extends JPopupMenu {
 
             @Override
             public void actionPerformed(ActionEvent e) {
-                zoomWin.setActionInView(ActionW.DRAW.cmd(), jCheckBoxMenuItemDraw.isSelected());
+                zoomWin.setActionInView(ActionW.DRAWINGS.cmd(), jCheckBoxMenuItemDraw.isSelected());
                 zoomWin.repaint();
             }
         });
@@ -89,7 +89,7 @@ public class PopUpMenuOnZoom extends JPopupMenu {
 
             @Override
             public void actionPerformed(ActionEvent e) {
-                zoomWin.setFreezeImage(SYNCH_TYPE.ParentParameters);
+                zoomWin.setFreezeImage(SyncType.PARENT_PARAMETERS);
             }
         });
         jMenuImage.add(freezParams);
@@ -98,7 +98,7 @@ public class PopUpMenuOnZoom extends JPopupMenu {
 
             @Override
             public void actionPerformed(ActionEvent e) {
-                zoomWin.setFreezeImage(SYNCH_TYPE.ParentImage);
+                zoomWin.setFreezeImage(SyncType.PARENT_IMAGE);
             }
         });
         jMenuImage.add(freeze);
@@ -146,9 +146,9 @@ public class PopUpMenuOnZoom extends JPopupMenu {
     public void enableMenuItem() {
         // Do not trigger actionLinstener
         jCheckBoxMenutemSychronize.setSelected((Boolean) zoomWin.getActionValue(ZoomWin.SYNCH_CMD));
-        jCheckBoxMenuItemDraw.setSelected((Boolean) zoomWin.getActionValue(ActionW.DRAW.cmd()));
+        jCheckBoxMenuItemDraw.setSelected((Boolean) zoomWin.getActionValue(ActionW.DRAWINGS.cmd()));
         Object type = zoomWin.getActionValue(ZoomWin.FREEZE_CMD);
-        resetFreeze.setEnabled(SYNCH_TYPE.ParentParameters.equals(type) || SYNCH_TYPE.ParentImage.equals(type));
+        resetFreeze.setEnabled(SyncType.PARENT_PARAMETERS.equals(type) || SyncType.PARENT_IMAGE.equals(type));
 
         // Get current zoom magnitude
         boolean noselection = true;
@@ -196,8 +196,8 @@ public class PopUpMenuOnZoom extends JPopupMenu {
                     ImageViewerEventManager<?> manager = zoomWin.getView2d().getEventManager();
                     ActionState zoomAction = manager.getAction(ActionW.LENSZOOM);
                     if (zoomAction instanceof SliderChangeListener) {
-                        ((SliderChangeListener) zoomAction).setValue(ImageViewerEventManager
-                            .viewScaleToSliderValue(magnify[i]));
+                        ((SliderChangeListener) zoomAction)
+                            .setValue(ImageViewerEventManager.viewScaleToSliderValue(magnify[i]));
                     }
                     break;
                 }

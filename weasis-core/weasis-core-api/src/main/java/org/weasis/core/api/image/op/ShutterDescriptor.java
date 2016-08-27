@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.core.api.image.op;
 
 import java.awt.RenderingHints;
@@ -62,10 +72,9 @@ public class ShutterDescriptor extends OperationDescriptorImpl implements Render
 
         TiledImage image;
         if (ImageUtil.isBinary(source1.getSampleModel())) {
-            image =
-                new TiledImage(source1.getMinX(), source1.getMinY(), source1.getWidth(), source1.getHeight(),
-                    source1.getTileGridXOffset(), source1.getTileGridYOffset(), LayoutUtil.createBinarySampelModel(),
-                    LayoutUtil.createBinaryIndexColorModel());
+            image = new TiledImage(source1.getMinX(), source1.getMinY(), source1.getWidth(), source1.getHeight(),
+                source1.getTileGridXOffset(), source1.getTileGridYOffset(), LayoutUtil.createBinarySampelModel(),
+                LayoutUtil.createBinaryIndexColorModel());
         } else {
             // rgb cannot be null or have less than one value
             Byte[] rgb = (Byte[]) paramBlock.getObjectParameter(1);

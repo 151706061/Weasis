@@ -1,10 +1,20 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Weasis Team and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Nicolas Roduit - initial API and implementation
+ *******************************************************************************/
 package org.weasis.core.api.image;
 
 import java.awt.image.RenderedImage;
 
-public interface OpManager extends OpEventListener, Cloneable {
+import org.weasis.core.api.util.Copyable;
 
-    OpManager clone() throws CloneNotSupportedException;
+public interface OpManager extends OpEventListener, Copyable<OpManager> {
 
     void removeAllImageOperationAction();
 
@@ -29,5 +39,9 @@ public interface OpManager extends OpEventListener, Cloneable {
     Object getParamValue(String opName, String param);
 
     boolean setParamValue(String opName, String param, Object value);
+
+    void removeParam(String opName, String param);
+    
+    boolean needProcessing();
 
 }
