@@ -9,15 +9,14 @@
  */
 package org.weasis.acquire.explorer.gui.central.meta.panel;
 
-import com.github.lgooddatepicker.components.DatePickerSettings;
-import com.github.lgooddatepicker.tableeditors.DateTableEditor;
-import com.github.lgooddatepicker.tableeditors.TimeTableEditor;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
-import java.awt.Insets;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,11 +25,10 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultCellEditor;
 import javax.swing.DefaultComboBoxModel;
-import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JFormattedTextField;
 import javax.swing.JPanel;
 import javax.swing.JTable;
-import javax.swing.JTextField;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
@@ -49,8 +47,9 @@ import org.weasis.core.api.gui.util.GuiUtils.IconColor;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.media.data.TagW.TagType;
 import org.weasis.core.api.util.FontItem;
-import org.weasis.core.ui.util.CalendarUtil;
-import org.weasis.core.ui.util.LimitedTextField;
+import org.weasis.core.api.util.ResourceUtil;
+import org.weasis.core.ui.thirdparty.raven.datetime.component.date.DatePicker;
+import org.weasis.core.ui.thirdparty.raven.datetime.component.time.TimePicker;
 import org.weasis.core.ui.util.TableColumnAdjuster;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TagD;
@@ -250,27 +249,16 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
       } else if (tagID == Tag.SeriesDescription) {
         cellEditor = getTableCellEditor(value, seriesDescCombo, limitedChars);
       } else if (date) {
-        DateTableEditor datePicker = buildDatePicker();
-        JTextField picker = datePicker.getDatePicker().getComponentDateTextField();
-        Insets margin = picker.getMargin();
-        int height = table.getRowHeight(row) - margin.top - margin.bottom;
-        GuiUtils.setPreferredHeight(picker, height);
-        GuiUtils.setPreferredHeight(
-            datePicker.getDatePicker().getComponentToggleCalendarButton(), height);
-        cellEditor = datePicker;
+        DatePicker datePicker = new DatePicker();
+        datePicker.setDateSelectionAble(d -> !d.isAfter(LocalDate.now()));
+        JFormattedTextField pickerEditor = new JFormattedTextField();
+        datePicker.setEditor(pickerEditor);
+        cellEditor = new DefaultCellEditor(pickerEditor);
       } else if (time) {
-        TimeTableEditor tableEditor = new TimeTableEditor(false, true, true);
-        tableEditor.getTimePickerSettings().fontInvalidTime = SMALL_FONT;
-        tableEditor.getTimePickerSettings().fontValidTime = SMALL_FONT;
-        tableEditor.getTimePickerSettings().fontVetoedTime = SMALL_FONT;
-        JButton button = tableEditor.getTimePicker().getComponentToggleTimeMenuButton();
-        Insets margin = button.getMargin();
-        int height = table.getRowHeight(row) - margin.top - margin.bottom;
-        GuiUtils.setPreferredHeight(button, height, height);
-        GuiUtils.setPreferredHeight(tableEditor.getTimePicker(), height, height);
-        GuiUtils.setPreferredHeight(
-            tableEditor.getTimePicker().getComponentTimeTextField(), height, height);
-        cellEditor = tableEditor;
+        TimePicker timePicker = new TimePicker();
+        JFormattedTextField pickerEditor = new JFormattedTextField();
+        timePicker.setEditor(pickerEditor);
+        cellEditor = new DefaultCellEditor(pickerEditor);
       } else {
         cellEditor = new DefaultCellEditor(new LimitedTextField(limitedChars));
       }
@@ -302,23 +290,22 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
       GuiUtils.setPreferredWidth(combo, 80);
     }
 
-    private DateTableEditor buildDatePicker() {
-      DateTableEditor d = new DateTableEditor(false, true, true);
-      DatePickerSettings settings = d.getDatePickerSettings();
-      settings.setFontInvalidDate(SMALL_FONT);
-      settings.setFontValidDate(SMALL_FONT);
-      settings.setFontVetoedDate(SMALL_FONT);
-
-      CalendarUtil.adaptCalendarColors(settings);
-
-      settings.setFormatForDatesCommonEra(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM));
-      settings.setFormatForDatesBeforeCommonEra(
-          DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM));
-
-      settings.setFormatForDatesCommonEra(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM));
-      settings.setFormatForDatesBeforeCommonEra(
-          DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM));
-      return d;
+    public static String[] getBodyPartValues() {
+      // https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_L.html
+      List<String> list = new ArrayList<>();
+      try (BufferedReader br =
+          Files.newBufferedReader(ResourceUtil.getResource(Path.of("bodyPartExamined.csv")))) {
+        String line;
+        while ((line = br.readLine()) != null) {
+          String[] columns = line.split(",");
+          if (columns.length > 2 && StringUtil.hasText(columns[2]) && columns[2].length() <= 16) {
+            list.add(columns[2]);
+          }
+        }
+      } catch (IOException ex) {
+        LOGGER.error("Cannot read body part values", ex);
+      }
+      return list.toArray(new String[0]);
     }
 
     public static String[] getValues(String property, String defaultValues) {
