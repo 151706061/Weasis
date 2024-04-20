@@ -25,8 +25,8 @@ import net.miginfocom.swing.MigLayout;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.OtherIcon;
 import org.weasis.core.ui.thirdparty.raven.datetime.util.InputUtils;
-import org.weasis.core.ui.thirdparty.raven.swing.slider.PanelSlider;
-import org.weasis.core.ui.thirdparty.raven.swing.slider.SimpleTransition;
+import org.weasis.core.ui.thirdparty.raven.slider.PanelSlider;
+import org.weasis.core.ui.thirdparty.raven.slider.SimpleTransition;
 
 public class DatePicker extends JPanel {
 

@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.ui.thirdparty.raven.swing.slider;
+package org.weasis.core.ui.thirdparty.raven.slider;
 
 import java.awt.AlphaComposite;
 import java.awt.Graphics;
