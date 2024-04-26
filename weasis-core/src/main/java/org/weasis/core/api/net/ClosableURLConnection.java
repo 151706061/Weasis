@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.util;
+package org.weasis.core.api.net;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,10 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.util.StringUtil;
 
-public class ClosableURLConnection implements HttpResponse {
-  private static final Logger LOGGER = LoggerFactory.getLogger(ClosableURLConnection.class);
+public record ClosableURLConnection(URLConnection urlConnection) implements HttpResponse {
 
-  private final URLConnection urlConnection;
+  private static final Logger LOGGER = LoggerFactory.getLogger(ClosableURLConnection.class);
 
   public ClosableURLConnection(URLConnection urlConnection) {
     this.urlConnection = Objects.requireNonNull(urlConnection);
@@ -71,9 +70,5 @@ public class ClosableURLConnection implements HttpResponse {
 
   public OutputStream getOutputStream() throws IOException {
     return urlConnection.getOutputStream();
-  }
-
-  public URLConnection getUrlConnection() {
-    return urlConnection;
   }
 }

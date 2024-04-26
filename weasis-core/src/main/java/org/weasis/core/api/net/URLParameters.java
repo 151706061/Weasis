@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.util;
+package org.weasis.core.api.net;
 
 import java.net.URL;
 import java.net.URLDecoder;

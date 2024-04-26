@@ -1,6 +1,3 @@
-<<<<<<<< HEAD:weasis-core/src/main/java/org/weasis/core/ui/thirdparty/raven/spinner/SpinnerProgress.java
-package org.weasis.core.ui.thirdparty.raven.spinner;
-========
 /*
  * Copyright (c) 2024 Weasis Team and other contributors.
  *
@@ -11,7 +8,6 @@ package org.weasis.core.ui.thirdparty.raven.spinner;
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
 package org.weasis.core.ui.tp.raven.spinner;
->>>>>>>> ead013777 (Rename thirdparty):weasis-core/src/main/java/org/weasis/core/ui/tp/raven/spinner/SpinnerProgress.java
 
 import javax.swing.Icon;
 import javax.swing.JProgressBar;
@@ -19,25 +15,25 @@ import org.weasis.core.api.util.FontItem;
 
 public class SpinnerProgress extends JProgressBar {
 
-    private Icon icon;
+  private Icon icon;
 
-    private int verticalAlignment = CENTER;
-    private int horizontalAlignment = CENTER;
+  private int verticalAlignment = CENTER;
+  private int horizontalAlignment = CENTER;
 
-    private int verticalTextPosition = CENTER;
-    private int horizontalTextPosition = TRAILING;
+  private int verticalTextPosition = CENTER;
+  private int horizontalTextPosition = TRAILING;
 
-    private int iconTextGap = 4;
-    private int space = 10;
+  private int iconTextGap = 4;
+  private int space = 10;
 
-    public SpinnerProgress() {
-        init();
-    }
+  public SpinnerProgress() {
+    init();
+  }
 
-    public SpinnerProgress(Icon icon) {
-        this();
-        this.icon = icon;
-    }
+  public SpinnerProgress(Icon icon) {
+    this();
+    this.icon = icon;
+  }
 
   public SpinnerProgress(int min, int max) {
     super(min, max);
@@ -54,80 +50,79 @@ public class SpinnerProgress extends JProgressBar {
     updateUI();
   }
 
-    public Icon getIcon() {
-        return icon;
-    }
+  public Icon getIcon() {
+    return icon;
+  }
 
-    public void setIcon(Icon icon) {
-        this.icon = icon;
-        repaint();
-        revalidate();
-    }
+  public void setIcon(Icon icon) {
+    this.icon = icon;
+    repaint();
+    revalidate();
+  }
 
-    public int getVerticalAlignment() {
-        return verticalAlignment;
-    }
+  public int getVerticalAlignment() {
+    return verticalAlignment;
+  }
 
-    public void setVerticalAlignment(int alignment) {
-        if (this.verticalAlignment != alignment) {
-            this.verticalAlignment = alignment;
-            revalidate();
-        }
+  public void setVerticalAlignment(int alignment) {
+    if (this.verticalAlignment != alignment) {
+      this.verticalAlignment = alignment;
+      revalidate();
     }
+  }
 
-    public int getHorizontalAlignment() {
-        return horizontalAlignment;
+  public int getHorizontalAlignment() {
+    return horizontalAlignment;
+  }
+
+  public void setHorizontalAlignment(int alignment) {
+    if (this.horizontalAlignment != alignment) {
+      this.horizontalAlignment = alignment;
+      revalidate();
     }
+  }
 
-    public void setHorizontalAlignment(int alignment) {
-        if (this.horizontalAlignment != alignment) {
-            this.horizontalAlignment = alignment;
-            revalidate();
-        }
+  public int getVerticalTextPosition() {
+    return verticalTextPosition;
+  }
+
+  public void setVerticalTextPosition(int textPosition) {
+    if (this.verticalTextPosition != textPosition) {
+      this.verticalTextPosition = textPosition;
+      revalidate();
     }
+  }
 
-    public int getVerticalTextPosition() {
-        return verticalTextPosition;
+  public int getHorizontalTextPosition() {
+    return horizontalTextPosition;
+  }
+
+  public void setHorizontalTextPosition(int textPosition) {
+    if (this.horizontalTextPosition != textPosition) {
+      this.horizontalTextPosition = textPosition;
+      revalidate();
     }
+  }
 
-    public void setVerticalTextPosition(int textPosition) {
-        if (this.verticalTextPosition != textPosition) {
-            this.verticalTextPosition = textPosition;
-            revalidate();
-        }
+  public int getIconTextGap() {
+    return iconTextGap;
+  }
+
+  public void setIconTextGap(int iconTextGap) {
+    if (this.iconTextGap != iconTextGap) {
+      this.iconTextGap = iconTextGap;
+      revalidate();
     }
+  }
 
-    public int getHorizontalTextPosition() {
-        return horizontalTextPosition;
+  public int getSpace() {
+    return space;
+  }
+
+  public void setSpace(int space) {
+    if (this.space != space) {
+      this.space = space;
+      revalidate();
     }
-
-
-    public void setHorizontalTextPosition(int textPosition) {
-        if (this.horizontalTextPosition != textPosition) {
-            this.horizontalTextPosition = textPosition;
-            revalidate();
-        }
-    }
-
-    public int getIconTextGap() {
-        return iconTextGap;
-    }
-
-    public void setIconTextGap(int iconTextGap) {
-        if (this.iconTextGap != iconTextGap) {
-            this.iconTextGap = iconTextGap;
-            revalidate();
-        }
-    }
-
-    public int getSpace() {
-        return space;
-    }
-
-    public void setSpace(int space) {
-        if (this.space != space) {
-            this.space = space;
-            revalidate();
-        }
-    }
+  }
 }

@@ -23,9 +23,9 @@ import org.weasis.core.api.explorer.ObservableEvent;
 import org.weasis.core.api.explorer.model.AbstractFileModel;
 import org.weasis.core.api.gui.util.AppProperties;
 import org.weasis.core.api.gui.util.GuiExecutor;
-import org.weasis.core.api.util.ClosableURLConnection;
-import org.weasis.core.api.util.NetworkUtil;
-import org.weasis.core.api.util.URLParameters;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.util.FileUtil;
 
 // TODO required to change the static ref

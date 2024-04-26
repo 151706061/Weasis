@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.auth;
+package org.weasis.core.api.net.auth;
 
 public class AuthRegistration {
 

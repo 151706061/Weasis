@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.util;
+package org.weasis.core.api.net;
 
 import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Verb;
@@ -29,9 +29,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.OAuth2ServiceFactory;
 import org.weasis.core.api.gui.util.AppProperties;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.OAuth2ServiceFactory;
 import org.weasis.core.util.StreamIOException;
 import org.weasis.core.util.StringUtil;
 

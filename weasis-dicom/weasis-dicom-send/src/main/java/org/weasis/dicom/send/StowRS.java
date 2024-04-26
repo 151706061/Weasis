@@ -33,15 +33,15 @@ import org.dcm4che3.io.SAXReader;
 import org.dcm4che3.net.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.BasicHttpClient;
-import org.weasis.core.api.auth.BodySupplier;
-import org.weasis.core.api.auth.FileBodyPartPayload;
-import org.weasis.core.api.auth.OAuth2ServiceFactory;
-import org.weasis.core.api.util.ClosableURLConnection;
-import org.weasis.core.api.util.HttpResponse;
-import org.weasis.core.api.util.NetworkUtil;
-import org.weasis.core.api.util.URLParameters;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.HttpResponse;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.BasicHttpClient;
+import org.weasis.core.api.net.auth.BodySupplier;
+import org.weasis.core.api.net.auth.FileBodyPartPayload;
+import org.weasis.core.api.net.auth.OAuth2ServiceFactory;
 import org.weasis.core.util.FileUtil;
 import org.weasis.dicom.param.DicomProgress;
 import org.weasis.dicom.param.DicomState;
@@ -142,7 +142,7 @@ public class StowRS extends DicomStowRS {
           authMethod.getToken();
         }
       } else if (httpCon instanceof ClosableURLConnection urlConnection
-          && urlConnection.getUrlConnection() instanceof HttpURLConnection http) {
+          && urlConnection.urlConnection() instanceof HttpURLConnection http) {
         MultipartPayload multipartPayload = getMultipartPayload(filesOrFolders, recursive);
         nbFile = multipartPayload.getBodyParts().size();
         BasicHttpClient.addBody(http, multipartPayload, true);

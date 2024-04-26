@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.OAuth2ServiceFactory;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.OAuth2ServiceFactory;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TransferSyntax;
 

@@ -39,10 +39,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.gui.util.AppProperties;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.service.UICore;
-import org.weasis.core.api.util.ClosableURLConnection;
-import org.weasis.core.api.util.NetworkUtil;
-import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.util.EscapeChars;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.StreamUtil;
@@ -301,13 +301,12 @@ public class StreamBackingStoreImpl implements BackingStore {
 
     } catch (XMLStreamException e) {
       boolean isHttpNoContent = false;
-      if (conn.getUrlConnection() instanceof HttpURLConnection httpURLConnection) {
+      if (conn.urlConnection() instanceof HttpURLConnection httpURLConnection) {
         isHttpNoContent = HttpURLConnection.HTTP_NO_CONTENT == httpURLConnection.getResponseCode();
       }
       if (!isHttpNoContent)
         throw new BackingStoreException(
-            "Unable to read remote preferences from Service: " + conn.getUrlConnection().getURL(),
-            e);
+            "Unable to read remote preferences from Service: " + conn.urlConnection().getURL(), e);
     } finally {
       StreamUtil.safeClose(xmler);
     }
@@ -373,7 +372,7 @@ public class StreamBackingStoreImpl implements BackingStore {
         try (OutputStream out = http.getOutputStream()) {
           writeStream(new FileInputStream(file), out);
         }
-        if (http.getUrlConnection() instanceof HttpURLConnection httpURLConnection) {
+        if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
           NetworkUtil.readResponse(httpURLConnection, urlParams.getUnmodifiableHeaders());
         }
       }

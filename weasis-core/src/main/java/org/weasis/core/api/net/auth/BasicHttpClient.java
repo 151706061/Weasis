@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.auth;
+package org.weasis.core.api.net.auth;
 
 import com.github.scribejava.core.exceptions.OAuthException;
 import com.github.scribejava.core.httpclient.HttpClient;
@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import org.weasis.core.api.util.NetworkUtil;
+import org.weasis.core.api.net.NetworkUtil;
 import org.weasis.core.util.FileUtil;
 
 public class BasicHttpClient implements HttpClient {

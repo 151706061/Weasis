@@ -53,11 +53,11 @@ import org.weasis.core.api.gui.util.WinUtil;
 import org.weasis.core.api.media.data.Codec;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeries;
-import org.weasis.core.api.util.ClosableURLConnection;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.util.LocalUtil;
-import org.weasis.core.api.util.NetworkUtil;
 import org.weasis.core.api.util.ResourceUtil;
-import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
@@ -217,7 +217,7 @@ public final class UICore {
       try (OutputStream out = http.getOutputStream()) {
         props.store(new DataOutputStream(out), null);
       }
-      if (http.getUrlConnection() instanceof HttpURLConnection httpURLConnection) {
+      if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
         NetworkUtil.readResponse(httpURLConnection, urlParameters.getUnmodifiableHeaders());
       }
     }

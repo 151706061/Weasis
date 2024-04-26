@@ -54,7 +54,6 @@ import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.util.SafeClose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.weasis.core.api.auth.AuthMethod;
 import org.weasis.core.api.explorer.ObservableEvent;
 import org.weasis.core.api.gui.task.SeriesProgressMonitor;
 import org.weasis.core.api.gui.util.AppProperties;
@@ -69,14 +68,16 @@ import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.media.data.TagW.TagType;
 import org.weasis.core.api.media.data.Thumbnail;
 import org.weasis.core.api.model.PerformanceModel;
+import org.weasis.core.api.net.AuthResponse;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.HttpResponse;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URIUtils;
+import org.weasis.core.api.net.URLParameters;
+import org.weasis.core.api.net.auth.AuthMethod;
 import org.weasis.core.api.service.AuditLog;
-import org.weasis.core.api.util.AuthResponse;
-import org.weasis.core.api.util.ClosableURLConnection;
-import org.weasis.core.api.util.HttpResponse;
-import org.weasis.core.api.util.NetworkUtil;
 import org.weasis.core.api.util.ResourceUtil.ResourceIconPath;
 import org.weasis.core.api.util.ThreadUtil;
-import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.ui.model.GraphicModel;
 import org.weasis.core.ui.model.ReferencedImage;
 import org.weasis.core.ui.model.ReferencedSeries;
@@ -98,7 +99,6 @@ import org.weasis.dicom.mf.SopInstance;
 import org.weasis.dicom.mf.WadoParameters;
 import org.weasis.dicom.web.BoundaryExtractor;
 import org.weasis.dicom.web.MultipartConstants;
-import org.weasis.dicom.web.MultipartHeaderParser;
 import org.weasis.dicom.web.MultipartReader;
 import org.weasis.dicom.web.MultipartStreamException;
 
@@ -334,7 +334,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
                   new OutputStreamWriter(out, StandardCharsets.UTF_8); // NON-NLS
               writer.write(new ObjectMapper().writeValueAsString(model));
             }
-            if (http.getUrlConnection() instanceof HttpURLConnection httpURLConnection) {
+            if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
               NetworkUtil.readResponse(httpURLConnection, urlParameters.getUnmodifiableHeaders());
             }
           } catch (Exception e) {
@@ -925,7 +925,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
               tempFile = renameFile;
             }
           } else {
-            tempFile = new File(NetworkUtil.getURI(url));
+            tempFile = new File(URIUtils.getURI(url));
           }
           // Ensure the stream is closed if image is not written in cache
           StreamUtil.safeClose(stream);
@@ -992,10 +992,10 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
 
           String contentTypeHeader;
           if (response instanceof ClosableURLConnection urlConnection) {
-            contentTypeHeader = urlConnection.getUrlConnection().getContentType();
+            contentTypeHeader = urlConnection.urlConnection().getContentType();
           } else {
             AuthResponse authResponse = (AuthResponse) response;
-            contentTypeHeader = authResponse.getResponse().getHeader("Content-Type");
+            contentTypeHeader = authResponse.response().getHeader("Content-Type");
           }
 
           // Extract boundary from Content-Type header

@@ -7,17 +7,18 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.util;
+package org.weasis.core.api.net.auth;
 
-import java.io.IOException;
-import java.io.InputStream;
+import com.github.scribejava.core.oauth.OAuth20Service;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 
-public interface HttpResponse extends AutoCloseable {
-  InputStream getInputStream() throws IOException;
+public interface AcceptCallbackHandler
+    extends CompletionHandler<AsynchronousSocketChannel, AsyncCallbackServerHandler> {
 
-  int getResponseCode();
+  String getCode();
 
-  String getHeaderField(String key);
+  void setCode(String code);
 
-  String getResponseMessage();
+  OAuth20Service getService();
 }

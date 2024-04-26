@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.util;
+package org.weasis.core.api.net;
 
 import com.github.scribejava.core.model.Response;
 import java.io.IOException;
@@ -15,9 +15,7 @@ import java.io.InputStream;
 import java.util.Objects;
 import org.weasis.core.util.StreamUtil;
 
-public class AuthResponse implements HttpResponse {
-
-  private final Response response;
+public record AuthResponse(Response response) implements HttpResponse {
 
   public AuthResponse(Response response) {
     this.response = Objects.requireNonNull(response);
@@ -31,10 +29,6 @@ public class AuthResponse implements HttpResponse {
   @Override
   public InputStream getInputStream() throws IOException {
     return response.getStream();
-  }
-
-  public Response getResponse() {
-    return response;
   }
 
   @Override

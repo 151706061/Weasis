@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.auth;
+package org.weasis.core.api.net.auth;
 
 import com.github.scribejava.core.builder.ServiceBuilder;
 import com.github.scribejava.core.builder.api.DefaultApi20;
@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.weasis.core.Messages;
 import org.weasis.core.api.gui.util.GuiUtils;
-import org.weasis.core.api.util.SocketUtil;
+import org.weasis.core.api.net.SocketUtil;
 
 public class OAuth2ServiceFactory {
   static final String CALLBACK_URL = "http://127.0.0.1:";

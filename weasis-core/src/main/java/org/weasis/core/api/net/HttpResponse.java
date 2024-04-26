@@ -7,25 +7,17 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.api.auth;
+package org.weasis.core.api.net;
 
-import com.github.scribejava.core.model.OAuth2AccessToken;
+import java.io.IOException;
+import java.io.InputStream;
 
-public interface AuthMethod {
+public interface HttpResponse extends AutoCloseable {
+  InputStream getInputStream() throws IOException;
 
-  String getCode();
+  int getResponseCode();
 
-  String getUid();
+  String getHeaderField(String key);
 
-  void resetToken();
-
-  OAuth2AccessToken getToken();
-
-  AuthRegistration getAuthRegistration();
-
-  boolean isLocal();
-
-  void setLocal(boolean local);
-
-  AuthProvider getAuthProvider();
+  String getResponseMessage();
 }

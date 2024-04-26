@@ -50,6 +50,7 @@ import org.weasis.core.api.util.FontItem;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.ui.tp.raven.datetime.component.date.DatePicker;
 import org.weasis.core.ui.tp.raven.datetime.component.time.TimePicker;
+import org.weasis.core.ui.util.LimitedTextField;
 import org.weasis.core.ui.util.TableColumnAdjuster;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TagD;
