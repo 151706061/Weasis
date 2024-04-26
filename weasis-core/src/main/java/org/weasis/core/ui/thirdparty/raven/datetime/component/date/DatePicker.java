@@ -28,6 +28,12 @@ import org.weasis.core.ui.thirdparty.raven.datetime.util.InputUtils;
 import org.weasis.core.ui.thirdparty.raven.slider.PanelSlider;
 import org.weasis.core.ui.thirdparty.raven.slider.SimpleTransition;
 
+/**
+ * DatePicker is a class that provides methods for creating a date picker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class DatePicker extends JPanel {
 
   private final DateTimeFormatter format = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -263,6 +269,15 @@ public class DatePicker extends JPanel {
     }
   }
 
+  public void selectCurrentMonth() {
+    LocalDate date = LocalDate.now();
+    if (dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED) {
+      setSelectedDateRange(date.withDayOfMonth(1), date);
+    } else {
+      setSelectedDate(date);
+    }
+  }
+
   public void setSelectedDate(LocalDate date) {
     dateSelection.setDate(new SingleDate(date));
     if (dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED) {
@@ -310,7 +325,7 @@ public class DatePicker extends JPanel {
   public void showPopup() {
     if (popupMenu == null) {
       popupMenu = new JPopupMenu();
-      popupMenu.putClientProperty(FlatClientProperties.STYLE, "" + "borderInsets:1,1,1,1");
+      popupMenu.putClientProperty(FlatClientProperties.STYLE, "borderInsets:1,1,1,1");
       popupMenu.add(this);
     }
     SwingUtilities.updateComponentTreeUI(popupMenu);

@@ -19,6 +19,11 @@ import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
 import net.miginfocom.swing.MigLayout;
 
+/* Header is a class that provides methods for creating the header of the TimeSpinner.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class Header extends JPanel {
 
   private MigLayout layout;

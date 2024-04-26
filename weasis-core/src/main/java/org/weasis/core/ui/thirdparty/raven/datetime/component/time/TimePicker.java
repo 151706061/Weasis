@@ -26,6 +26,12 @@ import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.OtherIcon;
 import org.weasis.core.ui.thirdparty.raven.datetime.util.InputUtils;
 
+/**
+ * TimePicker is a class that provides methods for creating a time picker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class TimePicker extends JPanel {
 
   private final DateTimeFormatter format12h = DateTimeFormatter.ofPattern("hh:mm a");

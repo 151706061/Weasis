@@ -14,6 +14,11 @@ import java.awt.Component;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
 
+/* PanelYear is a class that provides a panel for selecting a year in the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class PanelYear extends JPanel {
 
   public static final int YEAR_CELL = 28;
@@ -29,11 +34,10 @@ public class PanelYear extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(
         new MigLayout("wrap 4,insets 3,fillx,gap 3,al center center", "fill,sg main", "fill"));
-    int count = YEAR_CELL;
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < YEAR_CELL; i++) {
       final int y = getStartYear(year) + i;
       ButtonMonthYear button = new ButtonMonthYear(dateSelection, y, true);
       button.setText(y + "");
@@ -51,12 +55,10 @@ public class PanelYear extends JPanel {
 
   private int getStartYear(int year) {
     int initYear = 1900;
-    int currentYear = year;
     int yearsPerPage = YEAR_CELL;
-    int yearsPassed = currentYear - initYear;
+    int yearsPassed = year - initYear;
     int pages = yearsPassed / yearsPerPage;
-    int startingYearOnPage = initYear + (pages * yearsPerPage);
-    return startingYearOnPage;
+    return initYear + (pages * yearsPerPage);
   }
 
   protected boolean checkSelected(int year) {

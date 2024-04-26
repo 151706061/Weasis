@@ -11,6 +11,11 @@ package org.weasis.core.ui.thirdparty.raven.datetime.component.time;
 
 import java.util.EventObject;
 
+/* TimeEvent is a class that provides events for the TimeSpinner.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class TimeEvent extends EventObject {
 
   public TimeEvent(Object source) {

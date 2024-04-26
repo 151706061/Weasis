@@ -19,6 +19,12 @@ import java.awt.image.VolatileImage;
 import javax.swing.JComponent;
 import javax.swing.JLayeredPane;
 
+/**
+ * PanelSlider is a JLayeredPane that allows you to slide between two components with a transition.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class PanelSlider extends JLayeredPane {
 
   public Component getSlideComponent() {

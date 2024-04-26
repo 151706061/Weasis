@@ -13,6 +13,11 @@ import com.formdev.flatlaf.util.Animator;
 import com.formdev.flatlaf.util.CubicBezierEasing;
 import java.awt.Component;
 
+/* AnimationChange is a class that provides animations for the TimeSpinner.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class AnimationChange {
 
   public final Animator animator;

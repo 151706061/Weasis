@@ -17,6 +17,11 @@ import net.miginfocom.swing.MigLayout;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.ActionIcon;
 
+/* Header is a class that provides a header for the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class Header extends JPanel {
 
   private final EventHeaderChanged headerChanged;
@@ -32,7 +37,7 @@ public class Header extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(new MigLayout("fill,insets 3", "[]push[][]push[]", "fill"));
 
     JButton cmdBack = createButton();
@@ -58,8 +63,7 @@ public class Header extends JPanel {
     JButton button = new JButton();
     button.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "background:null;"
+        "background:null;"
             + "arc:10;"
             + "borderWidth:0;"
             + "focusWidth:0;"

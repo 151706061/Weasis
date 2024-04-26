@@ -18,6 +18,11 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
 
+/* PanelDate is a class that provides a panel for the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class PanelDate extends JPanel {
 
   private final DateSelection dateSelection;
@@ -32,7 +37,7 @@ public class PanelDate extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(
         new MigLayout("wrap 7,insets 3,gap 1,al center center", "fill", "[fill]10[fill][fill]"));
     load();

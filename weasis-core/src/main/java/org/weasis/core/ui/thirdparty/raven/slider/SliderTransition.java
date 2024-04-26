@@ -12,6 +12,11 @@ package org.weasis.core.ui.thirdparty.raven.slider;
 import java.awt.Graphics;
 import java.awt.Image;
 
+/* SliderTransition is an abstract class that provides methods for rendering images with transitions.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public abstract class SliderTransition {
 
   public abstract void renderImageOld(

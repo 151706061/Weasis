@@ -9,6 +9,11 @@
  */
 package org.weasis.core.ui.thirdparty.raven.datetime.component.date;
 
+/* DateSelectionListener is an interface that provides methods for listening to date selection events.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public interface DateSelectionListener {
 
   void dateSelected(DateEvent dateEvent);

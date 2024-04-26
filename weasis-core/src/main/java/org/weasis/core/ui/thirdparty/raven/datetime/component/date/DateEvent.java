@@ -11,6 +11,11 @@ package org.weasis.core.ui.thirdparty.raven.datetime.component.date;
 
 import java.util.EventObject;
 
+/* DateEvent is a class that provides events for the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class DateEvent extends EventObject {
 
   public DateEvent(Object source) {

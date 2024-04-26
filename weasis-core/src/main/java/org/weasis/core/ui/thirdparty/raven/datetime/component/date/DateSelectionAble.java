@@ -11,6 +11,11 @@ package org.weasis.core.ui.thirdparty.raven.datetime.component.date;
 
 import java.time.LocalDate;
 
+/* DateSelectionAble is an interface that provides methods for selecting dates in the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public interface DateSelectionAble {
   boolean isDateSelectedAble(LocalDate date);
 }

@@ -12,6 +12,11 @@ package org.weasis.core.ui.thirdparty.raven.datetime.component.date;
 import java.time.LocalDate;
 import java.util.Calendar;
 
+/* SingleDate is a class that provides a single date.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class SingleDate {
 
   private int day;

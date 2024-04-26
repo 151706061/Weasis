@@ -23,6 +23,12 @@ import javax.swing.JButton;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
+/**
+ * ButtonDate is a class that provides buttons for the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class ButtonMonthYear extends JButton {
 
   public int getValue() {
@@ -72,8 +78,7 @@ public class ButtonMonthYear extends JButton {
         });
     putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "margin:6,6,6,6;"
+        "margin:6,6,6,6;"
             + "selectedForeground:contrast($Component.accentColor,$Button.background,#fff);");
   }
 
@@ -98,6 +103,10 @@ public class ButtonMonthYear extends JButton {
         isSelected()
             ? UIManager.getColor("Component.accentColor")
             : FlatUIUtils.getParentBackground(this);
+    return getColor(color, press, hover);
+  }
+
+  public static Color getColor(Color color, boolean press, boolean hover) {
     if (press) {
       return FlatLaf.isLafDark()
           ? ColorFunctions.lighten(color, 0.1f)

@@ -25,6 +25,12 @@ import javax.swing.JFormattedTextField;
 import javax.swing.text.DefaultFormatterFactory;
 import javax.swing.text.MaskFormatter;
 
+/**
+ * InputUtils is a class that provides methods for formatting input fields.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class InputUtils extends MaskFormatter {
 
   private static Map<Component, PropertyChangeListener> inputMap;

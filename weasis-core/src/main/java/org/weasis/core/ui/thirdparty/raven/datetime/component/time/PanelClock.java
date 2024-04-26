@@ -30,6 +30,11 @@ import java.awt.geom.RoundRectangle2D;
 import javax.swing.JPanel;
 import javax.swing.UIManager;
 
+/*  PanelClock is a class that provides a clock component for the TimeSpinner.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class PanelClock extends JPanel {
 
   private final EventClockChanged clockChanged;

@@ -9,6 +9,11 @@
  */
 package org.weasis.core.ui.thirdparty.raven.datetime.component.time;
 
+/* TimeSelectionListener is an interface that provides methods for listening to time selection events.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public interface TimeSelectionListener {
 
   void timeSelected(TimeEvent timeEvent);

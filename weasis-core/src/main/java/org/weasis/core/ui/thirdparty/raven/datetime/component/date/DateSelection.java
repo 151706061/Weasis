@@ -9,6 +9,12 @@
  */
 package org.weasis.core.ui.thirdparty.raven.datetime.component.date;
 
+/*
+ * DateSelection is a class that provides methods for selecting dates in the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class DateSelection {
 
   protected DatePicker.DateSelectionMode dateSelectionMode =
@@ -74,19 +80,27 @@ public class DateSelection {
         datePicker.closePopup();
       }
     } else {
-      if (getDate() == null || toDate != null) {
+      if (getDate() == null || getToDate() != null) {
         this.date = date;
         hoverDate = date;
-        if (toDate != null) {
-          toDate = null;
+        if (getToDate() != null) {
+          this.toDate = null;
         }
       } else {
-        toDate = date;
+        this.toDate = date;
+        invertIfNecessaryToDate(date);
         datePicker.runEventDateChanged();
         if (datePicker.isCloseAfterSelected()) {
           datePicker.closePopup();
         }
       }
+    }
+  }
+
+  private void invertIfNecessaryToDate(SingleDate date) {
+    if (this.date.toLocalDate().isAfter(date.toLocalDate())) {
+      this.toDate = this.date;
+      this.date = date;
     }
   }
 

@@ -19,6 +19,11 @@ import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import net.miginfocom.swing.MigLayout;
 
+/* PanelDateOption is a class that provides a panel for date options in the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class PanelDateOption extends JPanel {
 
   private final DatePicker datePicker;
@@ -30,7 +35,7 @@ public class PanelDateOption extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(new MigLayout("wrap,insets 5,fillx", "[fill]", "[][][][][][][]push[]"));
     add(new JSeparator(SwingConstants.VERTICAL), "dock west");
     buttonGroup = new ButtonGroup();

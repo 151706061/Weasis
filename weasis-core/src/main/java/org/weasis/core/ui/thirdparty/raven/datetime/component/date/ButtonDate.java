@@ -27,13 +27,19 @@ import javax.swing.JButton;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
+/**
+ * ButtonDate is a class that provides buttons for the DatePicker.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
 public class ButtonDate extends JButton {
 
   private final DateSelection dateSelection;
   private final SingleDate date;
   private boolean press;
   private boolean hover;
-  private int rowIndex;
+  private final int rowIndex;
 
   public ButtonDate(DateSelection dateSelection, SingleDate date, boolean enable, int rowIndex) {
     this.dateSelection = dateSelection;
@@ -88,15 +94,13 @@ public class ButtonDate extends JButton {
     if (enable) {
       putClientProperty(
           FlatClientProperties.STYLE,
-          ""
-              + "margin:7,7,7,7;"
+          "margin:7,7,7,7;"
               + "focusWidth:2;"
               + "selectedForeground:contrast($Component.accentColor,$Button.background,#fff)");
     } else {
       putClientProperty(
           FlatClientProperties.STYLE,
-          ""
-              + "margin:7,7,7,7;"
+          "margin:7,7,7,7;"
               + "focusWidth:2;"
               + "selectedForeground:contrast($Component.accentColor,$Button.background,#fff);"
               + "foreground:$Button.disabledText");
@@ -195,16 +199,7 @@ public class ButtonDate extends JButton {
     if (isDateSelected()) {
       color = UIManager.getColor("Component.accentColor");
     }
-    if (press) {
-      return FlatLaf.isLafDark()
-          ? ColorFunctions.lighten(color, 0.1f)
-          : ColorFunctions.darken(color, 0.1f);
-    } else if (hover) {
-      return FlatLaf.isLafDark()
-          ? ColorFunctions.lighten(color, 0.03f)
-          : ColorFunctions.darken(color, 0.03f);
-    }
-    return color;
+    return ButtonMonthYear.getColor(color, press, hover);
   }
 
   protected Color getBorderColor(Color color) {

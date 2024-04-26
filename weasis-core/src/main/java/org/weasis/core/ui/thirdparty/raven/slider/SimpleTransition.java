@@ -14,6 +14,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 
+/* SimpleTransition is a class that provides simple transitions for the PanelSlider.
+ *
+ * @author Raven Laing
+ * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
+ */
+
 public class SimpleTransition {
 
   public static SliderTransition get(SliderType sliderType) {
