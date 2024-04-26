@@ -70,7 +70,8 @@ import org.weasis.core.api.media.data.Thumbnail;
 import org.weasis.core.api.model.PerformanceModel;
 import org.weasis.core.api.net.AuthResponse;
 import org.weasis.core.api.net.ClosableURLConnection;
-import org.weasis.core.api.net.HttpResponse;
+import org.weasis.core.api.net.HttpStream;
+import org.weasis.core.api.net.HttpUtils;
 import org.weasis.core.api.net.NetworkUtil;
 import org.weasis.core.api.net.URIUtils;
 import org.weasis.core.api.net.URLParameters;
@@ -661,7 +662,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       }
 
       if (thumbURL != null) {
-        try (HttpResponse httpCon = NetworkUtil.getHttpResponse(thumbURL, params, authMethod)) {
+        try (HttpStream httpCon = HttpUtils.getHttpResponse(thumbURL, params, authMethod)) {
           int code = httpCon.getResponseCode();
           if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
             File outFile =
@@ -764,8 +765,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
 
     File outFile = File.createTempFile("thumb_", ".jpg", Thumbnail.THUMBNAIL_CACHE_DIR.toFile());
     LOGGER.debug("Start to download JPEG thumbnail {} to {}.", url, outFile.getName());
-    try (HttpResponse httpCon =
-        NetworkUtil.getHttpResponse(url.toString(), urlParams, authMethod)) {
+    try (HttpStream httpCon = HttpUtils.getHttpResponse(url.toString(), urlParams, authMethod)) {
       int code = httpCon.getResponseCode();
       if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
         FileUtil.writeStreamWithIOException(httpCon.getInputStream(), outFile.toPath());
@@ -836,7 +836,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       dicomSeries.setTag(DOWNLOAD_ERRORS, errors.incrementAndGet());
     }
 
-    private HttpResponse replaceToDefaultTSUID() throws IOException {
+    private HttpStream replaceToDefaultTSUID() throws IOException {
       StringBuilder buffer = new StringBuilder();
       int start = url.indexOf("&transferSyntax="); // NON-NLS
       if (start != -1) {
@@ -852,7 +852,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         buffer.append(TransferSyntax.EXPLICIT_VR_LE.getTransferSyntaxUID());
       }
 
-      return NetworkUtil.getHttpResponse(buffer.toString(), urlParams, authMethod);
+      return HttpUtils.getHttpResponse(buffer.toString(), urlParams, authMethod);
     }
 
     @Override
@@ -888,7 +888,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       boolean cache = true;
       File tempFile = null;
       DicomMediaIO dicomReader = null;
-      HttpResponse urlcon = NetworkUtil.getHttpResponse(url, urlParams, authMethod);
+      HttpStream urlcon = HttpUtils.getHttpResponse(url, urlParams, authMethod);
       int code = urlcon.getResponseCode();
       if (code >= HttpURLConnection.HTTP_BAD_REQUEST) {
         if (authMethod != null && code == HttpURLConnection.HTTP_UNAUTHORIZED) {
@@ -976,7 +976,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       return true;
     }
 
-    private int downloadInFileCache(HttpResponse response, File tempFile) throws IOException {
+    private int downloadInFileCache(HttpStream response, File tempFile) throws IOException {
       final WadoParameters wadoParams =
           (WadoParameters) dicomSeries.getTagValue(TagW.WadoParameters);
       int[] overrideList =

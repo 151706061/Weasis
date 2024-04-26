@@ -19,7 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.util.StringUtil;
 
-public record ClosableURLConnection(URLConnection urlConnection) implements HttpResponse {
+public record ClosableURLConnection(URLConnection urlConnection) implements HttpStream {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ClosableURLConnection.class);
 

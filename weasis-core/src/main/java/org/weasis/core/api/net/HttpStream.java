@@ -12,7 +12,7 @@ package org.weasis.core.api.net;
 import java.io.IOException;
 import java.io.InputStream;
 
-public interface HttpResponse extends AutoCloseable {
+public interface HttpStream extends AutoCloseable {
   InputStream getInputStream() throws IOException;
 
   int getResponseCode();

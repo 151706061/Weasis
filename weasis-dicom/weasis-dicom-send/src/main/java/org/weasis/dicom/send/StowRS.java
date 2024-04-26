@@ -34,7 +34,7 @@ import org.dcm4che3.net.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.net.ClosableURLConnection;
-import org.weasis.core.api.net.HttpResponse;
+import org.weasis.core.api.net.HttpStream;
 import org.weasis.core.api.net.NetworkUtil;
 import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.net.auth.AuthMethod;
@@ -130,7 +130,7 @@ public class StowRS extends DicomStowRS {
       nbFile = authRequest.getMultipartPayload().getBodyParts().size();
     }
 
-    try (HttpResponse httpCon =
+    try (HttpStream httpCon =
         NetworkUtil.getHttpResponse(
             url, new URLParameters(getHeaders(), true), authMethod, authRequest)) {
       if (auth) {
@@ -197,7 +197,7 @@ public class StowRS extends DicomStowRS {
     return DicomState.buildMessage(state, message, null);
   }
 
-  private Attributes getResponseOutput(HttpResponse httpPost)
+  private Attributes getResponseOutput(HttpStream httpPost)
       throws IOException, ParserConfigurationException, SAXException {
     int code = httpPost.getResponseCode();
     if (code == HttpURLConnection.HTTP_OK) {

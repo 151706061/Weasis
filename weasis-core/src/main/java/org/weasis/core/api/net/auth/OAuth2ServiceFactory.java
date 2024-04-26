@@ -94,7 +94,7 @@ public class OAuth2ServiceFactory {
     OAuth20Service oAuth20Service =
         new ServiceBuilder(registration.getClientId())
             .apiSecret(registration.getClientSecret())
-            .httpClient(new BasicHttpClient())
+            .httpClient(new JavaNetHttpClient())
             .defaultScope(registration.getScope())
             .callback(CALLBACK_URL + port)
             .responseType(registration.getAuthorizationGrantType())

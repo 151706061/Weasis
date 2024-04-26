@@ -12,18 +12,26 @@ package org.weasis.core.api.net;
 import com.github.scribejava.core.model.Response;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.http.HttpResponse;
 import java.util.Objects;
-import org.weasis.core.util.StreamUtil;
+import org.weasis.core.api.net.auth.JavaNetHttpClient;
+import org.weasis.core.util.FileUtil;
 
-public record AuthResponse(Response response) implements HttpStream {
+public record HttpResponseStream(Response response) implements HttpStream {
 
-  public AuthResponse(Response response) {
+  public HttpResponseStream(Response response) {
     this.response = Objects.requireNonNull(response);
+  }
+
+  public HttpResponseStream(HttpResponse<InputStream> r) {
+    this(
+        new Response(
+            r.statusCode(), r.version().toString(), JavaNetHttpClient.parseHeaders(r), r.body()));
   }
 
   @Override
   public void close() {
-    StreamUtil.safeClose(response);
+    FileUtil.safeClose(response);
   }
 
   @Override

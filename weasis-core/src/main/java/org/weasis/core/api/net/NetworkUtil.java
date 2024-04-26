@@ -11,7 +11,6 @@ package org.weasis.core.api.net;
 
 import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Verb;
-import com.github.scribejava.core.oauth.OAuth20Service;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -38,7 +37,7 @@ import org.weasis.core.util.StringUtil;
 public class NetworkUtil {
   private static final Logger LOGGER = LoggerFactory.getLogger(NetworkUtil.class);
 
-  private static final int MAX_REDIRECTS = 3;
+  static final int MAX_REDIRECTS = 3;
 
   private NetworkUtil() {}
 
@@ -68,12 +67,12 @@ public class NetworkUtil {
     return uri;
   }
 
-  public static HttpResponse getHttpResponse(
+  public static HttpStream getHttpResponse(
       String url, URLParameters urlParameters, AuthMethod authMethod) throws IOException {
     return getHttpResponse(url, urlParameters, authMethod, null);
   }
 
-  public static HttpResponse getHttpResponse(
+  public static HttpStream getHttpResponse(
       String url, URLParameters urlParameters, AuthMethod authMethod, OAuthRequest authRequest)
       throws IOException {
     if (authMethod == null || OAuth2ServiceFactory.noAuth.equals(authMethod)) {
@@ -84,7 +83,7 @@ public class NetworkUtil {
         Objects.requireNonNullElseGet(
             authRequest,
             () -> new OAuthRequest(urlParameters.isHttpPost() ? Verb.POST : Verb.GET, url));
-    return prepareAuthConnection(request, urlParameters, authMethod);
+    return HttpUtils.prepareAuthConnection(request, urlParameters, authMethod);
   }
 
   public static ClosableURLConnection getUrlConnection(String url, URLParameters urlParameters)
@@ -100,32 +99,6 @@ public class NetworkUtil {
   private static void updateHeadersWithAppProperties(URLConnection urlConnection) {
     urlConnection.setRequestProperty("User-Agent", AppProperties.WEASIS_USER_AGENT);
     urlConnection.setRequestProperty("Weasis-User", AppProperties.WEASIS_USER);
-  }
-
-  private static AuthResponse prepareAuthConnection(
-      OAuthRequest request, URLParameters urlParameters, AuthMethod authMethod) throws IOException {
-    Map<String, String> headers = urlParameters.getUnmodifiableHeaders();
-    if (!headers.isEmpty()) {
-      for (Entry<String, String> element : headers.entrySet()) {
-        request.addHeader(element.getKey(), element.getValue());
-      }
-    }
-    request.addHeader("User-Agent", AppProperties.WEASIS_USER_AGENT); // NON-NLS
-    request.addHeader("Weasis-User", AppProperties.WEASIS_USER); // NON-NLS
-
-    try {
-      OAuth20Service service = OAuth2ServiceFactory.getService(authMethod);
-      if (service == null) {
-        throw new IllegalStateException("Not a valid authentication method: " + authMethod);
-      }
-      service.signRequest(authMethod.getToken(), request);
-      return new AuthResponse(service.execute(request));
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new StreamIOException(e);
-    } catch (Exception e) {
-      throw new StreamIOException(e);
-    }
   }
 
   private static ClosableURLConnection prepareConnection(

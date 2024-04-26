@@ -33,8 +33,8 @@ import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.MediaSeriesGroupNode;
 import org.weasis.core.api.media.data.Series;
 import org.weasis.core.api.media.data.TagW;
-import org.weasis.core.api.net.HttpResponse;
-import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.HttpStream;
+import org.weasis.core.api.net.HttpUtils;
 import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.net.auth.AuthMethod;
 import org.weasis.core.util.LangUtil;
@@ -138,7 +138,7 @@ public class RsQueryResult extends AbstractQueryResult {
   public static List<Attributes> parseJSON(
       String url, AuthMethod authMethod, URLParameters urlParameters) throws Exception {
     List<Attributes> items = new ArrayList<>();
-    try (HttpResponse response = NetworkUtil.getHttpResponse(url, urlParameters, authMethod);
+    try (HttpStream response = HttpUtils.getHttpResponse(url, urlParameters, authMethod);
         InputStreamReader instream =
             new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8)) {
       int code = response.getResponseCode();

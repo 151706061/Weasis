@@ -15,13 +15,16 @@ import com.github.scribejava.core.httpclient.jdk.JDKHttpFuture;
 import com.github.scribejava.core.httpclient.multipart.BodyPartPayload;
 import com.github.scribejava.core.httpclient.multipart.ByteArrayBodyPartPayload;
 import com.github.scribejava.core.httpclient.multipart.MultipartPayload;
+import com.github.scribejava.core.httpclient.multipart.MultipartUtils;
 import com.github.scribejava.core.model.OAuthAsyncRequestCallback;
 import com.github.scribejava.core.model.OAuthConstants;
 import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Response;
 import com.github.scribejava.core.model.Verb;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -117,8 +120,15 @@ public class BasicHttpClient implements HttpClient {
       File bodyContents,
       OAuthAsyncRequestCallback<T> callback,
       OAuthRequest.ResponseConverter<T> converter) {
-    throw new UnsupportedOperationException(
-        "JDKHttpClient does not support File payload for the moment");
+    return doExecuteAsync(
+        userAgent,
+        headers,
+        httpVerb,
+        completeUrl,
+        BodyType.STREAM,
+        bodyContents,
+        callback,
+        converter);
   }
 
   private <T> Future<T> doExecuteAsync(
@@ -189,8 +199,7 @@ public class BasicHttpClient implements HttpClient {
       String completeUrl,
       File bodyContents)
       throws InterruptedException, ExecutionException, IOException {
-    throw new UnsupportedOperationException(
-        "JDKHttpClient does not support File payload for the moment");
+    return doExecute(userAgent, headers, httpVerb, completeUrl, BodyType.STREAM, bodyContents);
   }
 
   private Response doExecute(
@@ -236,6 +245,13 @@ public class BasicHttpClient implements HttpClient {
         addBody(connection, (byte[]) bodyContents, requiresBody);
       }
     },
+    STREAM {
+      @Override
+      void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
+          throws IOException {
+        addBody(connection, (File) bodyContents, requiresBody);
+      }
+    },
     MULTIPART {
       @Override
       void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
@@ -278,6 +294,42 @@ public class BasicHttpClient implements HttpClient {
 
     if (userAgent != null) {
       connection.setRequestProperty(OAuthConstants.USER_AGENT_HEADER_NAME, userAgent);
+    }
+  }
+
+  private static void addBody(HttpURLConnection connection, File file, boolean requiresBody)
+      throws IOException {
+    if (requiresBody) {
+      String filename = file.getName();
+      String formName = "file";
+      InputStream stream = new FileInputStream(file);
+      connection.setDoInput(true);
+      connection.setDoOutput(true);
+      String boundary = MultipartUtils.generateDefaultBoundary();
+      connection.setRequestProperty(
+          "Content-Type", "multipart/form-data; boundary=" + boundary); // $NON-NLS-1$ //$NON-NLS-2$
+      connection.setRequestProperty("User-Agent", "OsmAnd"); // $NON-NLS-1$ //$NON-NLS-2$
+      final OutputStream ous = connection.getOutputStream();
+      ous.write(("--" + boundary + "\r\n").getBytes());
+      ous.write(
+          ("content-disposition: form-data; name=\""
+                  + formName
+                  + "\"; filename=\""
+                  + filename
+                  + "\"\r\n")
+              .getBytes()); //$NON-NLS-1$ //$NON-NLS-2$
+      ous.write(("Content-Type: application/octet-stream\r\n\r\n").getBytes()); // $NON-NLS-1$
+      BufferedInputStream bis = new BufferedInputStream(stream, 20 * 1024);
+      ous.flush();
+      byte[] buf = new byte[FileUtil.FILE_BUFFER];
+      int offset;
+      while ((offset = bis.read(buf)) > 0) {
+        ous.write(buf, 0, offset);
+      }
+      ous.flush();
+      ous.write(("\r\n--" + boundary + "--\r\n").getBytes()); // $NON-NLS-1$ //$NON-NLS-2$
+      ous.flush();
+      FileUtil.safeClose(bis);
     }
   }
 
