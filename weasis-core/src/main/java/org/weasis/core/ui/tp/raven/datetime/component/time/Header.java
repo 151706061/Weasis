@@ -10,13 +10,18 @@
 package org.weasis.core.ui.tp.raven.datetime.component.time;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.geom.Rectangle2D;
 import java.text.DecimalFormat;
 import javax.swing.ButtonGroup;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 import net.miginfocom.swing.MigLayout;
 
 /* Header is a class that provides methods for creating the header of the TimeSpinner.
@@ -24,13 +29,15 @@ import net.miginfocom.swing.MigLayout;
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public class Header extends JPanel {
+public class Header extends JComponent {
 
   private MigLayout layout;
   private final EventHeaderChanged headerChanged;
   private final DecimalFormat format = new DecimalFormat("00");
 
   private boolean isAm;
+
+  private Color color;
 
   public void setOrientation(int orientation) {
     String c =
@@ -62,6 +69,7 @@ public class Header extends JPanel {
     } else {
       buttonPm.setSelected(true);
     }
+    headerChanged.amPmChanged(isAm);
   }
 
   public void clearTime() {
@@ -93,7 +101,7 @@ public class Header extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:$Component.accentColor");
+    setOpaque(true);
     layout = new MigLayout("fill,insets 10", "center");
     setLayout(layout);
     add(createToolBar(), "id b1");
@@ -103,7 +111,7 @@ public class Header extends JPanel {
   protected JToolBar createToolBar() {
     JToolBar toolBar = new JToolBar();
     toolBar.putClientProperty(
-        FlatClientProperties.STYLE, "" + "background:null;" + "hoverButtonGroupBackground:null");
+        FlatClientProperties.STYLE, "background:null;" + "hoverButtonGroupBackground:null");
     buttonHour = createButton();
     buttonMinute = createButton();
     ButtonGroup group = new ButtonGroup();
@@ -122,8 +130,7 @@ public class Header extends JPanel {
     JToggleButton button = new JToggleButton("--");
     button.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "font:+15;"
+        "font:+15;"
             + "toolbar.margin:3,5,3,5;"
             + "foreground:contrast($Component.accentColor,$ToggleButton.background,#fff);"
             + "background:null;"
@@ -143,8 +150,7 @@ public class Header extends JPanel {
         });
     button.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "font:+1;"
+        "font:+1;"
             + "foreground:contrast($Component.accentColor,$ToggleButton.background,#fff);"
             + "background:null;"
             + "toolbar.hoverBackground:null");
@@ -155,7 +161,7 @@ public class Header extends JPanel {
     JLabel label = new JLabel(":");
     label.putClientProperty(
         FlatClientProperties.STYLE,
-        "" + "font:+10;" + "foreground:contrast($Component.accentColor,$Label.background,#fff)");
+        "font:+10;" + "foreground:contrast($Component.accentColor,$Label.background,#fff)");
     return label;
   }
 
@@ -163,7 +169,7 @@ public class Header extends JPanel {
     amPmToolBar = new JToolBar();
     amPmToolBar.setOrientation(SwingConstants.VERTICAL);
     amPmToolBar.putClientProperty(
-        FlatClientProperties.STYLE, "" + "background:null;" + "hoverButtonGroupBackground:null");
+        FlatClientProperties.STYLE, "background:null;" + "hoverButtonGroupBackground:null");
     group = new ButtonGroup();
     buttonAm = createAmPmButton("AM");
     buttonPm = createAmPmButton("PM");
@@ -172,6 +178,39 @@ public class Header extends JPanel {
     amPmToolBar.add(buttonAm);
     amPmToolBar.add(buttonPm);
     return amPmToolBar;
+  }
+
+  /**
+   * Override this method to paint the background color Do not use the component background because
+   * the background reset while change themes
+   */
+  @Override
+  protected void paintComponent(Graphics g) {
+    Graphics2D g2 = (Graphics2D) g.create();
+    Color color = this.color;
+    if (color == null) {
+      color = UIManager.getColor("Component.accentColor");
+    }
+    g2.setColor(color);
+    g2.fill(new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
+    g2.dispose();
+    super.paintComponent(g);
+  }
+
+  public void setColor(Color color) {
+    this.color = color;
+  }
+
+  /**
+   * Override this method to return the background color to the JToolBar When JToolBar use null
+   * background, so it will paint the parent background.
+   */
+  @Override
+  public Color getBackground() {
+    if (color != null) {
+      return color;
+    }
+    return UIManager.getColor("Component.accentColor");
   }
 
   private JToggleButton buttonHour;

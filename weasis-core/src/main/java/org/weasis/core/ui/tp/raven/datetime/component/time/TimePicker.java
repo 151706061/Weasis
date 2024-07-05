@@ -10,20 +10,26 @@
 package org.weasis.core.ui.tp.raven.datetime.component.time;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+import java.awt.Color;
+import java.awt.EventQueue;
+import java.awt.Point;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JFormattedTextField;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JToolBar;
+import javax.swing.LookAndFeel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import net.miginfocom.swing.MigLayout;
-import org.weasis.core.api.util.ResourceUtil;
-import org.weasis.core.api.util.ResourceUtil.OtherIcon;
 import org.weasis.core.ui.tp.raven.datetime.util.InputUtils;
 
 /**
@@ -34,15 +40,21 @@ import org.weasis.core.ui.tp.raven.datetime.util.InputUtils;
  */
 public class TimePicker extends JPanel {
 
-  private final DateTimeFormatter format12h = DateTimeFormatter.ofPattern("hh:mm a");
-  private final DateTimeFormatter format24h = DateTimeFormatter.ofPattern("HH:mm");
+  private final DateTimeFormatter format12h =
+      DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
+  private final DateTimeFormatter format24h = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
   private final List<TimeSelectionListener> events = new ArrayList<>();
   private TimeSelectionListener timeSelectionListener;
   private InputUtils.ValueCallback valueCallback;
   private JFormattedTextField editor;
+  private Icon editorIcon;
   private JPopupMenu popupMenu;
   private MigLayout layout;
   private int orientation = SwingConstants.VERTICAL;
+  private Color color;
+  private LookAndFeel oldThemes = UIManager.getLookAndFeel();
+  private JButton editorButton;
+  private LocalTime oldSelectedTime;
 
   public int getOrientation() {
     return orientation;
@@ -59,17 +71,15 @@ public class TimePicker extends JPanel {
   }
 
   public void setEditor(JFormattedTextField editor) {
-    if (this.editor != null) {
-      uninstallEditor(this.editor);
+    if (editor != this.editor) {
+      if (this.editor != null) {
+        uninstallEditor(this.editor);
+      }
+      if (editor != null) {
+        installEditor(editor);
+      }
+      this.editor = editor;
     }
-    if (editor != null) {
-      installEditor(editor);
-    }
-    this.editor = editor;
-  }
-
-  public JFormattedTextField getEditor() {
-    return editor;
   }
 
   public boolean is24HourView() {
@@ -81,7 +91,7 @@ public class TimePicker extends JPanel {
       panelClock.setUse24hour(hour24, header.isAm());
       header.setUse24hour(hour24);
       if (editor != null) {
-        InputUtils.useTimeInput(editor, hour24, getValueCallback());
+        InputUtils.changeTimeFormatted(editor, hour24);
         runEventTimeChanged();
       }
     }
@@ -90,17 +100,43 @@ public class TimePicker extends JPanel {
   public void showPopup() {
     if (popupMenu == null) {
       popupMenu = new JPopupMenu();
-      popupMenu.putClientProperty(FlatClientProperties.STYLE, "" + "borderInsets:1,1,1,1");
+      popupMenu.putClientProperty(FlatClientProperties.STYLE, "borderInsets:1,1,1,1");
       popupMenu.add(this);
     }
-    SwingUtilities.updateComponentTreeUI(popupMenu);
-    popupMenu.show(editor, 0, editor.getHeight());
+    if (UIManager.getLookAndFeel() != oldThemes) {
+      // Component in popup not update UI when change themes, so need to update when popup show
+      SwingUtilities.updateComponentTreeUI(popupMenu);
+      oldThemes = UIManager.getLookAndFeel();
+    }
+    Point point = raven.datetime.util.Utils.adjustPopupLocation(popupMenu, editor);
+    popupMenu.show(editor, point.x, point.y);
   }
 
   public void closePopup() {
     if (popupMenu != null) {
       popupMenu.setVisible(false);
       repaint();
+    }
+  }
+
+  public Color getColor() {
+    return color;
+  }
+
+  public void setColor(Color color) {
+    this.color = color;
+    header.setColor(color);
+    panelClock.setColor(color);
+  }
+
+  public Icon getEditorIcon() {
+    return editorIcon;
+  }
+
+  public void setEditorIcon(Icon editorIcon) {
+    this.editorIcon = editorIcon;
+    if (editorButton != null) {
+      editorButton.setIcon(editorIcon);
     }
   }
 
@@ -111,8 +147,7 @@ public class TimePicker extends JPanel {
   private void init() {
     putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "[light]background:darken($Panel.background,2%);"
+        "[light]background:darken($Panel.background,2%);"
             + "[dark]background:lighten($Panel.background,2%);");
     layout = new MigLayout("wrap,fill,insets 3", "fill", "fill");
     setLayout(layout);
@@ -130,9 +165,9 @@ public class TimePicker extends JPanel {
   public void setSelectedTime(LocalTime time) {
     int hour = time.getHour();
     int minute = time.getMinute();
+    header.setAm(hour < 12);
     panelClock.setMinute(minute);
     panelClock.setHourAndFix(hour);
-    header.setAm(hour < 12);
   }
 
   public void clearSelectedTime() {
@@ -197,21 +232,25 @@ public class TimePicker extends JPanel {
 
   private void installEditor(JFormattedTextField editor) {
     JToolBar toolBar = new JToolBar();
-    JButton button = new JButton(ResourceUtil.getIcon(OtherIcon.CLOCK));
-    toolBar.add(button);
-    button.addActionListener(
+    editorButton =
+        new JButton(
+            editorIcon != null
+                ? editorIcon
+                : new FlatSVGIcon("raven/datetime/icon/clock.svg", 0.8f));
+    toolBar.add(editorButton);
+    editorButton.addActionListener(
         e -> {
           showPopup();
         });
+    InputUtils.useTimeInput(editor, panelClock.isUse24hour(), getValueCallback());
     editor.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, toolBar);
     addTimeSelectionListener(getTimeSelectionListener());
-    InputUtils.useTimeInput(editor, panelClock.isUse24hour(), getValueCallback());
   }
 
   private void uninstallEditor(JFormattedTextField editor) {
     if (editor != null) {
-      editor.setFormatterFactory(null);
-      editor.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, null);
+      editorButton = null;
+      InputUtils.removePropertyChange(editor);
       if (timeSelectionListener != null) {
         removeTimeSelectionListener(timeSelectionListener);
       }
@@ -252,7 +291,7 @@ public class TimePicker extends JPanel {
                 } else {
                   value = format12h.format(getSelectedTime());
                 }
-                if (!editor.getText().toUpperCase().equals(value)) {
+                if (!editor.getText().toLowerCase().equals(value.toLowerCase())) {
                   editor.setValue(value);
                 }
               } else {
@@ -265,7 +304,19 @@ public class TimePicker extends JPanel {
   }
 
   private void runEventTimeChanged() {
-    SwingUtilities.invokeLater(
+    if (events == null || events.isEmpty()) {
+      return;
+    }
+    LocalTime time = getSelectedTime();
+    if ((time == null && oldSelectedTime == null)) {
+      return;
+    } else if (time != null && oldSelectedTime != null) {
+      if (time.compareTo(oldSelectedTime) == 0) {
+        return;
+      }
+    }
+    oldSelectedTime = time;
+    EventQueue.invokeLater(
         () -> {
           for (TimeSelectionListener event : events) {
             event.timeSelected(new TimeEvent(this));

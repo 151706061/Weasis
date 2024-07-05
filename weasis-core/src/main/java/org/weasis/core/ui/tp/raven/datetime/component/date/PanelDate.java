@@ -79,7 +79,7 @@ public class PanelDate extends JPanel {
   }
 
   protected void createDateHeader() {
-    String weekdays[] = DateFormatSymbols.getInstance().getShortWeekdays();
+    String[] weekdays = DateFormatSymbols.getInstance().getShortWeekdays();
     for (String week : weekdays) {
       if (!week.isEmpty()) {
         add(createLabel(week));
@@ -91,8 +91,7 @@ public class PanelDate extends JPanel {
     JLabel label = new JLabel(text, JLabel.CENTER);
     label.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "[light]foreground:lighten($Label.foreground,30%);"
+        "[light]foreground:lighten($Label.foreground,30%);"
             + "[dark]foreground:darken($Label.foreground,30%)");
     return label;
   }

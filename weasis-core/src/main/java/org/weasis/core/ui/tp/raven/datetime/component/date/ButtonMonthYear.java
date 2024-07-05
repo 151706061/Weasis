@@ -99,10 +99,7 @@ public class ButtonMonthYear extends JButton {
   }
 
   protected Color getColor() {
-    Color color =
-        isSelected()
-            ? UIManager.getColor("Component.accentColor")
-            : FlatUIUtils.getParentBackground(this);
+    Color color = isSelected() ? getAccentColor() : FlatUIUtils.getParentBackground(this);
     return getColor(color, press, hover);
   }
 
@@ -117,5 +114,12 @@ public class ButtonMonthYear extends JButton {
           : ColorFunctions.darken(color, 0.03f);
     }
     return color;
+  }
+
+  protected Color getAccentColor() {
+    if (dateSelection.datePicker.getColor() != null) {
+      return dateSelection.datePicker.getColor();
+    }
+    return UIManager.getColor("Component.accentColor");
   }
 }

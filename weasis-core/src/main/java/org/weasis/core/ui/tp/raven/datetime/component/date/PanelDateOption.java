@@ -105,8 +105,7 @@ public class PanelDateOption extends JPanel {
 
     button.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "arc:10;"
+        "arc:10;"
             + "borderWidth:0;"
             + "focusWidth:0;"
             + "innerFocusWidth:0;"

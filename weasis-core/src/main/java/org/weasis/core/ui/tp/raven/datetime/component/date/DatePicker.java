@@ -10,20 +10,25 @@
 package org.weasis.core.ui.tp.raven.datetime.component.date;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.EventQueue;
+import java.awt.Point;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JFormattedTextField;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JToolBar;
+import javax.swing.LookAndFeel;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import net.miginfocom.swing.MigLayout;
-import org.weasis.core.api.util.ResourceUtil;
-import org.weasis.core.api.util.ResourceUtil.OtherIcon;
 import org.weasis.core.ui.tp.raven.datetime.util.InputUtils;
 import org.weasis.core.ui.tp.raven.slider.PanelSlider;
 import org.weasis.core.ui.tp.raven.slider.SimpleTransition;
@@ -36,7 +41,8 @@ import org.weasis.core.ui.tp.raven.slider.SimpleTransition;
  */
 public class DatePicker extends JPanel {
 
-  private final DateTimeFormatter format = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+  private DateTimeFormatter format;
+  private String dateFormatPattern;
   private final List<DateSelectionListener> events = new ArrayList<>();
   private DateSelectionListener dateSelectionListener;
   private final DateSelection dateSelection = new DateSelection(this);
@@ -45,12 +51,18 @@ public class DatePicker extends JPanel {
   private PanelDateOption panelDateOption;
   private InputUtils.ValueCallback valueCallback;
   private JFormattedTextField editor;
+  private Icon editorIcon;
   private JPopupMenu popupMenu;
   private String separator = " to ";
   private boolean usePanelOption;
   private boolean closeAfterSelected;
   private int month = 10;
   private int year = 2023;
+  private Color color;
+  private LookAndFeel oldThemes = UIManager.getLookAndFeel();
+  private JButton editorButton;
+  private LocalDate oldSelectedDate;
+  private LocalDate oldSelectedToDate;
 
   /** 0 as Date select 1 as Month select 2 as Year select */
   private int panelSelect = 0;
@@ -66,6 +78,8 @@ public class DatePicker extends JPanel {
             + "[light]background:darken($Panel.background,2%);"
             + "[dark]background:lighten($Panel.background,2%);");
     setLayout(new MigLayout("wrap,insets 10,fill", "[fill]"));
+    dateFormatPattern = "dd/MM/yyyy";
+    format = DateTimeFormatter.ofPattern(dateFormatPattern);
     panelSlider = new PanelSlider();
     header = new Header(getEventHeader());
     eventMonthChanged = createEventMonthChanged();
@@ -217,7 +231,32 @@ public class DatePicker extends JPanel {
   }
 
   protected void runEventDateChanged() {
-    SwingUtilities.invokeLater(
+    if (events == null || events.isEmpty()) {
+      return;
+    }
+    LocalDate date;
+    LocalDate toDate = null;
+    if (dateSelection.dateSelectionMode == DateSelectionMode.SINGLE_DATE_SELECTED) {
+      date = getSelectedDate();
+    } else {
+      if (!isDateSelected()) {
+        oldSelectedToDate = null;
+        return;
+      }
+      LocalDate dates[] = getSelectedDateRange();
+      date = dates[0];
+      toDate = dates[1];
+    }
+    boolean date1 = checkDate(date, oldSelectedDate);
+    boolean date2 = checkDate(toDate, oldSelectedToDate);
+    if (dateSelection.dateSelectionMode == DateSelectionMode.SINGLE_DATE_SELECTED && !date1) {
+      return;
+    } else if (!(date1 || date2)) {
+      return;
+    }
+    oldSelectedDate = date;
+    oldSelectedToDate = toDate;
+    EventQueue.invokeLater(
         () -> {
           for (DateSelectionListener event : events) {
             event.dateSelected(new DateEvent(this));
@@ -226,6 +265,17 @@ public class DatePicker extends JPanel {
             panelDateOption.setSelectedCustom();
           }
         });
+  }
+
+  private boolean checkDate(LocalDate date, LocalDate date1) {
+    if ((date == null && date1 == null)) {
+      return false;
+    } else if (date != null && date1 != null) {
+      if (date.compareTo(date1) == 0) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private Header header;
@@ -239,11 +289,11 @@ public class DatePicker extends JPanel {
     if (this.dateSelection.dateSelectionMode != dateSelectionMode) {
       this.dateSelection.dateSelectionMode = dateSelectionMode;
       if (editor != null) {
-        InputUtils.useDateInput(
+        InputUtils.changeDateFormatted(
             editor,
+            dateFormatPattern,
             dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED,
-            separator,
-            getValueCallback());
+            separator);
         clearSelectedDate();
       }
       repaint();
@@ -297,13 +347,26 @@ public class DatePicker extends JPanel {
   }
 
   public void setEditor(JFormattedTextField editor) {
-    if (this.editor != null) {
-      uninstallEditor(this.editor);
+    if (editor != this.editor) {
+      if (this.editor != null) {
+        uninstallEditor(this.editor);
+      }
+      if (editor != null) {
+        installEditor(editor);
+      }
+      this.editor = editor;
     }
-    if (editor != null) {
-      installEditor(editor);
+  }
+
+  public Icon getEditorIcon() {
+    return editorIcon;
+  }
+
+  public void setEditorIcon(Icon editorIcon) {
+    this.editorIcon = editorIcon;
+    if (editorButton != null) {
+      editorButton.setIcon(editorIcon);
     }
-    this.editor = editor;
   }
 
   public JFormattedTextField getEditor() {
@@ -328,8 +391,13 @@ public class DatePicker extends JPanel {
       popupMenu.putClientProperty(FlatClientProperties.STYLE, "borderInsets:1,1,1,1");
       popupMenu.add(this);
     }
-    SwingUtilities.updateComponentTreeUI(popupMenu);
-    popupMenu.show(editor, 0, editor.getHeight());
+    if (UIManager.getLookAndFeel() != oldThemes) {
+      // Component in popup not update UI when change themes, so need to update when popup show
+      SwingUtilities.updateComponentTreeUI(popupMenu);
+      oldThemes = UIManager.getLookAndFeel();
+    }
+    Point point = raven.datetime.util.Utils.adjustPopupLocation(popupMenu, editor);
+    popupMenu.show(editor, point.x, point.y);
   }
 
   public void closePopup() {
@@ -339,6 +407,15 @@ public class DatePicker extends JPanel {
     }
   }
 
+  public Color getColor() {
+    return color;
+  }
+
+  public void setColor(Color color) {
+    this.color = color;
+    repaint();
+  }
+
   public void setSeparator(String separator) {
     if (separator == null) {
       throw new IllegalArgumentException("separator can't be null");
@@ -346,14 +423,30 @@ public class DatePicker extends JPanel {
     if (!this.separator.equals(separator)) {
       this.separator = separator;
       if (editor != null) {
-        InputUtils.useDateInput(
+        InputUtils.changeDateFormatted(
             editor,
+            dateFormatPattern,
             dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED,
-            separator,
-            getValueCallback());
+            separator);
         runEventDateChanged();
       }
     }
+  }
+
+  public void setDateFormat(String format) {
+    this.format = DateTimeFormatter.ofPattern(format);
+    if (editor != null) {
+      InputUtils.changeDateFormatted(
+          editor,
+          format,
+          dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED,
+          separator);
+    }
+    this.dateFormatPattern = format;
+  }
+
+  public String getDateFormat() {
+    return this.dateFormatPattern;
   }
 
   public boolean isUsePanelOption() {
@@ -496,25 +589,30 @@ public class DatePicker extends JPanel {
 
   private void installEditor(JFormattedTextField editor) {
     JToolBar toolBar = new JToolBar();
-    JButton button = new JButton(ResourceUtil.getIcon(OtherIcon.CALENDAR));
-    toolBar.add(button);
-    button.addActionListener(
+    editorButton =
+        new JButton(
+            editorIcon != null
+                ? editorIcon
+                : new FlatSVGIcon("raven/datetime/icon/calendar.svg", 0.8f));
+    toolBar.add(editorButton);
+    editorButton.addActionListener(
         e -> {
           showPopup();
         });
-    editor.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, toolBar);
-    addDateSelectionListener(getDateSelectionListener());
     InputUtils.useDateInput(
         editor,
+        dateFormatPattern,
         dateSelection.dateSelectionMode == DateSelectionMode.BETWEEN_DATE_SELECTED,
         separator,
         getValueCallback());
+    editor.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, toolBar);
+    addDateSelectionListener(getDateSelectionListener());
   }
 
   private void uninstallEditor(JFormattedTextField editor) {
     if (editor != null) {
-      editor.setFormatterFactory(null);
-      editor.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, null);
+      editorButton = null;
+      InputUtils.removePropertyChange(editor);
       if (dateSelectionListener != null) {
         removeDateSelectionListener(dateSelectionListener);
       }
@@ -561,7 +659,7 @@ public class DatePicker extends JPanel {
                   LocalDate dates[] = getSelectedDateRange();
                   value = format.format(dates[0]) + separator + format.format(dates[1]);
                 }
-                if (!editor.getText().toUpperCase().equals(value)) {
+                if (!editor.getText().toLowerCase().equals(value.toLowerCase())) {
                   editor.setValue(value);
                 }
               } else {

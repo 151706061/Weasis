@@ -104,6 +104,12 @@ public class PanelSlider extends JLayeredPane {
                 public void end() {
                   setVisible(false);
                   component.setVisible(true);
+                  if (newImage != null) {
+                    newImage.flush();
+                  }
+                  if (oldImage != null) {
+                    oldImage.flush();
+                  }
                 }
               });
       animator.setInterpolator(CubicBezierEasing.EASE);
