@@ -17,6 +17,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
+import org.weasis.core.ui.tp.raven.datetime.DatePicker;
 
 /* PanelDate is a class that provides a panel for the DatePicker.
  *
@@ -25,25 +26,28 @@ import net.miginfocom.swing.MigLayout;
  */
 public class PanelDate extends JPanel {
 
-  private final DateSelection dateSelection;
+  private final DatePicker datePicker;
   private final int month;
   private final int year;
 
-  public PanelDate(DateSelection dateSelection, int month, int year) {
-    this.dateSelection = dateSelection;
+  public PanelDate(DatePicker datePicker, int month, int year) {
+    this.datePicker = datePicker;
     this.month = month;
     this.year = year;
     init();
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
     setLayout(
-        new MigLayout("wrap 7,insets 3,gap 1,al center center", "fill", "[fill]10[fill][fill]"));
+        new MigLayout(
+            "novisualpadding,wrap 7,insets 3,gap 0,al center center",
+            "fill",
+            "[fill]10[fill][fill]"));
     load();
   }
 
-  protected void load() {
+  public void load() {
     removeAll();
     createDateHeader();
     final int col = 7;
@@ -59,8 +63,11 @@ public class PanelDate extends JPanel {
     for (int i = 1; i <= t; i++) {
       SingleDate singleDate = new SingleDate(calendar);
       boolean selectable =
-          dateSelection.getDateSelectionAble() == null
-              || dateSelection.getDateSelectionAble().isDateSelectedAble(singleDate.toLocalDate());
+          datePicker.getDateSelectionModel().getDateSelectionAble() == null
+              || datePicker
+                  .getDateSelectionModel()
+                  .getDateSelectionAble()
+                  .isDateSelectedAble(singleDate.toLocalDate());
       boolean enable =
           calendar.get(Calendar.MONDAY) == month && calendar.get(Calendar.YEAR) == year;
       JButton button = createButton(new SingleDate(calendar), enable, rowIndex);
@@ -97,24 +104,26 @@ public class PanelDate extends JPanel {
   }
 
   protected JButton createButton(SingleDate date, boolean enable, int rowIndex) {
-    ButtonDate button = new ButtonDate(dateSelection, date, enable, rowIndex);
+    ButtonDate button = new ButtonDate(datePicker, date, enable, rowIndex);
     if (button.isDateSelected()) {
       button.setSelected(true);
     }
     return button;
   }
 
-  protected void checkSelection() {
+  public void checkSelection() {
     for (int i = 0; i < getComponentCount(); i++) {
       Component com = getComponent(i);
       if (com instanceof ButtonDate) {
         ButtonDate buttonDate = (ButtonDate) com;
-        if (dateSelection.dateSelectionMode == DatePicker.DateSelectionMode.SINGLE_DATE_SELECTED) {
-          buttonDate.setSelected(buttonDate.getDate().same(dateSelection.getDate()));
+        if (datePicker.getDateSelectionModel().getDateSelectionMode()
+            == DatePicker.DateSelectionMode.SINGLE_DATE_SELECTED) {
+          buttonDate.setSelected(
+              buttonDate.getDate().same(datePicker.getDateSelectionModel().getDate()));
         } else {
           buttonDate.setSelected(
-              buttonDate.getDate().same(dateSelection.getDate())
-                  || buttonDate.getDate().same(dateSelection.getToDate()));
+              buttonDate.getDate().same(datePicker.getDateSelectionModel().getDate())
+                  || buttonDate.getDate().same(datePicker.getDateSelectionModel().getToDate()));
         }
       }
     }

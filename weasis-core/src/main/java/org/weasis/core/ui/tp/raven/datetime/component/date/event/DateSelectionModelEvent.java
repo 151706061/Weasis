@@ -7,14 +7,29 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.ui.tp.raven.datetime.component.date;
+package org.weasis.core.ui.tp.raven.datetime.component.date.event;
 
-/* DateSelectionListener is an interface that provides methods for listening to date selection events.
+import java.util.EventObject;
+
+/**
+ * DateSelectionModelEvent
  *
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public interface DateSelectionListener {
+public class DateSelectionModelEvent extends EventObject {
 
-  void dateSelected(DateEvent dateEvent);
+  public static final int BETWEEN_DATE_HOVER = 1;
+  public static final int DATE = 2;
+
+  protected int action;
+
+  public DateSelectionModelEvent(Object source, int action) {
+    super(source);
+    this.action = action;
+  }
+
+  public int getAction() {
+    return action;
+  }
 }

@@ -7,8 +7,10 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package raven.datetime.util;
+package org.weasis.core.ui.tp.raven.datetime.util;
 
+import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.util.ColorFunctions;
 import java.awt.*;
 import javax.swing.*;
 
@@ -36,5 +38,18 @@ public class Utils {
             : Math.max(
                 locationOnFrame.y - component.getHeight() - popupSize.height, frameInsets.top);
     return SwingUtilities.convertPoint(window, new Point(x, y), component);
+  }
+
+  public static Color getColor(Color color, boolean press, boolean hover) {
+    if (press) {
+      return FlatLaf.isLafDark()
+          ? ColorFunctions.lighten(color, 0.1f)
+          : ColorFunctions.darken(color, 0.1f);
+    } else if (hover) {
+      return FlatLaf.isLafDark()
+          ? ColorFunctions.lighten(color, 0.03f)
+          : ColorFunctions.darken(color, 0.03f);
+    }
+    return color;
   }
 }

@@ -7,15 +7,17 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.ui.tp.raven.datetime.component.date;
+package org.weasis.core.ui.tp.raven.datetime;
 
-import java.time.LocalDate;
+import java.time.LocalTime;
 
-/* DateSelectionAble is an interface that provides methods for selecting dates in the DatePicker.
+/**
+ * {@link TimeSelectionAble}
  *
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public interface DateSelectionAble {
-  boolean isDateSelectedAble(LocalDate date);
+public interface TimeSelectionAble {
+
+  boolean isTimeSelectedAble(LocalTime time, boolean hourView);
 }

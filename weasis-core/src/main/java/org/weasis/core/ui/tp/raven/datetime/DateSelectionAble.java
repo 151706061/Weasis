@@ -7,18 +7,17 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.ui.tp.raven.datetime.component.time;
+package org.weasis.core.ui.tp.raven.datetime;
 
-import java.util.EventObject;
+import java.time.LocalDate;
 
-/* TimeEvent is a class that provides events for the TimeSpinner.
+/**
+ * {@link DateSelectionAble}
  *
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public class TimeEvent extends EventObject {
+public interface DateSelectionAble {
 
-  public TimeEvent(Object source) {
-    super(source);
-  }
+  boolean isDateSelectedAble(LocalDate date);
 }

@@ -64,6 +64,7 @@ public class PanelSlider extends JLayeredPane {
         remove(oldComponent);
         panelSnapshot.animate(component, transition, oldImage, newImage);
       } else {
+        component.setVisible(true);
         remove(oldComponent);
         revalidate();
         repaint();
@@ -132,9 +133,11 @@ public class PanelSlider extends JLayeredPane {
 
     @Override
     public void paint(Graphics g) {
-      int width = getWidth();
-      int height = getHeight();
-      sliderTransition.render(g, oldImage, newImage, width, height, animate);
+      if (sliderTransition != null) {
+        int width = getWidth();
+        int height = getHeight();
+        sliderTransition.render(g, oldImage, newImage, width, height, animate);
+      }
     }
   }
 }

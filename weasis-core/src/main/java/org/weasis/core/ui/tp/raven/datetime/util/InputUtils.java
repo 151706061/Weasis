@@ -15,9 +15,13 @@ import java.beans.PropertyChangeListener;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,6 +40,10 @@ public class InputUtils extends MaskFormatter {
 
   private static Map<Component, OldEditorProperty> inputMap;
 
+  public static LocalDate dateToLocalDate(Date date) {
+    return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+  }
+
   public static LocalTime stringToTime(boolean use24h, String value) {
     try {
       if (use24h) {
@@ -46,7 +54,7 @@ public class InputUtils extends MaskFormatter {
         return LocalTime.from(format12h.parse(value.toUpperCase()));
       }
     } catch (Exception e) {
-      e.printStackTrace();
+      System.err.println(e.getMessage());
       return null;
     }
   }
@@ -70,9 +78,14 @@ public class InputUtils extends MaskFormatter {
     }
   }
 
-  public static void useTimeInput(JFormattedTextField txt, boolean use24h, ValueCallback callback) {
+  public static void useTimeInput(
+      JFormattedTextField txt,
+      boolean use24h,
+      ValueCallback callback,
+      InputValidationListener inputValidationListener) {
     try {
-      TimeInputFormat mask = new TimeInputFormat(use24h ? "##:##" : "##:## ??", use24h);
+      TimeInputFormat mask =
+          new TimeInputFormat(use24h ? "##:##" : "##:## ??", use24h, inputValidationListener);
       OldEditorProperty oldEditorProperty = initEditor(txt, mask, callback);
 
       PropertyChangeListener propertyChangeListener = evt -> callback.valueChanged(txt.getValue());
@@ -89,26 +102,36 @@ public class InputUtils extends MaskFormatter {
       String pattern,
       boolean between,
       String separator,
-      ValueCallback callback) {
+      ValueCallback callback,
+      InputValidationListener inputValidationListener) {
     try {
-      String format = datePatternToInputFormat(pattern);
+      String format = datePatternToInputFormat(pattern, "#");
       DateInputFormat mask =
           new DateInputFormat(
-              between ? format + separator + format : format, between, separator, pattern);
+              between ? format + separator + format : format,
+              between,
+              separator,
+              pattern,
+              inputValidationListener);
       OldEditorProperty oldEditorProperty = initEditor(txt, mask, callback);
 
-      PropertyChangeListener propertyChangeListener = evt -> callback.valueChanged(txt.getValue());
-      txt.addPropertyChangeListener("value", propertyChangeListener);
-      oldEditorProperty.propertyChangeListener = propertyChangeListener;
+      if (callback != null) {
+        PropertyChangeListener propertyChangeListener =
+            evt -> callback.valueChanged(txt.getValue());
+        txt.addPropertyChangeListener("value", propertyChangeListener);
+        oldEditorProperty.propertyChangeListener = propertyChangeListener;
+      }
       putPropertyChange(txt, oldEditorProperty);
     } catch (ParseException e) {
       System.err.println(e.getMessage());
     }
   }
 
-  public static void changeTimeFormatted(JFormattedTextField txt, boolean use24h) {
+  public static void changeTimeFormatted(
+      JFormattedTextField txt, boolean use24h, InputValidationListener inputValidationListener) {
     try {
-      TimeInputFormat mask = new TimeInputFormat(use24h ? "##:##" : "##:## ??", use24h);
+      TimeInputFormat mask =
+          new TimeInputFormat(use24h ? "##:##" : "##:## ??", use24h, inputValidationListener);
       mask.setCommitsOnValidEdit(true);
       mask.setPlaceholderCharacter('-');
       DefaultFormatterFactory df = new DefaultFormatterFactory(mask);
@@ -120,12 +143,20 @@ public class InputUtils extends MaskFormatter {
   }
 
   public static void changeDateFormatted(
-      JFormattedTextField txt, String pattern, boolean between, String separator) {
+      JFormattedTextField txt,
+      String pattern,
+      boolean between,
+      String separator,
+      InputValidationListener inputValidationListener) {
     try {
-      String format = datePatternToInputFormat(pattern);
+      String format = datePatternToInputFormat(pattern, "#");
       DateInputFormat mask =
           new DateInputFormat(
-              between ? format + separator + format : format, between, separator, pattern);
+              between ? format + separator + format : format,
+              between,
+              separator,
+              pattern,
+              inputValidationListener);
       mask.setCommitsOnValidEdit(true);
       mask.setPlaceholderCharacter('-');
       DefaultFormatterFactory df = new DefaultFormatterFactory(mask);
@@ -136,9 +167,9 @@ public class InputUtils extends MaskFormatter {
     }
   }
 
-  private static String datePatternToInputFormat(String pattern) {
+  public static String datePatternToInputFormat(String pattern, String rpm) {
     String regex = "[dmy]";
-    return pattern.toLowerCase().replaceAll(regex, "#");
+    return pattern.toLowerCase().replaceAll(regex, rpm);
   }
 
   private static OldEditorProperty initEditor(
@@ -156,7 +187,9 @@ public class InputUtils extends MaskFormatter {
         (Consumer<Object>)
             o -> {
               txt.setValue(null);
-              callback.valueChanged(null);
+              if (callback != null) {
+                callback.valueChanged(null);
+              }
             });
     return oldEditorProperty;
   }
@@ -176,16 +209,25 @@ public class InputUtils extends MaskFormatter {
     OldEditorProperty oldEditorProperty = inputMap.get(txt);
     if (oldEditorProperty != null) {
       oldEditorProperty.removeFromEditor(txt);
+      inputMap.remove(txt);
     }
   }
 
   private static class TimeInputFormat extends MaskFormatter {
 
-    private final boolean use24h;
+    private InputValidationListener inputValidationListener;
+    private DateTimeFormatter timeFormat;
 
-    public TimeInputFormat(String mark, boolean use24h) throws ParseException {
+    public TimeInputFormat(
+        String mark, boolean use24h, InputValidationListener inputValidationListener)
+        throws ParseException {
       super(mark);
-      this.use24h = use24h;
+      this.inputValidationListener = inputValidationListener;
+      this.timeFormat =
+          new DateTimeFormatterBuilder()
+              .parseCaseInsensitive()
+              .appendPattern(use24h ? "HH:mm" : "hh:mm a")
+              .toFormatter(Locale.ENGLISH);
     }
 
     @Override
@@ -195,9 +237,24 @@ public class InputUtils extends MaskFormatter {
     }
 
     public void checkTime(String value) throws ParseException {
-      DateFormat df = new SimpleDateFormat(use24h ? "HH:mm" : "hh:mm aa");
-      df.setLenient(false);
-      df.parse(value);
+      try {
+        LocalTime time = LocalTime.parse(value, timeFormat);
+
+        if (inputValidationListener == null) return;
+
+        // validate time selection able
+        if (inputValidationListener.isValidation()) {
+          if (!inputValidationListener.checkSelectionAble(time)) {
+            throw new DateTimeException("error selection able");
+          }
+        }
+        inputValidationListener.inputChanged(true);
+      } catch (DateTimeException e) {
+        if (inputValidationListener != null) {
+          inputValidationListener.inputChanged(false);
+        }
+        throw new ParseException(e.getMessage(), 0);
+      }
     }
   }
 
@@ -206,14 +263,21 @@ public class InputUtils extends MaskFormatter {
     private final boolean between;
     private final String separator;
     private DateFormat dateFormat;
+    private InputValidationListener inputValidationListener;
 
-    public DateInputFormat(String mark, boolean between, String separator, String pattern)
+    public DateInputFormat(
+        String mark,
+        boolean between,
+        String separator,
+        String pattern,
+        InputValidationListener inputValidationListener)
         throws ParseException {
       super(mark);
       this.between = between;
       this.separator = separator;
       this.dateFormat = new SimpleDateFormat(pattern);
-      dateFormat.setLenient(false);
+      this.inputValidationListener = inputValidationListener;
+      this.dateFormat.setLenient(false);
     }
 
     @Override
@@ -223,12 +287,42 @@ public class InputUtils extends MaskFormatter {
     }
 
     public void checkTime(String value) throws ParseException {
-      if (between) {
-        String[] values = value.split(separator);
-        dateFormat.parse(values[0]);
-        dateFormat.parse(values[1]);
-      } else {
-        dateFormat.parse(value);
+      try {
+        if (between) {
+          String[] values = value.split(separator);
+          Date fromDate = dateFormat.parse(values[0]);
+          Date toDate = dateFormat.parse(values[1]);
+
+          if (inputValidationListener == null) return;
+
+          // validate date selection able
+          if (inputValidationListener.isValidation()) {
+            LocalDate date1 = dateToLocalDate(fromDate);
+            LocalDate date2 = dateToLocalDate(toDate);
+            if (!inputValidationListener.checkSelectionAble(date1)
+                || !inputValidationListener.checkSelectionAble(date2)) {
+              throw new ParseException("error selection able", 0);
+            }
+          }
+        } else {
+          Date date = dateFormat.parse(value);
+
+          if (inputValidationListener == null) return;
+
+          // validate date selection able
+          if (inputValidationListener.isValidation()) {
+            LocalDate d = dateToLocalDate(date);
+            if (!inputValidationListener.checkSelectionAble(d)) {
+              throw new ParseException("error selection able", 0);
+            }
+          }
+        }
+        inputValidationListener.inputChanged(true);
+      } catch (ParseException e) {
+        if (inputValidationListener != null) {
+          inputValidationListener.inputChanged(false);
+        }
+        throw e;
       }
     }
   }
@@ -240,14 +334,17 @@ public class InputUtils extends MaskFormatter {
   private static class OldEditorProperty {
 
     protected PropertyChangeListener propertyChangeListener;
+    protected JFormattedTextField.AbstractFormatterFactory formatter;
     protected Component oldTrailingComponent;
     private boolean isShowClearButton;
     private Consumer clearButtonCallback;
+    private String outline;
     protected Object value;
-    protected JFormattedTextField.AbstractFormatterFactory formatter;
+    protected String text;
 
     protected static OldEditorProperty getFromOldEditor(JFormattedTextField editor) {
       OldEditorProperty oldEditorProperty = new OldEditorProperty();
+      oldEditorProperty.formatter = editor.getFormatterFactory();
       oldEditorProperty.oldTrailingComponent =
           FlatClientProperties.clientProperty(
               editor, FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, null, Component.class);
@@ -257,21 +354,26 @@ public class InputUtils extends MaskFormatter {
       oldEditorProperty.clearButtonCallback =
           FlatClientProperties.clientProperty(
               editor, FlatClientProperties.TEXT_FIELD_CLEAR_CALLBACK, null, Consumer.class);
+      oldEditorProperty.outline =
+          FlatClientProperties.clientProperty(
+              editor, FlatClientProperties.OUTLINE, null, String.class);
       oldEditorProperty.value = editor.getValue();
-      oldEditorProperty.formatter = editor.getFormatterFactory();
+      oldEditorProperty.text = editor.getText();
       return oldEditorProperty;
     }
 
     protected void removeFromEditor(JFormattedTextField editor) {
       editor.removePropertyChangeListener("value", propertyChangeListener);
+      editor.setFormatterFactory(formatter);
       editor.putClientProperty(
           FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, oldTrailingComponent);
       editor.putClientProperty(
           FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, isShowClearButton);
       editor.putClientProperty(
           FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, clearButtonCallback);
+      editor.putClientProperty(FlatClientProperties.OUTLINE, outline);
       editor.setValue(value);
-      editor.setFormatterFactory(formatter);
+      editor.setText(text);
     }
   }
 }

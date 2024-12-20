@@ -11,11 +11,14 @@ package org.weasis.core.ui.tp.raven.datetime.component.date;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import java.text.DateFormatSymbols;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.ActionIcon;
+import org.weasis.core.ui.tp.raven.datetime.component.date.event.DateControlEvent;
+import org.weasis.core.ui.tp.raven.datetime.component.date.event.DateControlListener;
 
 /* Header is a class that provides a header for the DatePicker.
  *
@@ -24,42 +27,59 @@ import org.weasis.core.api.util.ResourceUtil.ActionIcon;
  */
 public class Header extends JPanel {
 
-  private final EventHeaderChanged headerChanged;
+  protected JButton buttonMonth;
+  protected JButton buttonYear;
 
-  public void setDate(int month, int year) {
-    buttonMonth.setText(DateFormatSymbols.getInstance().getMonths()[month]);
-    buttonYear.setText(year + "");
+  protected Icon backIcon;
+
+  protected Icon forwardIcon;
+
+  public Header() {
+    this(10, 2023);
   }
 
-  public Header(EventHeaderChanged headerChanged) {
-    this.headerChanged = headerChanged;
-    init();
+  public Header(int month, int year) {
+    init(month, year);
   }
 
-  private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "background:null");
+  private void init(int month, int year) {
+    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
     setLayout(new MigLayout("fill,insets 3", "[]push[][]push[]", "fill"));
 
     JButton cmdBack = createButton();
     JButton cmdNext = createButton();
-    cmdBack.setIcon(ResourceUtil.getIcon(ActionIcon.PREVIOUS));
-    cmdNext.setIcon(ResourceUtil.getIcon(ActionIcon.NEXT));
+    backIcon = ResourceUtil.getIcon(ActionIcon.PREVIOUS);
+    forwardIcon = ResourceUtil.getIcon(ActionIcon.NEXT);
+    cmdBack.setIcon(backIcon);
+    cmdNext.setIcon(forwardIcon);
     buttonMonth = createButton();
     buttonYear = createButton();
 
-    cmdBack.addActionListener(e -> headerChanged.back());
-    cmdNext.addActionListener(e -> headerChanged.forward());
-    buttonMonth.addActionListener(e -> headerChanged.monthSelected());
-    buttonYear.addActionListener(e -> headerChanged.yearSelected());
+    cmdBack.addActionListener(
+        e ->
+            fireDateControlChanged(
+                new DateControlEvent(this, DateControlEvent.DAY_STATE, DateControlEvent.BACK)));
+    cmdNext.addActionListener(
+        e ->
+            fireDateControlChanged(
+                new DateControlEvent(this, DateControlEvent.DAY_STATE, DateControlEvent.FORWARD)));
+    buttonMonth.addActionListener(
+        e ->
+            fireDateControlChanged(
+                new DateControlEvent(this, DateControlEvent.DAY_STATE, DateControlEvent.MONTH)));
+    buttonYear.addActionListener(
+        e ->
+            fireDateControlChanged(
+                new DateControlEvent(this, DateControlEvent.DAY_STATE, DateControlEvent.YEAR)));
 
     add(cmdBack);
     add(buttonMonth);
     add(buttonYear);
     add(cmdNext);
-    setDate(10, 2023);
+    setDate(month, year);
   }
 
-  private JButton createButton() {
+  protected JButton createButton() {
     JButton button = new JButton();
     button.putClientProperty(
         FlatClientProperties.STYLE,
@@ -72,16 +92,41 @@ public class Header extends JPanel {
     return button;
   }
 
-  private JButton buttonMonth;
-  private JButton buttonYear;
+  public void addDateControlListener(DateControlListener listener) {
+    listenerList.add(DateControlListener.class, listener);
+  }
 
-  public interface EventHeaderChanged {
-    void back();
+  public void removeDateControlListener(DateControlListener listener) {
+    listenerList.remove(DateControlListener.class, listener);
+  }
 
-    void forward();
+  public void fireDateControlChanged(DateControlEvent event) {
+    Object[] listeners = listenerList.getListenerList();
+    for (int i = listeners.length - 2; i >= 0; i -= 2) {
+      if (listeners[i] == DateControlListener.class) {
+        ((DateControlListener) listeners[i + 1]).dateControlChanged(event);
+      }
+    }
+  }
 
-    void monthSelected();
+  public void setDate(int month, int year) {
+    buttonMonth.setText(DateFormatSymbols.getInstance().getMonths()[month]);
+    buttonYear.setText(year + "");
+  }
 
-    void yearSelected();
+  public Icon getBackIcon() {
+    return backIcon;
+  }
+
+  public void setBackIcon(Icon backIcon) {
+    this.backIcon = backIcon;
+  }
+
+  public Icon getForwardIcon() {
+    return forwardIcon;
+  }
+
+  public void setForwardIcon(Icon forwardIcon) {
+    this.forwardIcon = forwardIcon;
   }
 }

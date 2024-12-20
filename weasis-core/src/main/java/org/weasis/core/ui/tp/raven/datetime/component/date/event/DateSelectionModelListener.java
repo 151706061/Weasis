@@ -7,18 +7,17 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
  */
-package org.weasis.core.ui.tp.raven.datetime.component.date;
+package org.weasis.core.ui.tp.raven.datetime.component.date.event;
 
-import java.util.EventObject;
+import java.util.EventListener;
 
-/* DateEvent is a class that provides events for the DatePicker.
+/**
+ * DateSelectionModelListener
  *
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public class DateEvent extends EventObject {
+public interface DateSelectionModelListener extends EventListener {
 
-  public DateEvent(Object source) {
-    super(source);
-  }
+  void dateSelectionModelChanged(DateSelectionModelEvent e);
 }
