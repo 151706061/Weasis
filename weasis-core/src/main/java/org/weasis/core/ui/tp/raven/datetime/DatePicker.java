@@ -60,6 +60,7 @@ public class DatePicker extends PanelPopupEditor
   private boolean usePanelOption;
   private boolean closeAfterSelected;
   private boolean animationEnabled = true;
+  private boolean startWeekOnMonday;
   private int month = 10;
   private int year = 2023;
   private Color color;
@@ -83,8 +84,7 @@ public class DatePicker extends PanelPopupEditor
   private void init(DateSelectionModel dateSelectionModel) {
     putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "[light]background:darken($Panel.background,2%);"
+        "[light]background:darken($Panel.background,2%);"
             + "[dark]background:lighten($Panel.background,2%);");
     setLayout(new MigLayout("wrap,insets 10,fill", "[fill]"));
 
@@ -99,6 +99,8 @@ public class DatePicker extends PanelPopupEditor
     add(header);
     add(panelSlider, "width 260!,height 250!");
     initDate();
+    JPanel buttonPanel = createButtonPanel();
+    add(buttonPanel, "dock south");
   }
 
   private void initDate() {
@@ -218,6 +220,24 @@ public class DatePicker extends PanelPopupEditor
     }
   }
 
+  public void toDateSelectionView() {
+    LocalDate date = getSelectedDate();
+    if (date == null) {
+      date = LocalDate.now();
+    }
+    int m = date.getMonthValue() - 1;
+    int y = date.getYear();
+    if (selectionState != SelectionState.DATE || y != year || m != month) {
+      panelSlider.addSlide(
+          createPanelDate(m, y), getSliderTransition(SimpleTransition.SliderType.DEFAULT));
+      month = m;
+      year = y;
+      selectionState = SelectionState.DATE;
+      header.setDate(month, year);
+      updateSelected();
+    }
+  }
+
   public void selectCurrentMonth() {
     LocalDate date = LocalDate.now();
     if (getDateSelectionMode() == DateSelectionMode.BETWEEN_DATE_SELECTED) {
@@ -228,11 +248,15 @@ public class DatePicker extends PanelPopupEditor
   }
 
   public void setSelectedDate(LocalDate date) {
-    dateSelectionModel.setDate(new SingleDate(date));
-    if (getDateSelectionMode() == DateSelectionMode.BETWEEN_DATE_SELECTED) {
-      dateSelectionModel.setToDate(new SingleDate(date));
+    if (date == null) {
+      clearSelectedDate();
+    } else {
+      dateSelectionModel.setDate(new SingleDate(date));
+      if (getDateSelectionMode() == DateSelectionMode.BETWEEN_DATE_SELECTED) {
+        dateSelectionModel.setToDate(new SingleDate(date));
+      }
+      slideTo(date);
     }
-    slideTo(date);
   }
 
   public void setSelectedDateRange(LocalDate from, LocalDate to) {
@@ -395,6 +419,20 @@ public class DatePicker extends PanelPopupEditor
 
   public void setAnimationEnabled(boolean animationEnabled) {
     this.animationEnabled = animationEnabled;
+  }
+
+  public boolean isStartWeekOnMonday() {
+    return startWeekOnMonday;
+  }
+
+  public void setStartWeekOnMonday(boolean startWeekOnMonday) {
+    if (this.startWeekOnMonday != startWeekOnMonday) {
+      this.startWeekOnMonday = startWeekOnMonday;
+      if (selectionState == SelectionState.DATE && panelDate != null) {
+        // update the panel date
+        panelDate.load();
+      }
+    }
   }
 
   public void clearSelectedDate() {
@@ -678,6 +716,11 @@ public class DatePicker extends PanelPopupEditor
       }
     }
     return defaultPlaceholder;
+  }
+
+  @Override
+  protected void popupOpen() {
+    toDateSelectionView();
   }
 
   private void verifyDateSelection() {

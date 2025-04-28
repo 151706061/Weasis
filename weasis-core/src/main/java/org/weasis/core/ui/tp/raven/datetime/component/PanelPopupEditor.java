@@ -13,6 +13,9 @@ import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.*;
 import java.text.ParseException;
 import javax.swing.*;
+import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.ui.tp.raven.datetime.DatePicker;
+import org.weasis.core.ui.tp.raven.datetime.TimePicker;
 import org.weasis.core.ui.tp.raven.datetime.util.Utils;
 
 /**
@@ -30,15 +33,20 @@ public abstract class PanelPopupEditor extends JPanel {
   protected boolean isValid;
   protected boolean validationOnNull;
   protected String defaultPlaceholder;
+  protected Point popupSpace = new Point(1, 1);
 
   protected LookAndFeel oldThemes = UIManager.getLookAndFeel();
 
   public PanelPopupEditor() {}
 
   public void showPopup() {
+    showPopup(editor);
+  }
+
+  public void showPopup(Component component) {
     if (popupMenu == null) {
       popupMenu = new JPopupMenu();
-      popupMenu.putClientProperty(FlatClientProperties.STYLE, "" + "borderInsets:1,1,1,1");
+      popupMenu.putClientProperty(FlatClientProperties.STYLE, "borderInsets:1,1,1,1");
       popupMenu.add(this);
     }
     if (UIManager.getLookAndFeel() != oldThemes) {
@@ -47,8 +55,31 @@ public abstract class PanelPopupEditor extends JPanel {
       SwingUtilities.updateComponentTreeUI(popupMenu);
       oldThemes = UIManager.getLookAndFeel();
     }
-    Point point = Utils.adjustPopupLocation(popupMenu, editor);
-    popupMenu.show(editor, point.x, point.y);
+    Point point = Utils.adjustPopupLocation(popupMenu, component, popupSpace);
+    popupOpen();
+    popupMenu.show(component, point.x, point.y);
+  }
+
+  protected JPanel createButtonPanel() {
+    JButton nowButton = new JButton("Now");
+    nowButton.setFocusable(false);
+    nowButton.addActionListener(
+        _ -> {
+          if (this instanceof DatePicker picker) {
+            picker.now();
+          } else if (this instanceof TimePicker picker) {
+            picker.now();
+          }
+        });
+
+    JButton closeButton = new JButton("Close");
+    closeButton.setFocusable(false);
+    closeButton.addActionListener(
+        _ -> {
+          SwingUtilities.getWindowAncestor(this).dispose();
+        });
+
+    return GuiUtils.getFlowLayoutPanel(FlowLayout.TRAILING, 10, 10, nowButton, closeButton);
   }
 
   public void closePopup() {
@@ -119,5 +150,15 @@ public abstract class PanelPopupEditor extends JPanel {
     }
   }
 
+  public Point getPopupSpace() {
+    return popupSpace;
+  }
+
+  public void setPopupSpace(Point popupSpace) {
+    this.popupSpace = popupSpace;
+  }
+
   protected abstract String getDefaultPlaceholder();
+
+  protected abstract void popupOpen();
 }

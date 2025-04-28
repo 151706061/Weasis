@@ -11,15 +11,12 @@ package org.weasis.core.ui.tp.raven.datetime.component.time;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.geom.Rectangle2D;
 import java.text.DateFormatSymbols;
 import java.text.DecimalFormat;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
@@ -33,7 +30,7 @@ import org.weasis.core.ui.tp.raven.datetime.component.time.event.TimeActionListe
  * @author Raven Laing
  * @see <a href="https://github.com/DJ-Raven/swing-datetime-picker">swing-datetime-picker</a>
  */
-public class Header extends JComponent {
+public class Header extends JPanel {
 
   private final TimePicker timePicker;
   private final TimeActionListener timeActionListener;
@@ -205,23 +202,6 @@ public class Header extends JComponent {
     amPmToolBar.add(buttonAm);
     amPmToolBar.add(buttonPm);
     return amPmToolBar;
-  }
-
-  /**
-   * Override this method to paint the background color Do not use the component background because
-   * the background reset while change themes
-   */
-  @Override
-  protected void paintComponent(Graphics g) {
-    Graphics2D g2 = (Graphics2D) g.create();
-    Color color = this.color;
-    if (color == null) {
-      color = UIManager.getColor("Component.accentColor");
-    }
-    g2.setColor(color);
-    g2.fill(new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
-    g2.dispose();
-    super.paintComponent(g);
   }
 
   public void setColor(Color color) {

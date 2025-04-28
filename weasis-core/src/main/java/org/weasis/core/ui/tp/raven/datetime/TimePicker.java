@@ -66,8 +66,7 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
   private void init(TimeSelectionModel model) {
     putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "[light]background:darken($Panel.background,2%);"
+        "[light]background:darken($Panel.background,2%);"
             + "[dark]background:lighten($Panel.background,2%);");
     layout = new MigLayout("wrap,fill,insets 3", "fill", "fill");
     setLayout(layout);
@@ -81,6 +80,9 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
     panelClock = new PanelClock(this, new ClockActionListener());
     add(header, "width 120:120");
     add(panelClock, "width 230:230,height 230:230");
+
+    JPanel buttonPanel = createButtonPanel();
+    add(buttonPanel, "dock south");
   }
 
   public int getOrientation() {
@@ -228,6 +230,15 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
     }
   }
 
+  public boolean isHourSelectionView() {
+    return panelClock.isHourSelectionView();
+  }
+
+  public void setHourSelectionView(boolean hourSelectionView) {
+    header.setHourSelectionView(hourSelectionView);
+    panelClock.setHourSelectionViewImmediately(hourSelectionView);
+  }
+
   public void addTimeSelectionListener(TimeSelectionListener listener) {
     listenerList.add(TimeSelectionListener.class, listener);
   }
@@ -298,7 +309,7 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
   private void setEditorValue() {
     String value = getSelectedTimeAsString();
     if (value != null) {
-      if (!editor.getText().toLowerCase().equals(value.toLowerCase())) {
+      if (!editor.getText().equalsIgnoreCase(value)) {
         editor.setValue(value);
       }
     } else {
@@ -309,7 +320,7 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
   private InputValidationListener getInputValidationListener() {
     if (inputValidationListener == null) {
       inputValidationListener =
-          new InputValidationListener<LocalTime>() {
+          new InputValidationListener<>() {
 
             @Override
             public boolean isValidation() {
@@ -346,12 +357,17 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
     return defaultPlaceholder;
   }
 
+  @Override
+  protected void popupOpen() {
+    setHourSelectionView(true);
+  }
+
   private void verifyTimeSelection() {
     LocalTime time = getSelectedTime();
     if ((time == null && oldSelectedTime == null)) {
       return;
     } else if (time != null && oldSelectedTime != null) {
-      if (time.compareTo(oldSelectedTime) == 0) {
+      if (time.equals(oldSelectedTime)) {
         return;
       }
     }

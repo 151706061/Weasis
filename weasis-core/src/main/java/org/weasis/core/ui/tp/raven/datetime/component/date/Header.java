@@ -43,7 +43,7 @@ public class Header extends JPanel {
   }
 
   private void init(int month, int year) {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(new MigLayout("fill,insets 3", "[]push[][]push[]", "fill"));
 
     JButton cmdBack = createButton();

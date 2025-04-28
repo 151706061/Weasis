@@ -33,7 +33,7 @@ public class PanelDateOption extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     buttonGroup = new ButtonGroup();
   }
 
@@ -97,8 +97,7 @@ public class PanelDateOption extends JPanel {
         });
     button.putClientProperty(
         FlatClientProperties.STYLE,
-        ""
-            + "arc:10;"
+        "arc:10;"
             + "borderWidth:0;"
             + "focusWidth:0;"
             + "innerFocusWidth:0;"

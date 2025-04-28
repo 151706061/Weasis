@@ -10,33 +10,40 @@
 package org.weasis.core.ui.tp.raven.datetime.util;
 
 import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.ui.FlatUIUtils;
 import com.formdev.flatlaf.util.ColorFunctions;
+import com.formdev.flatlaf.util.UIScale;
 import java.awt.*;
 import javax.swing.*;
 
 public class Utils {
 
-  public static Point adjustPopupLocation(JPopupMenu popupMenu, Component component) {
+  public static Point adjustPopupLocation(JPopupMenu popupMenu, Component component, Point space) {
     Window window = SwingUtilities.getWindowAncestor(component);
-    Insets frameInsets = window.getInsets();
-    Dimension popupSize = popupMenu.getComponent().getPreferredSize();
     if (window == null) {
       return new Point(0, component.getHeight());
     }
+    Insets frameInsets = window.getInsets();
+    frameInsets = FlatUIUtils.addInsets(frameInsets, UIScale.scale(new Insets(5, 5, 5, 5)));
+    Dimension popupSize = popupMenu.getComponent().getPreferredSize();
     int frameWidth = window.getWidth() - (frameInsets.left + frameInsets.right);
     int frameHeight = window.getHeight() - (frameInsets.top + frameInsets.bottom);
     Point locationOnFrame =
         SwingUtilities.convertPoint(component, new Point(0, component.getHeight()), window);
-    int bottomSpace = frameHeight - locationOnFrame.y - popupSize.height;
+    int bottomSpace = frameHeight - locationOnFrame.y - popupSize.height - space.y;
+    int rightSpace = frameWidth - locationOnFrame.x - popupSize.width - space.x;
     int x =
-        Math.max(
-            Math.min(locationOnFrame.x, frameInsets.left + frameWidth - popupSize.width),
-            frameInsets.left);
+        frameInsets.left + rightSpace > 0
+            ? locationOnFrame.x + space.x
+            : Math.max(
+                locationOnFrame.x + component.getWidth() - popupSize.width - space.x,
+                frameInsets.left);
     int y =
         frameInsets.top + bottomSpace > 0
-            ? locationOnFrame.y
+            ? locationOnFrame.y + space.y
             : Math.max(
-                locationOnFrame.y - component.getHeight() - popupSize.height, frameInsets.top);
+                locationOnFrame.y - component.getHeight() - popupSize.height - space.y,
+                frameInsets.top);
     return SwingUtilities.convertPoint(window, new Point(x, y), component);
   }
 

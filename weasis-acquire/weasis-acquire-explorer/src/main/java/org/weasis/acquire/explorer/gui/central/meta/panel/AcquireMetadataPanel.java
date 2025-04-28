@@ -11,12 +11,8 @@ package org.weasis.acquire.explorer.gui.central.meta.panel;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Font;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -35,8 +31,6 @@ import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellEditor;
 import org.dcm4che3.data.Tag;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.weasis.acquire.explorer.AcquireMediaInfo;
 import org.weasis.acquire.explorer.core.bean.SeriesGroup;
 import org.weasis.acquire.explorer.core.bean.SeriesGroup.Type;
@@ -47,7 +41,6 @@ import org.weasis.core.api.gui.util.GuiUtils.IconColor;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.media.data.TagW.TagType;
 import org.weasis.core.api.util.FontItem;
-import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.ui.tp.raven.datetime.DatePicker;
 import org.weasis.core.ui.tp.raven.datetime.TimePicker;
 import org.weasis.core.ui.util.LimitedTextField;
@@ -58,13 +51,11 @@ import org.weasis.dicom.codec.TagD.Sex;
 import org.weasis.dicom.codec.display.Modality;
 
 public abstract class AcquireMetadataPanel extends JPanel implements TableModelListener {
-  private static final Logger LOGGER = LoggerFactory.getLogger(AcquireMetadataPanel.class);
 
   protected final String title;
   protected final JTable table;
   protected AcquireMediaInfo mediaInfo;
   protected TitledBorder titleBorder;
-  protected static final Font SMALL_FONT = FontItem.SMALL.getFont();
 
   protected AcquireMetadataPanel(String title) {
     this.title = title;
@@ -75,7 +66,7 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
     this.table = new JTable();
     // Force committing value when losing the focus
     table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
-    table.setFont(SMALL_FONT);
+    table.setFont(FontItem.SMALL.getFont());
     table.getTableHeader().setReorderingAllowed(false);
     table.setShowHorizontalLines(true);
     table.setShowVerticalLines(true);
@@ -250,22 +241,43 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
       } else if (tagID == Tag.SeriesDescription) {
         cellEditor = getTableCellEditor(value, seriesDescCombo, limitedChars);
       } else if (date) {
-        DatePicker datePicker = new DatePicker();
-        datePicker.setDateSelectionAble(d -> !d.isAfter(LocalDate.now()));
         JFormattedTextField pickerEditor = new JFormattedTextField();
+        DatePicker datePicker = new DatePicker();
+        if (value instanceof LocalDate localDate) {
+          datePicker.setSelectedDate(localDate);
+        }
+        datePicker.setStartWeekOnMonday(true);
+        datePicker.setDateSelectionAble(d -> !d.isAfter(LocalDate.now()));
         datePicker.setEditor(pickerEditor);
-        cellEditor = new DefaultCellEditor(pickerEditor);
+        cellEditor =
+            new DefaultCellEditor(pickerEditor) {
+              @Override
+              public Object getCellEditorValue() {
+                return datePicker.getSelectedDate();
+              }
+            };
       } else if (time) {
         TimePicker timePicker = new TimePicker();
+        timePicker.set24HourView(true);
+        if (value instanceof LocalTime localTime) {
+          timePicker.setSelectedTime(localTime);
+        }
         JFormattedTextField pickerEditor = new JFormattedTextField();
         timePicker.setEditor(pickerEditor);
-        cellEditor = new DefaultCellEditor(pickerEditor);
+        cellEditor =
+            new DefaultCellEditor(pickerEditor) {
+              @Override
+              public Object getCellEditorValue() {
+                return timePicker.getSelectedTime();
+              }
+            };
+
       } else {
         cellEditor = new DefaultCellEditor(new LimitedTextField(limitedChars));
       }
       editor = Optional.of(cellEditor);
       Component c = cellEditor.getTableCellEditorComponent(table, value, isSelected, row, column);
-      c.setFont(SMALL_FONT);
+      c.setFont(FontItem.SMALL.getFont());
       return c;
     }
 
@@ -286,27 +298,9 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
     }
 
     private static void initCombo(JComboBox<?> combo) {
-      combo.setFont(AcquireMetadataPanel.SMALL_FONT);
+      combo.setFont(FontItem.SMALL.getFont());
       combo.setMaximumRowCount(15);
       GuiUtils.setPreferredWidth(combo, 80);
-    }
-
-    public static String[] getBodyPartValues() {
-      // https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_L.html
-      List<String> list = new ArrayList<>();
-      try (BufferedReader br =
-          Files.newBufferedReader(ResourceUtil.getResource(Path.of("bodyPartExamined.csv")))) {
-        String line;
-        while ((line = br.readLine()) != null) {
-          String[] columns = line.split(",");
-          if (columns.length > 2 && StringUtil.hasText(columns[2]) && columns[2].length() <= 16) {
-            list.add(columns[2]);
-          }
-        }
-      } catch (IOException ex) {
-        LOGGER.error("Cannot read body part values", ex);
-      }
-      return list.toArray(new String[0]);
     }
 
     public static String[] getValues(String property, String defaultValues) {

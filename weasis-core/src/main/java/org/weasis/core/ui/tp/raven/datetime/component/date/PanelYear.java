@@ -36,7 +36,7 @@ public class PanelYear extends JPanel {
   }
 
   private void init() {
-    putClientProperty(FlatClientProperties.STYLE, "" + "background:null");
+    putClientProperty(FlatClientProperties.STYLE, "background:null");
     setLayout(
         new MigLayout(
             "novisualpadding,wrap 4,insets 0,fillx,gap 0,al center center",

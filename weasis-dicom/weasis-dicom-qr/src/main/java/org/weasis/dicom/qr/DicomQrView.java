@@ -638,16 +638,13 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
   private DatePicker buildDatePicker() {
 
     DatePicker picker = new DatePicker();
-
-    // datePicker.setDateSelectionAble((date) -> !date.isAfter(LocalDate.now()));
-    picker.now();
+    picker.setStartWeekOnMonday(true);
     JFormattedTextField editor = new JFormattedTextField();
     picker.setEditor(editor);
 
     JTextField textField = picker.getEditor();
     GuiUtils.setPreferredWidth(textField, 145);
     picker.addDateSelectionListener(dateChangeListener);
-
     return picker;
   }
 
