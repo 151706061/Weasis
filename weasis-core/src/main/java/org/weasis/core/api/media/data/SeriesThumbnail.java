@@ -125,6 +125,12 @@ public class SeriesThumbnail extends Thumbnail
     setBorder(thumbnailBorder);
   }
 
+  public static int getThumbnailSizeFromPreferences() {
+    return GuiUtils.getUICore()
+        .getSystemPreferences()
+        .getIntProperty(Thumbnail.KEY_SIZE, Thumbnail.DEFAULT_SIZE);
+  }
+
   public JProgressBar getProgressBar() {
     return progressBar;
   }

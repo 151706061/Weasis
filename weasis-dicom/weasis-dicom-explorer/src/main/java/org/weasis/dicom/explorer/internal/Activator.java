@@ -18,9 +18,9 @@ import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.service.BundlePreferences;
 import org.weasis.core.util.FileUtil;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.LocalPersistence;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.explorer.wado.DicomManager;
 
 @Header(name = Constants.BUNDLE_ACTIVATOR, value = "${@class}") // NON-NLS

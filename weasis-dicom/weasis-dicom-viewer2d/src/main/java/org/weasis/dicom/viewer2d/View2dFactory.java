@@ -49,7 +49,7 @@ import org.weasis.core.ui.util.DefaultAction;
 import org.weasis.dicom.codec.DicomCodec;
 import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.TagD;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 @org.osgi.service.component.annotations.Component(service = SeriesViewerFactory.class)
 public class View2dFactory implements SeriesViewerFactory {

@@ -20,8 +20,8 @@ import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TagD;
-import org.weasis.dicom.explorer.DicomExplorer.SeriesPane;
-import org.weasis.dicom.explorer.DicomExplorer.StudyPane;
+import org.weasis.dicom.explorer.main.SeriesPane;
+import org.weasis.dicom.explorer.main.StudyPane;
 import org.weasis.dicom.explorer.pref.download.DicomExplorerPrefView;
 
 public class DicomSorter {
@@ -66,8 +66,8 @@ public class DicomSorter {
   public static final Comparator<Object> STUDY_COMPARATOR =
       (o1, o2) -> {
         if (o1 instanceof StudyPane && o2 instanceof StudyPane) {
-          o1 = ((StudyPane) o1).dicomStudy;
-          o2 = ((StudyPane) o2).dicomStudy;
+          o1 = ((StudyPane) o1).getDicomStudy();
+          o2 = ((StudyPane) o2).getDicomStudy();
         } else if (o1 instanceof DefaultMutableTreeNode && o2 instanceof DefaultMutableTreeNode) {
           o1 = ((DefaultMutableTreeNode) o1).getUserObject();
           o2 = ((DefaultMutableTreeNode) o2).getUserObject();
@@ -129,8 +129,8 @@ public class DicomSorter {
   public static final Comparator<Object> SERIES_COMPARATOR =
       (o1, o2) -> {
         if (o1 instanceof SeriesPane && o2 instanceof SeriesPane) {
-          o1 = ((SeriesPane) o1).sequence;
-          o2 = ((SeriesPane) o2).sequence;
+          o1 = ((SeriesPane) o1).getDicomSeries();
+          o2 = ((SeriesPane) o2).getDicomSeries();
         } else if (o1 instanceof DefaultMutableTreeNode && o2 instanceof DefaultMutableTreeNode) {
           o1 = ((DefaultMutableTreeNode) o1).getUserObject();
           o2 = ((DefaultMutableTreeNode) o2).getUserObject();

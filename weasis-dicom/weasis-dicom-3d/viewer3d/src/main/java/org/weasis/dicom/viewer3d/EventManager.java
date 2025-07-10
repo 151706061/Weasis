@@ -66,7 +66,7 @@ import org.weasis.core.ui.model.utils.bean.PanPoint;
 import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.SortSeriesStack;
 import org.weasis.dicom.codec.display.Modality;
-import org.weasis.dicom.explorer.DicomExportAction;
+import org.weasis.dicom.explorer.exp.DicomExportAction;
 import org.weasis.dicom.viewer2d.Messages;
 import org.weasis.dicom.viewer2d.ResetTools;
 import org.weasis.dicom.viewer2d.View2dContainer;

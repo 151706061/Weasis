@@ -20,10 +20,10 @@ import org.slf4j.LoggerFactory;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.service.BundlePreferences;
 import org.weasis.core.util.FileUtil;
-import org.weasis.dicom.explorer.CheckTreeModel;
-import org.weasis.dicom.explorer.DicomExportFactory;
 import org.weasis.dicom.explorer.DicomModel;
-import org.weasis.dicom.explorer.ExportDicom;
+import org.weasis.dicom.explorer.exp.CheckTreeModel;
+import org.weasis.dicom.explorer.exp.DicomExportFactory;
+import org.weasis.dicom.explorer.exp.ExportDicom;
 
 @org.osgi.service.component.annotations.Component(service = DicomExportFactory.class)
 public class SendDicomFactory implements DicomExportFactory {

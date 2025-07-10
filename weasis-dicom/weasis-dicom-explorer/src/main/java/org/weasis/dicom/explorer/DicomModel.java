@@ -91,6 +91,11 @@ import org.weasis.dicom.codec.utils.SplittingModalityRules;
 import org.weasis.dicom.codec.utils.SplittingModalityRules.Rule;
 import org.weasis.dicom.codec.utils.SplittingRules;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
+import org.weasis.dicom.explorer.imp.DicomDirImport;
+import org.weasis.dicom.explorer.imp.DicomDirLoader;
+import org.weasis.dicom.explorer.imp.DicomZipImport;
+import org.weasis.dicom.explorer.imp.LocalImport;
+import org.weasis.dicom.explorer.main.SeriesPane;
 import org.weasis.dicom.explorer.rs.RsQueryParams;
 import org.weasis.dicom.explorer.wado.DicomManager;
 import org.weasis.dicom.explorer.wado.DownloadManager;
@@ -821,15 +826,12 @@ public class DicomModel implements TreeModel, DataExplorerModel {
     }
   }
 
-  public void buildThumbnail(Series<?> dicomSeries) {
+  public void buildThumbnail(DicomSeries dicomSeries) {
     // Load image and create a thumbnail in this Thread
     SeriesThumbnail t = (SeriesThumbnail) dicomSeries.getTagValue(TagW.Thumbnail);
     if (t == null) {
-      int thumbnailSize =
-          GuiUtils.getUICore()
-              .getSystemPreferences()
-              .getIntProperty(Thumbnail.KEY_SIZE, Thumbnail.DEFAULT_SIZE);
-      t = DicomExplorer.createThumbnail(dicomSeries, this, thumbnailSize);
+      int thumbnailSize = SeriesThumbnail.getThumbnailSizeFromPreferences();
+      t = SeriesPane.createThumbnail(dicomSeries, this, thumbnailSize);
       dicomSeries.setTag(TagW.Thumbnail, t);
       Optional.ofNullable(t).ifPresent(Thumbnail::repaint);
       firePropertyChange(new ObservableEvent(BasicAction.ADD, this, null, dicomSeries));

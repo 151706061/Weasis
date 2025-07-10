@@ -37,7 +37,7 @@ import org.weasis.core.ui.editor.image.ImageViewerPlugin.LayoutModel;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.DicomMediaIO;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.viewer2d.EventManager;
 import org.weasis.dicom.viewer2d.Messages;
 import org.weasis.dicom.viewer2d.mpr.MprView.Plane;
