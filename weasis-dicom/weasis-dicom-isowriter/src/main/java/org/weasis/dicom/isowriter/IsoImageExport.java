@@ -46,10 +46,10 @@ import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.StringUtil;
-import org.weasis.dicom.explorer.CheckTreeModel;
 import org.weasis.dicom.explorer.DicomModel;
-import org.weasis.dicom.explorer.ExplorerTask;
-import org.weasis.dicom.explorer.LocalExport;
+import org.weasis.dicom.explorer.exp.CheckTreeModel;
+import org.weasis.dicom.explorer.exp.ExplorerTask;
+import org.weasis.dicom.explorer.exp.LocalExport;
 
 public class IsoImageExport extends LocalExport {
 

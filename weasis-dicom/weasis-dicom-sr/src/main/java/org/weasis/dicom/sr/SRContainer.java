@@ -55,12 +55,12 @@ import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.DicomSpecialElement;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.TagD.Level;
-import org.weasis.dicom.explorer.DicomExportAction;
-import org.weasis.dicom.explorer.DicomFieldsView;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.DicomViewerPlugin;
-import org.weasis.dicom.explorer.ExportToolBar;
-import org.weasis.dicom.explorer.ImportToolBar;
+import org.weasis.dicom.explorer.exp.DicomExportAction;
+import org.weasis.dicom.explorer.exp.ExportToolBar;
+import org.weasis.dicom.explorer.imp.ImportToolBar;
+import org.weasis.dicom.explorer.tag.DicomFieldsView;
 
 public class SRContainer extends DicomViewerPlugin implements PropertyChangeListener {
   private static final Logger LOGGER = LoggerFactory.getLogger(SRContainer.class);

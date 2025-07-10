@@ -17,6 +17,7 @@ import org.weasis.core.api.image.GridBagLayoutModel;
 import org.weasis.core.ui.editor.image.ImageViewerEventManager;
 import org.weasis.core.ui.editor.image.ImageViewerPlugin;
 import org.weasis.dicom.codec.DicomImageElement;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 public abstract class DicomViewerPlugin extends ImageViewerPlugin<DicomImageElement> {
 

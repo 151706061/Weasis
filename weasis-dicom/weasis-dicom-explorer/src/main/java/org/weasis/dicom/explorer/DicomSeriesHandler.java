@@ -36,6 +36,9 @@ import org.weasis.core.ui.editor.image.ViewerPlugin;
 import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
+import org.weasis.dicom.explorer.imp.LocalImport;
+import org.weasis.dicom.explorer.main.DicomExplorer;
+import org.weasis.dicom.explorer.main.SeriesSelectionModel;
 
 public class DicomSeriesHandler extends SequenceHandler {
   private static final Logger LOGGER = LoggerFactory.getLogger(DicomSeriesHandler.class);

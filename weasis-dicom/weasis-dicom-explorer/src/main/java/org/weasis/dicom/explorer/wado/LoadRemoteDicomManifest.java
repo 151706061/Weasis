@@ -33,9 +33,9 @@ import org.weasis.core.util.StreamIOException;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.StringUtil.Suffix;
 import org.weasis.dicom.explorer.DicomModel;
-import org.weasis.dicom.explorer.ExplorerTask;
 import org.weasis.dicom.explorer.Messages;
 import org.weasis.dicom.explorer.PluginOpeningStrategy;
+import org.weasis.dicom.explorer.exp.ExplorerTask;
 import org.weasis.dicom.explorer.pref.download.DicomExplorerPrefView;
 import org.weasis.dicom.explorer.wado.DownloadManager.PriorityTaskComparator;
 

@@ -58,12 +58,12 @@ import org.weasis.dicom.codec.KOSpecialElement;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.TagD.Level;
 import org.weasis.dicom.codec.utils.DicomMediaUtils;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.DicomSeriesHandler;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
 import org.weasis.dicom.explorer.LoadDicomObjects;
 import org.weasis.dicom.explorer.MimeSystemAppFactory;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.macro.SOPInstanceReference;
 
 public class SRView extends JScrollPane implements SeriesViewerListener {

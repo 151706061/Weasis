@@ -19,15 +19,16 @@ import javax.swing.SpinnerListModel;
 import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.gui.util.AbstractItemDialogPage;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.media.data.SeriesThumbnail;
 import org.weasis.core.api.media.data.Thumbnail;
 import org.weasis.core.api.service.WProperties;
 import org.weasis.core.ui.pref.PreferenceDialog;
 import org.weasis.core.util.StringUtil;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomSorter;
 import org.weasis.dicom.explorer.DicomSorter.SortingTime;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
 import org.weasis.dicom.explorer.Messages;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 public class DicomExplorerPrefView extends AbstractItemDialogPage {
   public static final String DOWNLOAD_IMMEDIATELY = "weasis.download.immediately";
@@ -48,7 +49,7 @@ public class DicomExplorerPrefView extends AbstractItemDialogPage {
     WProperties preferences = GuiUtils.getUICore().getSystemPreferences();
 
     JPanel panel = GuiUtils.getVerticalBoxLayoutPanel();
-    int thumbnailSize = preferences.getIntProperty(Thumbnail.KEY_SIZE, Thumbnail.DEFAULT_SIZE);
+    int thumbnailSize = SeriesThumbnail.getThumbnailSizeFromPreferences();
     JLabel thumbSize = new JLabel(Messages.getString("DicomExplorer.thmb_size"));
     SpinnerListModel model =
         new SpinnerListModel(

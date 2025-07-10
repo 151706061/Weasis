@@ -51,7 +51,7 @@ import org.weasis.core.ui.pref.PreferenceDialog;
 import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.DicomMediaIO;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.viewer2d.EventManager;
 import org.weasis.dicom.viewer3d.vr.OpenglUtils;
 

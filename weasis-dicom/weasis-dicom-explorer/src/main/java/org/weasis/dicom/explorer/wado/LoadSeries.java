@@ -88,6 +88,8 @@ import org.weasis.dicom.codec.utils.DicomMediaUtils;
 import org.weasis.dicom.codec.utils.SeriesInstanceList;
 import org.weasis.dicom.explorer.*;
 import org.weasis.dicom.explorer.Messages;
+import org.weasis.dicom.explorer.exp.ExplorerTask;
+import org.weasis.dicom.explorer.main.ThumbnailMouseAndKeyAdapter;
 import org.weasis.dicom.mf.HttpTag;
 import org.weasis.dicom.mf.SopInstance;
 import org.weasis.dicom.mf.WadoParameters;
@@ -589,10 +591,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
           () -> {
             SeriesThumbnail thumbnail = (SeriesThumbnail) dicomSeries.getTagValue(TagW.Thumbnail);
             if (thumbnail == null) {
-              int thumbnailSize =
-                  GuiUtils.getUICore()
-                      .getSystemPreferences()
-                      .getIntProperty(Thumbnail.KEY_SIZE, Thumbnail.DEFAULT_SIZE);
+              int thumbnailSize = SeriesThumbnail.getThumbnailSizeFromPreferences();
               Function<String, Set<ResourceIconPath>> drawIcons =
                   HiddenSeriesManager::getRelatedIcons;
               thumbnail = new SeriesThumbnail(dicomSeries, thumbnailSize, drawIcons);

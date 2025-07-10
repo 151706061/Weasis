@@ -19,8 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.service.BundlePreferences;
 import org.weasis.core.util.FileUtil;
-import org.weasis.dicom.explorer.DicomImportFactory;
-import org.weasis.dicom.explorer.ImportDicom;
+import org.weasis.dicom.explorer.imp.DicomImportFactory;
+import org.weasis.dicom.explorer.imp.ImportDicom;
 
 @org.osgi.service.component.annotations.Component(service = DicomImportFactory.class)
 public class DicomQrFactory implements DicomImportFactory {
