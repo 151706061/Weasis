@@ -1028,7 +1028,7 @@ public class DicomModel implements TreeModel, DataExplorerModel {
     if (specialElementList == null) {
       specialElementList = new CopyOnWriteArrayList<>();
       originalSeries.setTag(TagW.DicomSpecialElementList, specialElementList);
-    } else if ("sr/dicom".equals(rMime) || "wf/dicom".equals(rMime)) {
+    } else if ("sr/dicom".equals(rMime) || "wf/dicom".equals(rMime)) { // NON-NLS
       // Split SR series to have only one object by series
       Series<?> s = splitSeries(dicomReader, originalSeries);
       specialElementList = new CopyOnWriteArrayList<>();
