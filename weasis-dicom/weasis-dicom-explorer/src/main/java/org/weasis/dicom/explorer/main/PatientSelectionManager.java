@@ -31,7 +31,8 @@ public class PatientSelectionManager {
     this.explorer = Objects.requireNonNull(explorer);
   }
 
-  /** Sets the current patient and notifies all listeners.
+  /**
+   * Sets the current patient and notifies all listeners.
    *
    * @param patient the patient to set as current
    */
@@ -41,7 +42,8 @@ public class PatientSelectionManager {
     }
   }
 
-  /** Gets the current patient.
+  /**
+   * Gets the current patient.
    *
    * @return an Optional containing the current patient, or empty if no patient is selected
    */
@@ -49,7 +51,8 @@ public class PatientSelectionManager {
     return explorer.getSelectedPatientPane().getCurrentPatient();
   }
 
-  /** Checks if the given patient is the current patient.
+  /**
+   * Checks if the given patient is the current patient.
    *
    * @param patient the patient to check
    * @return true if the given patient is the current patient, false otherwise
@@ -58,18 +61,20 @@ public class PatientSelectionManager {
     return Objects.equals(getCurrentPatient().orElse(null), patient);
   }
 
-    /** Adds a listener to be notified of patient selection changes.
-     *
-     * @param listener the listener to add
-     */
+  /**
+   * Adds a listener to be notified of patient selection changes.
+   *
+   * @param listener the listener to add
+   */
   public void addPatientSelectionListener(PatientSelectionListener listener) {
     listeners.add(listener);
   }
 
-    /** Removes a listener from patient selection changes.
-     *
-     * @param listener the listener to remove
-     */
+  /**
+   * Removes a listener from patient selection changes.
+   *
+   * @param listener the listener to remove
+   */
   public void removePatientSelectionListener(PatientSelectionListener listener) {
     listeners.remove(listener);
   }

@@ -38,8 +38,9 @@ import org.weasis.core.util.MathUtil;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.LookupTableCV;
 import org.weasis.opencv.data.PlanarImage;
+import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 import org.weasis.opencv.op.lut.DefaultWlPresentation;
 import org.weasis.opencv.op.lut.LutShape;
 import org.weasis.opencv.op.lut.WlParams;
@@ -95,7 +96,7 @@ public class ImageElement extends MediaElement {
     // Do not compute min and max it has already been done
 
     if (img != null && !isImageAvailable()) {
-      MinMaxLocResult res = ImageProcessor.findRawMinMaxValues(img, exclude8bitImage);
+      MinMaxLocResult res = ImageAnalyzer.findRawMinMaxValues(img, exclude8bitImage);
       this.minPixelValue = res.minVal;
       this.maxPixelValue = res.maxVal;
     }
@@ -324,7 +325,7 @@ public class ImageElement extends MediaElement {
     double slope = 255.0 / range;
     double yInt = 255.0 - slope * high;
 
-    return ImageProcessor.rescaleToByte(source.toMat(), slope, yInt);
+    return ImageTransformer.rescaleToByte(source.toMat(), slope, yInt);
   }
 
   public SimpleOpManager buildSimpleOpManager(

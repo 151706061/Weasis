@@ -234,7 +234,7 @@ public abstract class AbstractThumbnailList<E extends MediaElement> extends JLis
             Messages.getString("JIThumbnailList.size"),
             FileUtil.humanReadableByte(item.getLength(), false),
             Messages.getString("JIThumbnailList.date"),
-            TagUtil.formatDateTime(Instant.ofEpochMilli(item.getLastModified())));
+            TagUtil.formatDateTime(item.getLastModified().toInstant()));
   }
 
   public void reset() {

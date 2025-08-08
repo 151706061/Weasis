@@ -312,7 +312,7 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
           ImageElement img = defaultView2d.getImage();
           if (img != null) {
             boolean pixelPadding =
-                LangUtil.getNULLtoTrue(
+                LangUtil.nullToTrue(
                     (Boolean)
                         defaultView2d
                             .getDisplayOpManager()
@@ -417,7 +417,7 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
         .ifPresent(
             a ->
                 a.setSelectedWithoutTriggerAction(
-                    LangUtil.getNULLtoFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
+                    LangUtil.nullToFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
 
     getAction(ActionW.ZOOM)
         .ifPresent(

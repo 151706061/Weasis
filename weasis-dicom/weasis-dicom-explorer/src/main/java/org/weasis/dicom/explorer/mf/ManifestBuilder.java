@@ -68,7 +68,7 @@ public class ManifestBuilder {
       writeExtendedManifest(arcQuery, buf);
       buf.flush();
     } catch (IOException e) {
-      FileUtil.delete(outFile);
+      FileUtil.delete(outFile.toPath());
       throw new IOException(e);
     }
   }

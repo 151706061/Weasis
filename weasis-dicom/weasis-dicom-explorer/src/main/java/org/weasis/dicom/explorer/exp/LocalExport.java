@@ -74,8 +74,10 @@ import org.weasis.core.ui.model.GraphicModel;
 import org.weasis.core.ui.serialize.XmlSerializer;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.LangUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.StringUtil.Suffix;
+import org.weasis.core.util.ZipUtil;
 import org.weasis.dicom.codec.DcmMediaReader;
 import org.weasis.dicom.codec.DicomElement;
 import org.weasis.dicom.codec.DicomElement.DicomExportParameters;
@@ -94,7 +96,7 @@ import org.weasis.dicom.param.AttributeEditor;
 import org.weasis.dicom.param.DefaultAttributeEditor;
 import org.weasis.opencv.data.PlanarImage;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
   private static final Logger LOGGER = LoggerFactory.getLogger(LocalExport.class);
@@ -476,15 +478,16 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
                 pref.setProperty(CD_COMPATIBLE, Boolean.TRUE.toString());
                 File writeDir =
                     FileUtil.createTempDir(
-                        AppProperties.buildAccessibleTempDirectory(
-                            "tmp", Format.DICOM_ZIP.extension)); // NON-NLS
+                            AppProperties.buildAccessibleTempDirectory(
+                                "tmp", Format.DICOM_ZIP.extension))
+                        .toFile(); // NON-NLS
                 writeDicom(this, writeDir, model, pref);
                 try {
-                  FileUtil.zip(writeDir, exportDir);
+                  ZipUtil.zip(writeDir.toPath(), exportDir.toPath());
                 } catch (Exception e) {
                   LOGGER.error("Cannot export DICOM ZIP file: {}", exportDir, e);
                 } finally {
-                  FileUtil.recursiveDelete(writeDir);
+                  FileUtil.recursiveDelete(writeDir.toPath());
                 }
               } else {
                 writeOther(this, exportDir, model, format, pref);
@@ -541,7 +544,7 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
           DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
           if (node.getUserObject() instanceof Series) {
             MediaSeries<?> s = (MediaSeries<?>) node.getUserObject();
-            if (LangUtil.getNULLtoFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
+            if (LangUtil.nullToFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
               Series<?> series = (Series<?>) s.getTagValue(CheckTreeModel.SourceSeriesForPR);
               if (series != null) {
                 seriesGph.add((String) series.getTagValue(TagD.get(Tag.SeriesInstanceUID)));
@@ -569,7 +572,7 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
 
               File destinationFile =
                   new File(destinationDir, instance + FileUtil.getExtension(fileSrc.getName()));
-              FileUtil.nioCopyFile(fileSrc, destinationFile);
+              StreamUtil.copyFile(fileSrc.toPath(), destinationFile.toPath());
             }
           } else if (object instanceof DicomImageElement img) {
             // Get instance number instead SOPInstanceUID to handle multiframe
@@ -591,13 +594,13 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
 
               File destinationFile = new File(destinationDir, instance + "." + format.extension);
               if (format == Format.PNG) {
-                ImageProcessor.writePNG(image.toMat(), destinationFile);
+                ImageIOHandler.writePNG(image.toMat(), destinationFile.toPath());
               } else {
                 MatOfInt map = new MatOfInt();
                 if (format == Format.JPEG) {
                   map.fromArray(Imgcodecs.IMWRITE_JPEG_QUALITY, jpegQuality);
                 }
-                ImageProcessor.writeImage(image.toMat(), destinationFile, map);
+                ImageIOHandler.writeImage(image.toMat(), destinationFile.toPath(), map);
               }
               if (mustBeReleased) {
                 ImageConversion.releasePlanarImage(image);
@@ -729,7 +732,7 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
             }
           } else if (node.getUserObject() instanceof Series) {
             MediaSeries<?> s = (MediaSeries<?>) node.getUserObject();
-            if (LangUtil.getNULLtoFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
+            if (LangUtil.nullToFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
               Series<?> series = (Series<?>) s.getTagValue(CheckTreeModel.SourceSeriesForPR);
               if (series != null) {
                 String seriesInstanceUID = UIDUtils.createUID();
@@ -975,7 +978,7 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
         manager.addImageOperationAction(rectifyZoomOp);
       }
       manager.setFirstNode(imgPl);
-      thumbnail = ImageProcessor.buildThumbnail(manager.process(), new Dimension(128, 128), true);
+      thumbnail = ImageIOHandler.buildThumbnail(manager.process(), new Dimension(128, 128), true);
     }
 
     if (thumbnail == null) {

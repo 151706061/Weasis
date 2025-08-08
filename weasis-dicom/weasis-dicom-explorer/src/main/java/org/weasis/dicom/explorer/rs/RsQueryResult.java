@@ -57,7 +57,7 @@ public class RsQueryResult extends AbstractQueryResult {
   private static final Logger LOGGER = LoggerFactory.getLogger(RsQueryResult.class);
 
   private static final boolean MULTIPLE_PARAMS =
-      LangUtil.getEmptytoFalse(System.getProperty("dicom.qido.query.multi.params"));
+      LangUtil.emptyToFalse(System.getProperty("dicom.qido.query.multi.params"));
   public static final String STUDY_QUERY =
       multiParams(
           "&includefield=00080020,00080030,00080050,00080061,00080090,00081030,00100010,00100020,00100021,00100030,00100040,0020000D,00200010"); // NON-NLS
@@ -341,7 +341,7 @@ public class RsQueryResult extends AbstractQueryResult {
 
   public void buildFromSeriesInstanceUID(List<String> seriesInstanceUIDs) {
     boolean wholeStudy =
-        LangUtil.getEmptytoFalse(
+        LangUtil.emptyToFalse(
             rsQueryParams.getProperties().getProperty(RsQueryParams.P_SHOW_WHOLE_STUDY));
     Set<String> studyHashSet = new LinkedHashSet<>();
 

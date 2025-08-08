@@ -49,7 +49,7 @@ public class SynchData implements Copyable<SynchData> {
   }
 
   public boolean isActionEnable(String action) {
-    return LangUtil.getNULLtoFalse(actions.get(action));
+    return LangUtil.nullToFalse(actions.get(action));
   }
 
   public Mode getMode() {

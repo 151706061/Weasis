@@ -350,8 +350,6 @@ public class DicomExplorer extends PluginTool
     }
   }
 
-
-
   private void handleSelectEvent(Object newVal) {
     MediaSeriesGroup patient = null;
     if (newVal instanceof DicomSeries dcm) {
@@ -730,7 +728,6 @@ public class DicomExplorer extends PluginTool
       MediaSeriesGroup studyGroup, MediaSeriesGroup series, ListPosition position) {
     List<SeriesPane> seriesList = paneManager.getSeriesList(studyGroup);
     if (!seriesList.isEmpty()) {
-
       if (series == null) {
         if (position == ListPosition.LAST) {
           return seriesList.getLast().getDicomSeries();
@@ -875,30 +872,30 @@ public class DicomExplorer extends PluginTool
   }
 
   private void showLoadingPanel(ObservableEvent event) {
-    if ( event.getNewValue() instanceof ExplorerTask<?,?> task) {
+    if (event.getNewValue() instanceof ExplorerTask<?, ?> task) {
       GuiExecutor.invokeAndWait(
-              () -> {
-                loadingPanel.addTask(task);
-                revalidate();
-                repaint();
-              });
+          () -> {
+            loadingPanel.addTask(task);
+            revalidate();
+            repaint();
+          });
     }
   }
 
   private void hideLoadingPanel(ObservableEvent event) {
-    if (event.getNewValue() instanceof ExplorerTask<?,?> task) {
+    if (event.getNewValue() instanceof ExplorerTask<?, ?> task) {
       GuiExecutor.invokeAndWait(
-              () -> {
-                if (loadingPanel.removeTask(task)) {
-                  revalidate();
-                  repaint();
-                }
-              });
+          () -> {
+            if (loadingPanel.removeTask(task)) {
+              revalidate();
+              repaint();
+            }
+          });
     }
     MediaSeriesGroupNode patient = getSelectedPatient();
     if (patient != null) {
       koOpen.setVisible(
-              HiddenSeriesManager.hasHiddenSpecialElements(KOSpecialElement.class, patient));
+          HiddenSeriesManager.hasHiddenSpecialElements(KOSpecialElement.class, patient));
     }
   }
 

@@ -32,7 +32,7 @@ import org.weasis.dicom.codec.PRSpecialElement;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class ShutterOp extends AbstractOp {
 
@@ -108,12 +108,12 @@ public class ShutterOp extends AbstractOp {
     PlanarImage source = (PlanarImage) params.get(Param.INPUT_IMG);
     PlanarImage result = source;
 
-    boolean shutter = LangUtil.getNULLtoFalse((Boolean) params.get(P_SHOW));
+    boolean shutter = LangUtil.nullToFalse((Boolean) params.get(P_SHOW));
     Area area = (Area) params.get(P_SHAPE);
     PrDicomObject pr = (PrDicomObject) params.get(WindowAndPresetsOp.P_PR_ELEMENT);
 
     if (shutter && area != null) {
-      result = ImageProcessor.applyShutter(source.toMat(), area, getShutterColor());
+      result = ImageTransformer.applyShutter(source.toMat(), area, getShutterColor());
     }
 
     // Potentially override the shutter in the original dicom
@@ -132,7 +132,7 @@ public class ShutterOp extends AbstractOp {
           if (shutterOverlayGroup != null) {
             PlanarImage overlayImg = OverlayData.getOverlayImage(result, overlays, frame);
             imgOverlay =
-                ImageProcessor.overlay(result.toMat(), overlayImg.toMat(), getShutterColor());
+                ImageTransformer.overlay(result.toMat(), overlayImg.toMat(), getShutterColor());
           }
         }
       }

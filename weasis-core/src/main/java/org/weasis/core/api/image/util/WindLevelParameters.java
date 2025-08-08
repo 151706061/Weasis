@@ -61,10 +61,10 @@ public class WindLevelParameters implements WlParams {
     }
 
     this.presentationStateLut = pr;
-    this.fillOutsideLutRange = LangUtil.getNULLtoFalse(fillLutOut);
-    this.allowWinLevelOnColorImage = LangUtil.getNULLtoFalse(wlOnColor);
-    this.pixelPadding = LangUtil.getNULLtoTrue(padding);
-    this.inverseLut = LangUtil.getNULLtoFalse(invLUT);
+    this.fillOutsideLutRange = LangUtil.nullToFalse(fillLutOut);
+    this.allowWinLevelOnColorImage = LangUtil.nullToFalse(wlOnColor);
+    this.pixelPadding = LangUtil.nullToTrue(padding);
+    this.inverseLut = LangUtil.nullToFalse(invLUT);
     DefaultWlPresentation wlp = new DefaultWlPresentation(pr, pixelPadding);
     this.window = (win == null) ? img.getDefaultWindow(wlp) : win;
     this.level = (lev == null) ? img.getDefaultLevel(wlp) : lev;

@@ -211,8 +211,7 @@ public class CheckTreeModel {
   }
 
   private static boolean initToolTipText(TagReadable tagReadable, StringBuilder buf) {
-    boolean newElement =
-        LangUtil.getNULLtoFalse((Boolean) tagReadable.getTagValue(TagW.ObjectToSave));
+    boolean newElement = LangUtil.nullToFalse((Boolean) tagReadable.getTagValue(TagW.ObjectToSave));
     if (newElement) {
       buf.append(GuiUtils.HTML_COLOR_START);
       buf.append(IconColor.ACTIONS_YELLOW.getHtmlCode());

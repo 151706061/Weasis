@@ -14,7 +14,7 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Rectangle2D;
-import java.io.File;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -292,8 +292,7 @@ public class AcquireImageInfo extends AcquireMediaInfo {
    */
   private static void populateImageElementFromExif(ImageElement imageElement) {
     // Convert Exif TAG to DICOM attributes
-    Optional<File> file = imageElement.getFileCache().getOriginalFile();
-
+    Optional<Path> file = imageElement.getFileCache().getOriginalFile();
     if (file.isPresent()) {
       imageElement.setTagNoNull(
           TagD.get(Tag.Manufacturer), imageElement.getTagValue(TagW.ExifMake));
@@ -314,7 +313,7 @@ public class AcquireImageInfo extends AcquireMediaInfo {
 
       String imgDescription = (String) imageElement.getTagValue(TagW.ExifImageDescription);
       if (!StringUtil.hasText(imgDescription)) {
-        imgDescription = file.get().getName();
+        imgDescription = file.get().getFileName().toString();
       }
       imageElement.setTagNoNull(TagD.get(Tag.ImageComments), imgDescription);
     }

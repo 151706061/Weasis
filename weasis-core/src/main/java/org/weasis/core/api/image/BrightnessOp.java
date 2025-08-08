@@ -10,7 +10,7 @@
 package org.weasis.core.api.image;
 
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class BrightnessOp extends AbstractOp {
 
@@ -41,7 +41,7 @@ public class BrightnessOp extends AbstractOp {
     Double brightness = (Double) params.get(P_BRIGHTNESS_VALUE);
 
     if (contrast != null && brightness != null) {
-      result = ImageProcessor.rescaleToByte(source.toImageCV(), contrast / 100.0, brightness);
+      result = ImageTransformer.rescaleToByte(source.toImageCV(), contrast / 100.0, brightness);
     }
 
     params.put(Param.OUTPUT_IMG, result);

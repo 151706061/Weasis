@@ -250,7 +250,7 @@ public class RsQueryParams extends ExplorerTask<Boolean, String> {
   }
 
   public boolean isAcceptNoImage() {
-    return LangUtil.getEmptytoFalse(properties.getProperty("accept.noimage"));
+    return LangUtil.emptyToFalse(properties.getProperty("accept.noimage"));
   }
 
   public DicomModel getDicomModel() {

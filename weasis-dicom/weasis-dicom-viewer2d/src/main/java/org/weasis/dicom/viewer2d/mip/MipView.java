@@ -147,11 +147,11 @@ public class MipView extends View2d {
     setMip(null);
 
     // Remove all files except the build series
-    File[] files = SeriesBuilder.MIP_CACHE_DIR.listFiles();
+    File[] files = SeriesBuilder.MIP_CACHE_DIR.toFile().listFiles();
     if (files != null) {
       for (final File f : files) {
         if (!f.isDirectory()) {
-          FileUtil.delete(f);
+          FileUtil.delete(f.toPath());
         }
       }
     }
@@ -243,10 +243,7 @@ public class MipView extends View2d {
       oldImage.dispose();
       oldImage.removeImageFromCache();
       // Delete file in cache
-      File file = oldImage.getFile();
-      if (file != null) {
-        FileUtil.delete(file);
-      }
+      FileUtil.delete(oldImage.getFilePath());
     }
   }
 }

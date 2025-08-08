@@ -10,7 +10,7 @@
 package org.weasis.core.api.image;
 
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class MergeImgOp extends AbstractOp {
 
@@ -62,7 +62,7 @@ public class MergeImgOp extends AbstractOp {
       Double opacity2 = (Double) params.get(P_OPACITY_2);
       if (opacity1 == null) opacity1 = 1.0;
       if (opacity2 == null) opacity2 = 1.0;
-      result = ImageProcessor.mergeImages(source.toMat(), source2.toMat(), opacity1, opacity2);
+      result = ImageTransformer.mergeImages(source.toMat(), source2.toMat(), opacity1, opacity2);
     }
     params.put(Param.OUTPUT_IMG, result);
   }

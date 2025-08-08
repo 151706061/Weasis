@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.internal.mime.InvalidMagicMimeEntryException;
 import org.weasis.core.internal.mime.MagicMimeEntry;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 
 /** The Class MimeInspector is a manager for mime types. */
@@ -48,7 +48,7 @@ public class MimeInspector {
     } catch (IOException e) {
       LOGGER.error("Error when reading mime-types", e);
     } finally {
-      FileUtil.safeClose(fileStream);
+      StreamUtil.safeClose(fileStream);
     }
 
     // Parse and initialize the magic.mime rules

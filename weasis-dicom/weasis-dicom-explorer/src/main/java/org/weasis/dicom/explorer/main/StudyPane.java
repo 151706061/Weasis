@@ -132,7 +132,7 @@ public class StudyPane extends JPanel {
     Objects.requireNonNull(paneManager);
     removeAll();
     List<SeriesPane> seriesList = paneManager.getSeriesList(dicomStudy);
-    if (seriesList == null || seriesList.isEmpty()) {
+    if (seriesList.isEmpty()) {
       revalidate();
       return;
     }

@@ -12,6 +12,8 @@ package org.weasis.core.ui.editor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,21 +35,21 @@ import org.weasis.core.util.FileUtil;
 public class FileModel extends AbstractFileModel {
   private static final Logger LOGGER = LoggerFactory.getLogger(FileModel.class);
 
-  public static final File IMAGE_CACHE_DIR =
-      AppProperties.buildAccessibleTempDirectory(AppProperties.FILE_CACHE_DIR.getName(), "image");
+  public static final Path IMAGE_CACHE_DIR =
+      AppProperties.buildAccessibleTempDirectory(AppProperties.CACHE_NAME, "image");
 
   private File getFile(String url) {
-    File outFile;
+    Path outFile;
     try (ClosableURLConnection http = NetworkUtil.getUrlConnection(url, new URLParameters());
         InputStream in = http.getInputStream()) {
-      outFile = File.createTempFile("img_", FileUtil.getExtension(url), IMAGE_CACHE_DIR);
-      LOGGER.debug("Start to download image {} to {}.", url, outFile.getName());
+      outFile = Files.createTempFile(IMAGE_CACHE_DIR, "img_", FileUtil.getExtension(url));
+      LOGGER.debug("Start to download image {} to {}.", url, outFile);
       FileUtil.writeStreamWithIOException(in, outFile);
     } catch (IOException e) {
       LOGGER.error("Dowloading image", e);
       return null;
     }
-    return outFile;
+    return outFile.toFile();
   }
 
   @Override

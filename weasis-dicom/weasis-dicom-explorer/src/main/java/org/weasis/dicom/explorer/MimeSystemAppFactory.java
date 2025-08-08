@@ -45,11 +45,11 @@ public class MimeSystemAppFactory implements SeriesViewerFactory {
             // https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6486393
             for (File file : extractor.getExtractFiles()) {
               if (SystemInfo.isLinux) {
-                startAssociatedProgramFromLinux(file);
+                startAssociatedProgramFromLinux(file.toPath());
               } else if (Desktop.isDesktopSupported()) {
                 final Desktop desktop = Desktop.getDesktop();
                 if (desktop.isSupported(Desktop.Action.OPEN)) {
-                  startAssociatedProgramFromDesktop(desktop, file);
+                  startAssociatedProgramFromDesktop(desktop, file.toPath());
                 }
               }
             }

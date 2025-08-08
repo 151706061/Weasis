@@ -188,8 +188,8 @@ public class SeriesThumbnail extends Thumbnail
     if (file != null || media != null) {
       mediaPosition = position;
       if (thumbnailPath != null
-          && thumbnailPath.getPath().startsWith(AppProperties.FILE_CACHE_DIR.getPath())) {
-        FileUtil.delete(thumbnailPath); // delete old temp file
+          && thumbnailPath.getPath().startsWith(AppProperties.FILE_CACHE_DIR.toString())) {
+        FileUtil.delete(thumbnailPath.toPath()); // delete old temp file
       }
       removeImageFromCache();
       thumbnailPath = file;

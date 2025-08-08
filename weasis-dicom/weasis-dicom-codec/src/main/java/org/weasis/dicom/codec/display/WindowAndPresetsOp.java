@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.Optional;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
-import org.dcm4che3.img.DicomImageUtils;
 import org.dcm4che3.img.data.PrDicomObject;
 import org.dcm4che3.img.lut.PresetWindowLevel;
+import org.dcm4che3.img.util.PaletteColorUtils;
 import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.image.ImageOpEvent;
 import org.weasis.core.api.image.ImageOpEvent.OpEvent;
@@ -49,7 +49,7 @@ public class WindowAndPresetsOp extends WindowOp {
         }
 
         boolean pixelPadding =
-            LangUtil.getNULLtoTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+            LangUtil.nullToTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
         PresetWindowLevel preset = null;
         if (img instanceof DicomImageElement imageElement) {
           DefaultWlPresentation wlp = new DefaultWlPresentation(null, pixelPadding);
@@ -69,7 +69,7 @@ public class WindowAndPresetsOp extends WindowOp {
           img.getImage();
         }
         boolean pixelPadding =
-            LangUtil.getNULLtoTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+            LangUtil.nullToTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
         Map<String, Object> p = event.getParams();
         if (p != null) {
           PRSpecialElement pr =
@@ -113,7 +113,8 @@ public class WindowAndPresetsOp extends WindowOp {
       if (pr != null
           && UID.PseudoColorSoftcopyPresentationStateStorage.equals(
               pr.getDicomObject().getString(Tag.SOPClassUID))) {
-        source = DicomImageUtils.getRGBImageFromPaletteColorModel(source, pr.getDicomObject());
+        var lookup = PaletteColorUtils.getPaletteColorLookupTable(pr.getDicomObject());
+        source = PaletteColorUtils.getRGBImageFromPaletteColorModel(source, lookup);
       }
       result = imageElement.getRenderedImage(source, params);
     }

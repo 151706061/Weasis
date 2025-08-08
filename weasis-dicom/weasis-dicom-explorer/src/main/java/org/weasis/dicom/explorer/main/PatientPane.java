@@ -137,8 +137,8 @@ public class PatientPane extends JPanel
   /**
    * Displays the specified study in the patient pane.
    *
-   * @param study the study to be displayed in this patient pane; if null, all studies
-   *              for the current patient will be shown
+   * @param study the study to be displayed in this patient pane; if null, all studies for the
+   *     current patient will be shown
    */
   public void showSpecificStudy(MediaSeriesGroup study) {
     removeAll();

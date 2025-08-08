@@ -71,7 +71,7 @@ public abstract class AbstractOp implements ImageOpNode {
 
   @Override
   public boolean isEnabled() {
-    return LangUtil.getNULLtoTrue((Boolean) params.get(Param.ENABLE));
+    return LangUtil.nullToTrue((Boolean) params.get(Param.ENABLE));
   }
 
   @Override

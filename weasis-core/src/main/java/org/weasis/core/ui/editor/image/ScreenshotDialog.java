@@ -47,7 +47,7 @@ import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.util.StringUtil;
 import org.weasis.opencv.data.PlanarImage;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public class ScreenshotDialog<I extends ImageElement> extends JDialog {
   public static final String P_LAST_DIR = "screenshot.last.dir";
@@ -252,13 +252,13 @@ public class ScreenshotDialog<I extends ImageElement> extends JDialog {
 
         File destinationFile = new File(filename);
         if (Format.PNG.extension.equals(extension)) {
-          ImageProcessor.writePNG(image.toMat(), destinationFile);
+          ImageIOHandler.writePNG(image.toMat(), destinationFile.toPath());
         } else {
           MatOfInt map = new MatOfInt();
           if (Format.JPEG.extension.equals(extension)) {
             map.fromArray(Imgcodecs.IMWRITE_JPEG_QUALITY, 90);
           }
-          ImageProcessor.writeImage(image.toMat(), destinationFile, map);
+          ImageIOHandler.writeImage(image.toMat(), destinationFile.toPath(), map);
         }
         if (mustBeReleased) {
           ImageConversion.releasePlanarImage(image);

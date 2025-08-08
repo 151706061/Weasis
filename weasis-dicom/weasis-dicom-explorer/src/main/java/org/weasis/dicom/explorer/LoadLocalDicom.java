@@ -74,13 +74,13 @@ public class LoadLocalDicom extends LoadDicom {
           folders.add(value);
         }
       } else if (value.canRead()
-              && FileUtil.isFileExtensionMatching(value, DicomCodec.FILE_EXTENSIONS)
+              && FileUtil.isFileExtensionMatching(value.toPath(), DicomCodec.FILE_EXTENSIONS)
           || MimeInspector.isMatchingMimeTypeFromMagicNumber(value, DicomMediaIO.DICOM_MIMETYPE)) {
         DicomMediaIO loader = new DicomMediaIO(value);
         Reading reading = loader.getReadingStatus();
         if (reading == Reading.READABLE) {
-          if (value.getPath().startsWith(AppProperties.APP_TEMP_DIR.getPath())) {
-            loader.getFileCache().setOriginalTempFile(value);
+          if (value.getPath().startsWith(AppProperties.APP_TEMP_DIR.toString())) {
+            loader.getFileCache().setOriginalTempFile(value.toPath());
           }
           uniqueSeriesSet.add(buildDicomStructure(loader));
 

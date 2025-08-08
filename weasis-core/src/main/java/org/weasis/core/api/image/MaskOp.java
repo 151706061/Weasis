@@ -11,7 +11,7 @@ package org.weasis.core.api.image;
 
 import java.awt.Rectangle;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class MaskOp extends AbstractOp {
 
@@ -53,7 +53,7 @@ public class MaskOp extends AbstractOp {
         && area != null
         && !area.equals(new Rectangle(0, 0, source.width(), source.height()))) {
       Double alpha = (Double) params.get(P_ALPHA);
-      result = ImageProcessor.applyCropMask(source.toMat(), area, alpha == null ? 0.7 : alpha);
+      result = ImageTransformer.applyCropMask(source.toMat(), area, alpha == null ? 0.7 : alpha);
     }
     params.put(Param.OUTPUT_IMG, result);
   }

@@ -11,6 +11,7 @@ package org.weasis.core.ui.editor;
 
 import java.awt.Rectangle;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -214,14 +215,14 @@ public class ViewerPluginBuilder {
   public static MediaReader<MediaElement> getMedia(File file, boolean systemReader) {
     if (file != null && file.canRead()) {
       // If file has been downloaded or copied
-      boolean cache = file.getPath().startsWith(AppProperties.FILE_CACHE_DIR.getPath());
+      boolean cache = file.getPath().startsWith(AppProperties.FILE_CACHE_DIR.toString());
       String mimeType = MimeInspector.getMimeType(file);
       if (mimeType != null) {
         Codec<?> codec = BundleTools.getCodec(mimeType, "dcm4che"); // NON-NLS
         if (codec != null) {
           MediaReader mreader = codec.getMediaIO(file.toURI(), mimeType, null);
           if (cache) {
-            mreader.getFileCache().setOriginalTempFile(file);
+            mreader.getFileCache().setOriginalTempFile(file.toPath());
           }
           return mreader;
         }
@@ -229,7 +230,7 @@ public class ViewerPluginBuilder {
       if (systemReader) {
         MediaReader<MediaElement> mreader = new DefaultMimeIO(file.toURI(), mimeType);
         if (cache) {
-          mreader.getFileCache().setOriginalTempFile(file);
+          mreader.getFileCache().setOriginalTempFile(file.toPath());
         }
         return mreader;
       }
@@ -307,10 +308,10 @@ public class ViewerPluginBuilder {
   public static void openAssociatedGraphics(MediaElement media) {
     if (media instanceof ImageElement) {
       FileCache fc = media.getFileCache();
-      Optional<File> fo = fc.getOriginalFile();
+      Optional<Path> fo = fc.getOriginalFile();
       if (fc.isLocalFile() && fo.isPresent()) {
-        File gpxFile = new File(fo.get().getPath() + ".xml");
-        GraphicModel graphicModel = XmlSerializer.readPresentationModel(gpxFile);
+        Path gpxFile = Path.of(fo.get() + ".xml");
+        GraphicModel graphicModel = XmlSerializer.readPresentationModel(gpxFile.toFile());
         if (graphicModel != null) {
           media.setTag(TagW.PresentationModel, graphicModel);
         }

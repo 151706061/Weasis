@@ -54,8 +54,8 @@ import org.weasis.core.api.media.data.TagUtil;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.media.data.TagW.TagType;
 import org.weasis.core.api.media.data.Taggable;
-import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.MathUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.TagD;
@@ -784,8 +784,8 @@ public class DicomMediaUtils {
       LOGGER.error("Reading KO Codes", e);
       codeByValue = null;
     } finally {
-      FileUtil.safeClose(xmler);
-      FileUtil.safeClose(stream);
+      StreamUtil.safeClose(xmler);
+      StreamUtil.safeClose(stream);
     }
     return codeByValue;
   }

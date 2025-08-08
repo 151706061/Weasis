@@ -45,6 +45,7 @@ import org.weasis.core.api.gui.util.FileFormatFilter;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.exp.CheckTreeModel;
@@ -133,14 +134,14 @@ public class IsoImageExport extends LocalExport {
                   new ObservableEvent(
                       ObservableEvent.BasicAction.LOADING_START, dicomModel, null, this));
               File exportDir =
-                  FileUtil.createTempDir(
-                      AppProperties.buildAccessibleTempDirectory("tmp", "burn")); // NON-NLS
+                  FileUtil.createTempDir(AppProperties.buildAccessibleTempDirectory("tmp", "burn"))
+                      .toFile(); // NON-NLS
               Properties pref = getPreferences();
               pref.setProperty(INC_DICOMDIR, Boolean.TRUE.toString());
               pref.setProperty(CD_COMPATIBLE, Boolean.TRUE.toString());
               writeDicom(this, exportDir, model, pref);
               File readmeFile = ResourceUtil.getResource("isowriter/README.htm"); // NON-NLS
-              FileUtil.nioCopyFile(readmeFile, new File(exportDir, "README.HTM"));
+              StreamUtil.copyFile(readmeFile.toPath(), new File(exportDir, "README.HTM").toPath());
 
               if (checkBoxAddJpeg.isSelected()) {
                 writeOther(this, new File(exportDir, "JPEG"), model, Format.JPEG, new Properties());
@@ -157,9 +158,10 @@ public class IsoImageExport extends LocalExport {
                   Path in = appPath.getParent();
                   copyFolder(in, out, StandardCopyOption.COPY_ATTRIBUTES);
                   File autorun = ResourceUtil.getResource("isowriter/Autorun.inf"); // NON-NLS
-                  FileUtil.nioCopyFile(autorun, new File(exportDir, "AUTORUN.INF"));
+                  StreamUtil.copyFile(
+                      autorun.toPath(), new File(exportDir, "AUTORUN.INF").toPath());
                   File run = ResourceUtil.getResource("isowriter/RUN.bat"); // NON-NLS
-                  FileUtil.nioCopyFile(run, new File(exportDir, "RUN.BAT"));
+                  StreamUtil.copyFile(run.toPath(), new File(exportDir, "RUN.BAT").toPath());
                 }
               }
 
@@ -290,7 +292,7 @@ public class IsoImageExport extends LocalExport {
     } catch (ConfigException | HandlerException | FileNotFoundException e) {
       LOGGER.error("Error when building ISO", e);
     } finally {
-      FileUtil.recursiveDelete(exportDir);
+      FileUtil.recursiveDelete(exportDir.toPath());
     }
     return null;
   }

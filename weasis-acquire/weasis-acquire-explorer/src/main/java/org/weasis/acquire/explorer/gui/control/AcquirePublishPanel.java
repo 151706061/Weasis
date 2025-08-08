@@ -115,7 +115,7 @@ public class AcquirePublishPanel extends JPanel {
             return CStore.process(
                 params, callingNode, destNode, exportFilesDicomPath, dicomProgress);
           } finally {
-            FileUtil.recursiveDelete(exportDirDicom);
+            FileUtil.recursiveDelete(exportDirDicom.toPath());
           }
         };
     return new PublishDicomTask(publish, dicomProgress);
@@ -155,7 +155,7 @@ public class AcquirePublishPanel extends JPanel {
             LOGGER.error("STOW-RS publish", e);
             return DicomState.buildMessage(null, e.getMessage(), null);
           } finally {
-            FileUtil.recursiveDelete(tempDirDicom);
+            FileUtil.recursiveDelete(tempDirDicom.toPath());
           }
         };
     return new PublishDicomTask(publish, new DicomProgress());
@@ -204,7 +204,7 @@ public class AcquirePublishPanel extends JPanel {
     } catch (Exception e) {
       LOGGER.error("Export DICOM fils to local", e);
     } finally {
-      FileUtil.recursiveDelete(tempDirDicom);
+      FileUtil.recursiveDelete(tempDirDicom.toPath());
     }
   }
 }

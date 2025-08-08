@@ -38,7 +38,7 @@ import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public abstract class Volume<T extends Number> {
 
@@ -131,7 +131,7 @@ public abstract class Volume<T extends Number> {
   private void createDataFile(int sizeX, int sizeY, int sizeZ) {
     try {
       removeData();
-      dataFile = File.createTempFile("volume_data", ".tmp", AppProperties.FILE_CACHE_DIR);
+      dataFile = File.createTempFile("volume_data", ".tmp", AppProperties.FILE_CACHE_DIR.toFile());
       long fileSize;
       FileChannel fileChannel;
       try (RandomAccessFile raf = new RandomAccessFile(dataFile, "rw")) {
@@ -170,7 +170,7 @@ public abstract class Volume<T extends Number> {
       PlanarImage srcImage = dcm.getImage();
       if (negativeDirRow || negativeDirCol) {
         int flipType = negativeDirRow && negativeDirCol ? -1 : negativeDirCol ? 0 : 1;
-        srcImage = ImageProcessor.flip(srcImage.toImageCV(), flipType);
+        srcImage = ImageTransformer.flip(srcImage.toImageCV(), flipType);
       }
       copyFrom(srcImage, z, transform);
     }
@@ -276,7 +276,7 @@ public abstract class Volume<T extends Number> {
       mappedBuffer.clear();
     }
     if (dataFile != null) {
-      FileUtil.delete(dataFile);
+      FileUtil.delete(dataFile.toPath());
     }
   }
 

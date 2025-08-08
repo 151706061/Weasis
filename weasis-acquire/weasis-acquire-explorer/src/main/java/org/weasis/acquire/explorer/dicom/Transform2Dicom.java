@@ -12,6 +12,8 @@ package org.weasis.acquire.explorer.dicom;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Objects;
@@ -44,7 +46,7 @@ import org.weasis.dicom.explorer.pr.DicomPrSerializer;
 import org.weasis.dicom.ref.AnatomicRegion;
 import org.weasis.dicom.tool.Dicomizer;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public final class Transform2Dicom {
 
@@ -68,8 +70,8 @@ public final class Transform2Dicom {
    */
   public static boolean dicomize(
       AcquireMediaInfo mediaInfo,
-      File exportDirDicom,
-      File exportDirImage,
+      Path exportDirDicom,
+      Path exportDirImage,
       String seriesInstanceUID) {
     if (mediaInfo instanceof AcquireImageInfo imageInfo) {
       return processImageElement(imageInfo, exportDirDicom, exportDirImage, seriesInstanceUID);
@@ -78,12 +80,12 @@ public final class Transform2Dicom {
     }
   }
 
-  private static boolean processOtherMediaElement(AcquireMediaInfo mediaInfo, File exportDirDicom) {
+  private static boolean processOtherMediaElement(AcquireMediaInfo mediaInfo, Path exportDirDicom) {
     Attributes attrs = populateDicomAttributes(mediaInfo);
 
     MediaElement mediaElement = mediaInfo.getMedia();
-    File mediaFile = mediaElement.getFileCache().getOriginalFile().orElse(null);
-    if (mediaFile == null || !mediaFile.canRead()) {
+    Path mediaFile = mediaElement.getFileCache().getOriginalFile().orElse(null);
+    if (mediaFile == null || !Files.isReadable(mediaFile)) {
       LOGGER.error("Cannot read media file: {}", mediaElement.getName());
       return false;
     }
@@ -92,15 +94,15 @@ public final class Transform2Dicom {
       String sopInstanceUID =
           Objects.requireNonNull((String) mediaElement.getTagValue(TagD.getUID(Level.INSTANCE)));
       var type = mediaInfo.getSeries().getType();
-      var file = new File(exportDirDicom, sopInstanceUID);
+      var file = new File(exportDirDicom.toFile(), sopInstanceUID);
       if (type == Type.PDF) {
-        Dicomizer.pdf(attrs, mediaFile, file);
+        Dicomizer.pdf(attrs, mediaFile.toFile(), file);
       } else if (type == Type.STL) {
-        Dicomizer.stl(attrs, mediaFile, file);
+        Dicomizer.stl(attrs, mediaFile.toFile(), file);
       } else if (type == Type.VIDEO_MP4) {
-        Dicomizer.mpeg4(attrs, mediaFile, file);
+        Dicomizer.mpeg4(attrs, mediaFile.toFile(), file);
       } else if (type == Type.VIDEO_MP2) {
-        Dicomizer.mpeg2(attrs, mediaFile, file);
+        Dicomizer.mpeg2(attrs, mediaFile.toFile(), file);
       }
       return true;
     } catch (Exception e) {
@@ -122,8 +124,8 @@ public final class Transform2Dicom {
 
   public static boolean processImageElement(
       AcquireImageInfo imageInfo,
-      File exportDirDicom,
-      File exportDirImage,
+      Path exportDirDicom,
+      Path exportDirImage,
       String seriesInstanceUID) {
 
     ImageElement imageElement = imageInfo.getImage();
@@ -131,7 +133,7 @@ public final class Transform2Dicom {
         Objects.requireNonNull((String) imageElement.getTagValue(TagD.getUID(Level.INSTANCE)));
 
     // Transform the image if required
-    File imgFile = imageElement.getFileCache().getOriginalFile().orElse(null);
+    Path imgFile = imageElement.getFileCache().getOriginalFile().orElse(null);
     Integer orientation =
         StringUtil.getInteger((String) imageElement.getTagValue(TagW.ExifOrientation));
     if (imgFile == null
@@ -139,12 +141,12 @@ public final class Transform2Dicom {
         || !imageInfo.getCurrentValues().equals(imageInfo.getDefaultValues())
         || (orientation != null && orientation > 0)) {
 
-      imgFile = new File(exportDirImage, sopInstanceUID + ".jpg");
+      imgFile = exportDirImage.resolve(sopInstanceUID + ".jpg");
       SimpleOpManager opManager = imageInfo.getPostProcessOpManager();
       PlanarImage transformedImage = imageElement.getImage(opManager, false);
 
       MatOfInt map = new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 80);
-      if (!ImageProcessor.writeImage(transformedImage.toImageCV(), imgFile, map)) {
+      if (!ImageIOHandler.writeImage(transformedImage.toImageCV(), imgFile, map)) {
         // Out of memory or error
         FileUtil.delete(imgFile);
         LOGGER.error("Cannot Transform to JPEG: {}", imageElement.getName());
@@ -153,7 +155,7 @@ public final class Transform2Dicom {
     }
 
     // Dicomize
-    if (imgFile.canRead()) {
+    if (Files.isReadable(imgFile)) {
       Attributes attrs = populateDicomAttributes(imageInfo);
 
       // Spatial calibration
@@ -167,7 +169,8 @@ public final class Transform2Dicom {
       }
 
       try {
-        Dicomizer.jpeg(attrs, imgFile, new File(exportDirDicom, sopInstanceUID), false);
+        Dicomizer.jpeg(
+            attrs, imgFile.toFile(), exportDirDicom.resolve(sopInstanceUID).toFile(), false);
       } catch (Exception e) {
         LOGGER.error("Cannot Dicomize {}", imageElement.getName(), e);
         return false;
@@ -188,7 +191,7 @@ public final class Transform2Dicom {
 
   private static void processDicomPR(
       AcquireImageInfo imageInfo,
-      File exportDirDicom,
+      Path exportDirDicom,
       String seriesInstanceUID,
       GraphicModel grModel,
       Attributes attrs) {
@@ -208,7 +211,7 @@ public final class Transform2Dicom {
     int samplesPerPixel = imageInfo.getAttributes().getInt(Tag.SamplesPerPixel, 1);
     attrs.setInt(Tag.SamplesPerPixel, VR.US, samplesPerPixel);
 
-    File outputFile = new File(exportDirDicom, prUid);
+    File outputFile = exportDirDicom.resolve(prUid).toFile();
     DicomPrSerializer.writePresentation(
         grModel, attrs, outputFile, seriesInstanceUID, prUid, offset);
   }

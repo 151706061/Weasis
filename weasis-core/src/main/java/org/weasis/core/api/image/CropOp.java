@@ -12,7 +12,7 @@ package org.weasis.core.api.image;
 import java.awt.Rectangle;
 import org.weasis.core.Messages;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class CropOp extends AbstractOp {
 
@@ -45,7 +45,7 @@ public class CropOp extends AbstractOp {
     Rectangle area = (Rectangle) params.get(P_AREA);
 
     if (area != null) {
-      result = ImageProcessor.crop(source.toMat(), area);
+      result = ImageTransformer.crop(source.toMat(), area);
     }
     params.put(Param.OUTPUT_IMG, result);
   }

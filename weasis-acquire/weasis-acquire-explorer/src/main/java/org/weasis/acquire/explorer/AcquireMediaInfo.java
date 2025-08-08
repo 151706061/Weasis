@@ -98,8 +98,7 @@ public class AcquireMediaInfo {
   protected static void setContentDateTime(MediaElement media, LocalDateTime dateTime) {
     if (dateTime == null) {
       dateTime =
-          LocalDateTime.from(
-              Instant.ofEpochMilli(media.getLastModified()).atZone(ZoneId.systemDefault()));
+          LocalDateTime.from(media.getLastModified().toInstant().atZone(ZoneId.systemDefault()));
     }
     media.setTagNoNull(TagD.get(Tag.ContentDate), dateTime.toLocalDate());
     media.setTagNoNull(TagD.get(Tag.ContentTime), dateTime.toLocalTime());

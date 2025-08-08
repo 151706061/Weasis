@@ -367,11 +367,11 @@ public class WeasisWin {
 
     Rectangle screenBound = (Rectangle) props.get(ViewerPluginBuilder.SCREEN_BOUND);
     boolean setInSelection =
-        LangUtil.getNULLtoFalse((Boolean) props.get(ViewerPluginBuilder.OPEN_IN_SELECTION));
+        LangUtil.nullToFalse((Boolean) props.get(ViewerPluginBuilder.OPEN_IN_SELECTION));
 
     if (screenBound == null && group != null) {
       boolean bestDefaultLayout =
-          LangUtil.getNULLtoTrue((Boolean) props.get(ViewerPluginBuilder.BEST_DEF_LAYOUT));
+          LangUtil.nullToTrue((Boolean) props.get(ViewerPluginBuilder.BEST_DEF_LAYOUT));
       List<ViewerPlugin<?>> viewerPlugins = GuiUtils.getUICore().getViewerPlugins();
       synchronized (viewerPlugins) {
         for (int i = viewerPlugins.size() - 1; i >= 0; i--) {
@@ -737,9 +737,9 @@ public class WeasisWin {
     final JMenuItem openLogFolderMenuItem =
         new JMenuItem(Messages.getString("open.logging.folder"));
     openLogFolderMenuItem.addActionListener(
-        e ->
+        _ ->
             GuiUtils.openSystemExplorer(
-                openLogFolderMenuItem, new File(AppProperties.WEASIS_PATH, "log")));
+                openLogFolderMenuItem, AppProperties.WEASIS_PATH.resolve("log")));
     helpMenuItem.add(openLogFolderMenuItem);
 
     final JMenuItem reportMenuItem = new JMenuItem(Messages.getString("submit.bug.report"));

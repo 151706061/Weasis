@@ -63,8 +63,8 @@ public class ExportDicomView extends AbstractItemDialogPage implements ExportDic
     this.exportTree = new ExportTree(treeModel);
     this.exportDir =
         exportDir == null
-            ? FileUtil.createTempDir(
-                AppProperties.buildAccessibleTempDirectory("tmp", "send")) // NON-NLS
+            ? FileUtil.createTempDir(AppProperties.buildAccessibleTempDirectory("tmp", "send"))
+                .toFile() // NON-NLS
             : exportDir;
   }
 
@@ -107,8 +107,8 @@ public class ExportDicomView extends AbstractItemDialogPage implements ExportDic
     dicomModel.firePropertyChange(
         new ObservableEvent(ObservableEvent.BasicAction.LOADING_START, dicomModel, null, t));
     File exportDir =
-        FileUtil.createTempDir(
-            AppProperties.buildAccessibleTempDirectory("tmp", "send")); // NON-NLS
+        FileUtil.createTempDir(AppProperties.buildAccessibleTempDirectory("tmp", "send"))
+            .toFile(); // NON-NLS
     try {
       writeDicom(t, exportDir, model);
 
@@ -123,7 +123,7 @@ public class ExportDicomView extends AbstractItemDialogPage implements ExportDic
       t.addCancelListener(dicomProgress);
       return exportAction(files, dicomProgress);
     } finally {
-      FileUtil.recursiveDelete(exportDir);
+      FileUtil.recursiveDelete(exportDir.toPath());
     }
   }
 
@@ -181,7 +181,7 @@ public class ExportDicomView extends AbstractItemDialogPage implements ExportDic
 
   private static void saveOtherMediaSeries(
       File writeDir, MediaSeries<?> s, DefaultMutableTreeNode node) {
-    if (LangUtil.getNULLtoFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
+    if (LangUtil.nullToFalse((Boolean) s.getTagValue(TagW.ObjectToSave))) {
       Series<?> series = (Series<?>) s.getTagValue(CheckTreeModel.SourceSeriesForPR);
       if (series != null) {
         String seriesInstanceUID = UIDUtils.createUID();

@@ -365,7 +365,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                   : null;
           PresetWindowLevel newPreset = null;
           boolean pixelPadding =
-              LangUtil.getNULLtoTrue(
+              LangUtil.nullToTrue(
                   (Boolean)
                       view2d
                           .getDisplayOpManager()
@@ -640,7 +640,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                 (filterSelection ? selected : selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
         ViewCanvas<DicomImageElement> viewPane = container.getSelectedImagePane();
         int frameIndex =
-            LangUtil.getNULLtoFalse(enableFilter)
+            LangUtil.nullToFalse(enableFilter)
                 ? 0
                 : viewPane.getFrameIndex() - viewPane.getTileOffset();
 
@@ -1038,7 +1038,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
         .ifPresent(
             a ->
                 a.setSelectedWithoutTriggerAction(
-                    LangUtil.getNULLtoFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
+                    LangUtil.nullToFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
 
     getAction(ActionW.ZOOM)
         .ifPresent(
@@ -1128,7 +1128,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
           getAction(ActionW.KO_SELECTION);
       Optional<ToggleButtonListener> koToggleAction = getAction(ActionW.KO_TOGGLE_STATE);
       Optional<ToggleButtonListener> koFilterAction = getAction(ActionW.KO_FILTER);
-      if (LangUtil.getNULLtoFalse((Boolean) view2d.getActionValue("no.ko"))) {
+      if (LangUtil.nullToFalse((Boolean) view2d.getActionValue("no.ko"))) {
         koToggleAction.ifPresent(a -> a.enableAction(false));
         koFilterAction.ifPresent(a -> a.enableAction(false));
         koSelectionAction.ifPresent(a -> a.enableAction(false));
@@ -1165,12 +1165,12 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
       int imageDataType = ImageConversion.convertToDataType(image.getImage().type());
       PresetWindowLevel preset = (PresetWindowLevel) node.getParam(ActionW.PRESET.cmd());
       boolean defaultPreset =
-          LangUtil.getNULLtoTrue((Boolean) node.getParam(ActionW.DEFAULT_PRESET.cmd()));
+          LangUtil.nullToTrue((Boolean) node.getParam(ActionW.DEFAULT_PRESET.cmd()));
       Double windowValue = (Double) node.getParam(ActionW.WINDOW.cmd());
       Double levelValue = (Double) node.getParam(ActionW.LEVEL.cmd());
       LutShape lutShapeItem = (LutShape) node.getParam(ActionW.LUT_SHAPE.cmd());
       boolean pixelPadding =
-          LangUtil.getNULLtoTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+          LangUtil.nullToTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
       PrDicomObject prDicomObject =
           PRManager.getPrDicomObject(view2d.getActionValue(ActionW.PR_STATE.cmd()));
       DefaultWlPresentation wlp = new DefaultWlPresentation(prDicomObject, pixelPadding);
@@ -1430,7 +1430,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
             Object selectedKO = viewPane.getActionValue(ActionW.KO_SELECTION.cmd());
             Boolean enableFilter = (Boolean) viewPane.getActionValue(ActionW.KO_FILTER.cmd());
             int frameIndex =
-                LangUtil.getNULLtoFalse(enableFilter)
+                LangUtil.nullToFalse(enableFilter)
                     ? 0
                     : viewPane.getFrameIndex() - viewPane.getTileOffset();
             for (ViewCanvas<DicomImageElement> pane : panes) {

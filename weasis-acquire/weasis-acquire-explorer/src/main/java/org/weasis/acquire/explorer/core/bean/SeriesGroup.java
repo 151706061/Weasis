@@ -102,7 +102,7 @@ public class SeriesGroup extends DefaultTaggable implements Comparable<SeriesGro
     }
 
     private static boolean isMPEG4(MediaElement media) {
-      try (SeekableByteChannel channel = FileChannel.open(media.getFile().toPath())) {
+      try (SeekableByteChannel channel = FileChannel.open(media.getFilePath())) {
         MP4Parser parser = new MP4Parser(channel);
         return parser.getTransferSyntaxUID() != null;
       } catch (Exception e) {
@@ -112,7 +112,7 @@ public class SeriesGroup extends DefaultTaggable implements Comparable<SeriesGro
     }
 
     private static boolean isMPEG2(MediaElement media) {
-      try (SeekableByteChannel channel = FileChannel.open(media.getFile().toPath())) {
+      try (SeekableByteChannel channel = FileChannel.open(media.getFilePath())) {
         MPEG2Parser parser = new MPEG2Parser(channel);
         return parser.getTransferSyntaxUID() != null;
       } catch (Exception e) {

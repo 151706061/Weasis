@@ -186,7 +186,7 @@ public class AxisDirection {
         Quaterniond q = new Quaterniond().fromAxisAngleRad(dir, Math.toRadians(r));
         q.transform(end);
       }
-      if (LangUtil.getNULLtoFalse((Boolean) view.getActionValue((ActionW.FLIP.cmd())))) {
+      if (LangUtil.nullToFalse((Boolean) view.getActionValue((ActionW.FLIP.cmd())))) {
         end.x = -end.x;
       }
     }

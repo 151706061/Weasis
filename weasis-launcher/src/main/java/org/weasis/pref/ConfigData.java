@@ -410,9 +410,9 @@ public class ConfigData {
       }
     }
     Properties p = new Properties();
-    FileUtil.readProperties(file, p);
+    FileUtil.loadProperties(file.toPath(), p);
 
-    boolean mproxy = Utils.getEmptyToFalse(p.getProperty("proxy.manual"));
+    boolean mproxy = Utils.emptyToFalse(p.getProperty("proxy.manual"));
 
     if (mproxy) {
       String exceptions = p.getProperty("proxy.exceptions");
@@ -831,17 +831,15 @@ public class ConfigData {
   }
 
   public static void setOsgiNativeLibSpecification() {
-    // Follows the OSGI specification to use Bundle-NativeCode in the bundle fragment :
+    // Follows the OSGI specification to use Bundle-NativeCode in the bundle fragment:
     // See https://docs.osgi.org/reference/osnames.html
     String osName = System.getProperty(P_OS_NAME);
     String osArch = System.getProperty("os.arch");
     if (Utils.hasText(osName) && Utils.hasText(osArch)) {
       if (osName.toLowerCase().startsWith("win")) {
         // All Windows versions with a specific processor architecture (x86 or x86-64) are grouped
-        // under
-        // windows. If you need to make different native libraries for the Windows versions, define
-        // it in the
-        // Bundle-NativeCode tag of the bundle fragment.
+        // under windows. If you need to make different native libraries for the Windows versions,
+        // define it in the Bundle-NativeCode tag of the bundle fragment.
         osName = "windows"; // NON-NLS
       } else if (osName.toLowerCase().startsWith("mac")) {
         osName = "macosx"; // NON-NLS

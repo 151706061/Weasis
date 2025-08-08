@@ -14,8 +14,9 @@ import org.opencv.core.Core.MinMaxLocResult;
 import org.weasis.core.Messages;
 import org.weasis.core.util.LangUtil;
 import org.weasis.opencv.data.PlanarImage;
+import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class AutoLevelsOp extends AbstractOp {
 
@@ -47,18 +48,16 @@ public class AutoLevelsOp extends AbstractOp {
     PlanarImage result = source;
     Boolean auto = (Boolean) params.get(P_AUTO_LEVEL);
 
-    if (LangUtil.getNULLtoFalse(auto)) {
-      MinMaxLocResult val = ImageProcessor.findMinMaxValues(source.toMat());
-      if (val != null) {
-        int datatype = ImageConversion.convertToDataType(source.type());
-        double range = val.maxVal - val.minVal;
-        if (range < 1.0 && datatype == DataBuffer.TYPE_INT) {
-          range = 1.0;
-        }
-        double slope = 255.0 / range;
-        double yint = 255.0 - slope * val.maxVal;
-        result = ImageProcessor.rescaleToByte(source.toImageCV(), slope, yint);
+    if (LangUtil.nullToFalse(auto)) {
+      MinMaxLocResult val = ImageAnalyzer.findMinMaxValues(source.toMat());
+      int datatype = ImageConversion.convertToDataType(source.type());
+      double range = val.maxVal - val.minVal;
+      if (range < 1.0 && datatype == DataBuffer.TYPE_INT) {
+        range = 1.0;
       }
+      double slope = 255.0 / range;
+      double yint = 255.0 - slope * val.maxVal;
+      result = ImageTransformer.rescaleToByte(source.toImageCV(), slope, yint);
     }
     params.put(Param.OUTPUT_IMG, result);
   }

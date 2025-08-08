@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.Messages;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 
 public class AcceptCompletionHandler implements AcceptCallbackHandler {
@@ -122,13 +122,13 @@ public class AcceptCompletionHandler implements AcceptCallbackHandler {
     @Override
     public void completed(Integer result, AsynchronousSocketChannel attachment) {
       buffer.clear();
-      FileUtil.safeClose(attachment);
+      StreamUtil.safeClose(attachment);
     }
 
     @Override
     public void failed(Throwable exc, AsynchronousSocketChannel attachment) {
       LOGGER.error("Cannot send acknowledge from callback", exc);
-      FileUtil.safeClose(attachment);
+      StreamUtil.safeClose(attachment);
     }
   }
 }

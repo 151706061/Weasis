@@ -11,7 +11,6 @@ package org.weasis.dicom.viewer2d.mpr;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.ref.Reference;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -47,17 +46,7 @@ public class RawImageIO implements DcmMediaReader {
 
   private static final String MIME_TYPE = "image/raw"; // NON-NLS
 
-  private static final SoftHashMap<RawImageIO, DicomMetaData> HEADER_CACHE =
-      new SoftHashMap<>() {
-
-        @Override
-        public void removeElement(Reference<? extends DicomMetaData> soft) {
-          RawImageIO key = reverseLookup.remove(soft);
-          if (key != null) {
-            hash.remove(key);
-          }
-        }
-      };
+  private static final SoftHashMap<RawImageIO, DicomMetaData> HEADER_CACHE = new SoftHashMap<>();
 
   protected FileRawImage imageCV;
   private final FileCache fileCache;
@@ -88,7 +77,8 @@ public class RawImageIO implements DcmMediaReader {
             file.length() - FileRawImage.HEADER_LENGTH,
             false);
     dcm.setValue(Tag.PixelData, VR.OW, bdl);
-    File tmpFile = new File(DicomMediaIO.DICOM_EXPORT_DIR, dcm.getString(Tag.SOPInstanceUID));
+    File tmpFile =
+        new File(DicomMediaIO.DICOM_EXPORT_DIR.toFile(), dcm.getString(Tag.SOPInstanceUID));
     try (DicomOutputStream out = new DicomOutputStream(tmpFile)) {
       out.writeDataset(dcm.createFileMetaInformation(UID.ImplicitVRLittleEndian), dcm);
     } catch (IOException e) {
@@ -100,7 +90,7 @@ public class RawImageIO implements DcmMediaReader {
 
   @Override
   public PlanarImage getImageFragment(MediaElement media) throws Exception {
-    if (media != null && media.getFile() != null) {
+    if (media != null && media.getFilePath() != null) {
       return imageCV.read();
     }
     return null;

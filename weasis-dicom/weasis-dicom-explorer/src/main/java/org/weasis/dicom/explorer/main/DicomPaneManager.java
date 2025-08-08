@@ -14,8 +14,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import javax.swing.SwingUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.explorer.*;
@@ -52,12 +50,12 @@ public class DicomPaneManager {
 
   // ========== Study Pane Management ==========
 
-    /**
-     * Retrieves the StudyPane for the given study.
-     *
-     * @param study the study to find
-     * @return the StudyPane if found, otherwise null
-     */
+  /**
+   * Retrieves the StudyPane for the given study.
+   *
+   * @param study the study to find
+   * @return the StudyPane if found, otherwise null
+   */
   public StudyPane getStudyPane(MediaSeriesGroup study) {
     MediaSeriesGroup patient = getPatientForStudy(study);
     if (patient != null) {
@@ -69,14 +67,14 @@ public class DicomPaneManager {
     return null;
   }
 
-    /**
-     * Creates a new StudyPane instance for the given study. If a StudyPane already exists, it returns
-     * that instance.
-     *
-     * @param study the study to create a pane for
-     * @param position an array to hold the position of the new pane in the list, can be null
-     * @return the created or existing StudyPane instance
-     */
+  /**
+   * Creates a new StudyPane instance for the given study. If a StudyPane already exists, it returns
+   * that instance.
+   *
+   * @param study the study to create a pane for
+   * @param position an array to hold the position of the new pane in the list, can be null
+   * @return the created or existing StudyPane instance
+   */
   public StudyPane createStudyPaneInstance(MediaSeriesGroup study, int[] position) {
     StudyPane studyPane = getStudyPane(study);
     if (studyPane == null) {
@@ -101,12 +99,12 @@ public class DicomPaneManager {
     return studyPane;
   }
 
-    /**
-     * Retrieves the list of StudyPanes for the given patient.
-     *
-     * @param patient the patient to find studies for
-     * @return a list of StudyPanes associated with the patient, or an empty list if none found
-     */
+  /**
+   * Retrieves the list of StudyPanes for the given patient.
+   *
+   * @param patient the patient to find studies for
+   * @return a list of StudyPanes associated with the patient, or an empty list if none found
+   */
   public List<StudyPane> getStudyList(MediaSeriesGroup patient) {
     if (patient == null) {
       return Collections.emptyList();
@@ -114,12 +112,12 @@ public class DicomPaneManager {
     return patient2study.computeIfAbsent(patient, _ -> new ArrayList<>());
   }
 
-    /**
-     * Removes the StudyPane associated with the given study. If the study has no remaining series,
-     * it also removes the patient if it has no studies left.
-     *
-     * @param study the study to remove
-     */
+  /**
+   * Removes the StudyPane associated with the given study. If the study has no remaining series, it
+   * also removes the patient if it has no studies left.
+   *
+   * @param study the study to remove
+   */
   public void removeStudyPane(MediaSeriesGroup study) {
     DicomModel model = explorer.getDataExplorerModel();
     MediaSeriesGroup patient = getPatientForStudy(study);
@@ -164,14 +162,14 @@ public class DicomPaneManager {
     return null;
   }
 
-    /**
-     * Creates a new SeriesPane instance for the given DicomSeries. If a SeriesPane already exists,
-     * it returns that instance.
-     *
-     * @param series the DicomSeries to create a pane for
-     * @param position an array to hold the position of the new pane in the list, can be null
-     * @return the created or existing SeriesPane instance
-     */
+  /**
+   * Creates a new SeriesPane instance for the given DicomSeries. If a SeriesPane already exists, it
+   * returns that instance.
+   *
+   * @param series the DicomSeries to create a pane for
+   * @param position an array to hold the position of the new pane in the list, can be null
+   * @return the created or existing SeriesPane instance
+   */
   public synchronized SeriesPane createSeriesPaneInstance(DicomSeries series, int[] position) {
     SeriesPane seriesPane = getSeriesPane(series);
     if (seriesPane == null) {
@@ -194,13 +192,13 @@ public class DicomPaneManager {
     return seriesPane;
   }
 
-    /**
-     * Checks if the given series is contained within the specified patient pane.
-     *
-     * @param patientPane the patient pane to check
-     * @param series the series to look for
-     * @return true if the series is found in the patient pane, false otherwise
-     */
+  /**
+   * Checks if the given series is contained within the specified patient pane.
+   *
+   * @param patientPane the patient pane to check
+   * @param series the series to look for
+   * @return true if the series is found in the patient pane, false otherwise
+   */
   public boolean containsSeriesInPatient(PatientPane patientPane, MediaSeriesGroup series) {
     MediaSeriesGroup study = getStudyForSeries(series);
     MediaSeriesGroup patient = getPatientForStudy(study);
@@ -211,15 +209,15 @@ public class DicomPaneManager {
       return false;
     }
     List<SeriesPane> seriesList = getSeriesList(study);
-    return seriesList != null && seriesList.stream().anyMatch(pane -> pane.isSeries(series));
+    return !seriesList.isEmpty() && seriesList.stream().anyMatch(pane -> pane.isSeries(series));
   }
 
-    /**
-     * Retrieves the list of SeriesPanes for the given study.
-     *
-     * @param study the study to find series for
-     * @return a list of SeriesPanes associated with the study, or an empty list if none found
-     */
+  /**
+   * Retrieves the list of SeriesPanes for the given study.
+   *
+   * @param study the study to find series for
+   * @return a list of SeriesPanes associated with the study, or an empty list if none found
+   */
   public List<SeriesPane> getSeriesList(MediaSeriesGroup study) {
     if (study == null) {
       return Collections.emptyList();
@@ -227,19 +225,19 @@ public class DicomPaneManager {
     return study2series.computeIfAbsent(study, _ -> new ArrayList<>());
   }
 
-    /**
-     * Removes the SeriesPane associated with the given series. If the study has no remaining series,
-     * it also removes the study if it has no studies left.
-     *
-     * @param series the series to remove
-     */
+  /**
+   * Removes the SeriesPane associated with the given series. If the study has no remaining series,
+   * it also removes the study if it has no studies left.
+   *
+   * @param series the series to remove
+   */
   public void removeSeriesPane(MediaSeriesGroup series) {
     MediaSeriesGroup study = getStudyForSeries(series);
     if (study == null) {
       return;
     }
     List<SeriesPane> seriesList = getSeriesList(study);
-    if (seriesList != null) {
+    if (!seriesList.isEmpty()) {
       DicomModel model = explorer.getDataExplorerModel();
       for (int j = seriesList.size() - 1; j >= 0; j--) {
         SeriesPane se = seriesList.get(j);
@@ -290,22 +288,22 @@ public class DicomPaneManager {
 
   // ========== Utility Methods ==========
 
-    /**
-     * Retrieves the patient associated with the given study.
-     *
-     * @param study the study to find the patient for
-     * @return the MediaSeriesGroup representing the patient, or null if not found
-     */
+  /**
+   * Retrieves the patient associated with the given study.
+   *
+   * @param study the study to find the patient for
+   * @return the MediaSeriesGroup representing the patient, or null if not found
+   */
   public MediaSeriesGroup getPatientForStudy(MediaSeriesGroup study) {
     return explorer.getDataExplorerModel().getParent(study, DicomModel.patient);
   }
 
-    /**
-     * Retrieves the study associated with the given series.
-     *
-     * @param series the series to find the study for
-     * @return the MediaSeriesGroup representing the study, or null if not found
-     */
+  /**
+   * Retrieves the study associated with the given series.
+   *
+   * @param series the series to find the study for
+   * @return the MediaSeriesGroup representing the study, or null if not found
+   */
   public MediaSeriesGroup getStudyForSeries(MediaSeriesGroup series) {
     return explorer.getDataExplorerModel().getParent(series, DicomModel.study);
   }
@@ -322,23 +320,23 @@ public class DicomPaneManager {
 
   // ========== Information ==========
 
-    /**
-     * Checks if the given study has any visible series.
-     *
-     * @param study the study to check
-     * @return true if the study has visible series, false otherwise
-     */
+  /**
+   * Checks if the given study has any visible series.
+   *
+   * @param study the study to check
+   * @return true if the study has visible series, false otherwise
+   */
   public boolean hasVisibleSeries(MediaSeriesGroup study) {
     List<SeriesPane> seriesList = study2series.get(study);
     return seriesList != null && !seriesList.isEmpty();
   }
 
-    /**
-     * Checks if the given patient has any visible studies.
-     *
-     * @param patient the patient to check
-     * @return true if the patient has visible studies, false otherwise
-     */
+  /**
+   * Checks if the given patient has any visible studies.
+   *
+   * @param patient the patient to check
+   * @return true if the patient has visible studies, false otherwise
+   */
   public boolean hasVisibleStudies(MediaSeriesGroup patient) {
     List<StudyPane> studyList = patient2study.get(patient);
     return studyList != null && !studyList.isEmpty();

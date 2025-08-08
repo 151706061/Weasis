@@ -24,6 +24,8 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
@@ -80,6 +82,7 @@ import org.weasis.core.ui.model.ReferencedImage;
 import org.weasis.core.ui.model.ReferencedSeries;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.StreamIOException;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.*;
 import org.weasis.dicom.codec.DicomMediaIO.Reading;
@@ -100,7 +103,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadSeries.class);
   public static final String CONCURRENT_DOWNLOADS_IN_SERIES = "download.concurrent.series.images";
 
-  public static final File DICOM_TMP_DIR =
+  public static final Path DICOM_TMP_DIR =
       AppProperties.buildAccessibleTempDirectory("downloading"); // NON-NLS
   public static final TagW DOWNLOAD_START_TIME = new TagW("DownloadStartTime", TagType.TIME);
   public static final TagW DOWNLOAD_TIME = new TagW("DownloadTime", TagType.TIME);
@@ -644,7 +647,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       } else {
         thumbURL = (String) dicomSeries.getTagValue(TagW.DirectDownloadThumbnail);
         if (StringUtil.hasLength(thumbURL)) {
-          if (thumbURL.startsWith(Thumbnail.THUMBNAIL_CACHE_DIR.getPath())) {
+          if (thumbURL.startsWith(Thumbnail.THUMBNAIL_CACHE_DIR.toString())) {
             file = new File(thumbURL);
             thumbURL = null;
           } else {
@@ -658,10 +661,11 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         try (HttpResponse httpCon = NetworkUtil.getHttpResponse(thumbURL, params, authMethod)) {
           int code = httpCon.getResponseCode();
           if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
-            File outFile = File.createTempFile("thumb_", extension, Thumbnail.THUMBNAIL_CACHE_DIR);
-            FileUtil.writeStreamWithIOException(httpCon.getInputStream(), outFile);
+            File outFile =
+                File.createTempFile("thumb_", extension, Thumbnail.THUMBNAIL_CACHE_DIR.toFile());
+            FileUtil.writeStreamWithIOException(httpCon.getInputStream(), outFile.toPath());
             if (outFile.length() == 0) {
-              FileUtil.delete(outFile);
+              FileUtil.delete(outFile.toPath());
               throw new IllegalStateException("Thumbnail file is empty");
             }
             file = outFile;
@@ -755,13 +759,13 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
                 + Thumbnail.MAX_SIZE
                 + addParams);
 
-    File outFile = File.createTempFile("thumb_", ".jpg", Thumbnail.THUMBNAIL_CACHE_DIR);
+    File outFile = File.createTempFile("thumb_", ".jpg", Thumbnail.THUMBNAIL_CACHE_DIR.toFile());
     LOGGER.debug("Start to download JPEG thumbnail {} to {}.", url, outFile.getName());
     try (HttpResponse httpCon =
         NetworkUtil.getHttpResponse(url.toString(), urlParams, authMethod)) {
       int code = httpCon.getResponseCode();
       if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
-        FileUtil.writeStreamWithIOException(httpCon.getInputStream(), outFile);
+        FileUtil.writeStreamWithIOException(httpCon.getInputStream(), outFile.toPath());
       } else if (authMethod != null && code == HttpURLConnection.HTTP_UNAUTHORIZED) {
         authMethod.resetToken();
         authMethod.getToken();
@@ -771,7 +775,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
       }
     } finally {
       if (outFile.length() == 0) {
-        FileUtil.delete(outFile);
+        FileUtil.delete(outFile.toPath());
       }
     }
     return outFile;
@@ -865,11 +869,11 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
 
     // Solves missing tmp folder problem (on Windows).
     private File getDicomTmpDir() {
-      if (!DICOM_TMP_DIR.exists()) {
+      if (!Files.exists(DICOM_TMP_DIR)) {
         LOGGER.info("DICOM tmp dir not found. Re-creating it!");
         AppProperties.buildAccessibleTempDirectory("downloading"); // NON-NLS
       }
-      return DICOM_TMP_DIR;
+      return DICOM_TMP_DIR.toFile();
     }
 
     /** Download file. */
@@ -913,7 +917,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
               return false;
             }
 
-            File renameFile = new File(DicomMediaIO.DICOM_EXPORT_DIR, tempFile.getName());
+            File renameFile = new File(DicomMediaIO.DICOM_EXPORT_DIR.toFile(), tempFile.getName());
             if (tempFile.renameTo(renameFile)) {
               tempFile = renameFile;
             }
@@ -921,7 +925,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
             tempFile = new File(NetworkUtil.getURI(url));
           }
           // Ensure the stream is closed if image is not written in cache
-          FileUtil.safeClose(stream);
+          StreamUtil.safeClose(stream);
 
           dicomReader = new DicomMediaIO(tempFile);
           if (dicomReader.isReadableDicom() && firstImage) {
@@ -955,8 +959,8 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         if (tempFile != null && dicomSeries != null) {
           Reading reading = dicomReader.getReadingStatus();
           if (reading == Reading.READABLE) {
-            if (tempFile.getPath().startsWith(AppProperties.APP_TEMP_DIR.getPath())) {
-              dicomReader.getFileCache().setOriginalTempFile(tempFile);
+            if (tempFile.getPath().startsWith(AppProperties.APP_TEMP_DIR.toString())) {
+              dicomReader.getFileCache().setOriginalTempFile(tempFile.toPath());
             }
             final DicomMediaIO reader = dicomReader;
             // Necessary to wait the runnable because the dicomSeries must be added to the
@@ -991,7 +995,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
                 try (InputStream in = multipartReader.newPartInputStream()) {
                   readBytes[0] =
                       FileUtil.writeStream(
-                          new SeriesProgressMonitor(dicomSeries, in), tempFile, false);
+                          new SeriesProgressMonitor(dicomSeries, in), tempFile.toPath(), false);
                 }
               };
 
@@ -1012,7 +1016,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
           bytesTransferred =
               FileUtil.writeStream(
                   new DicomSeriesProgressMonitor(dicomSeries, response.getInputStream(), false),
-                  tempFile);
+                  tempFile.toPath());
         }
       } else {
         bytesTransferred =
@@ -1028,7 +1032,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
           if (overrideList == null) {
             bytesTransferred =
                 FileUtil.writeStream(
-                    new DicomSeriesProgressMonitor(dicomSeries, stream2, false), tempFile);
+                    new DicomSeriesProgressMonitor(dicomSeries, stream2, false), tempFile.toPath());
           } else {
             bytesTransferred =
                 writFile(
@@ -1095,14 +1099,14 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         dos.flush();
         return -1;
       } catch (InterruptedIOException e) {
-        FileUtil.delete(tempFile);
+        FileUtil.delete(tempFile.toPath());
         LOGGER.error("Interruption when writing file: {}", e.getMessage());
         return e.bytesTransferred;
       } catch (IOException e) {
-        FileUtil.delete(tempFile);
+        FileUtil.delete(tempFile.toPath());
         throw new StreamIOException(e);
       } catch (Exception e) {
-        FileUtil.delete(tempFile);
+        FileUtil.delete(tempFile.toPath());
         LOGGER.error("Writing DICOM temp file", e);
         return 0;
       } finally {
@@ -1111,7 +1115,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
           List<File> blkFiles = dis.getBulkDataFiles();
           if (blkFiles != null) {
             for (File file : blkFiles) {
-              FileUtil.delete(file);
+              FileUtil.delete(file.toPath());
             }
           }
         }

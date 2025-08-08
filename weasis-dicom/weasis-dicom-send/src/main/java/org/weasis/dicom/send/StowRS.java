@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -85,10 +86,10 @@ public class StowRS extends DicomStowRS {
     for (String entry : filesOrFolders) {
       File file = new File(entry);
       if (file.isDirectory()) {
-        List<File> fileList = new ArrayList<>();
-        FileUtil.getAllFilesInDirectory(file, fileList, recursive);
-        for (File f : fileList) {
-          addMultipartFile(multipart, f);
+        List<Path> fileList = new ArrayList<>();
+        FileUtil.getAllFilesInDirectory(file.toPath(), fileList, recursive);
+        for (Path f : fileList) {
+          addMultipartFile(multipart, f.toFile());
         }
       } else {
         addMultipartFile(multipart, file);

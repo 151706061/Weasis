@@ -61,16 +61,17 @@ import org.weasis.core.util.MathUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.opencv.data.FileRawImage;
 import org.weasis.opencv.data.PlanarImage;
+import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public class ImageCVIO implements MediaReader<ImageElement> {
   private static final Logger LOGGER = LoggerFactory.getLogger(ImageCVIO.class);
 
   public static final int TILE_SIZE = 512;
-  public static final File CACHE_UNCOMPRESSED_DIR =
+  public static final Path CACHE_UNCOMPRESSED_DIR =
       AppProperties.buildAccessibleTempDirectory(
-          AppProperties.FILE_CACHE_DIR.getName(), "uncompressed"); // NON-NLS
+          AppProperties.CACHE_NAME, "uncompressed"); // NON-NLS
 
   private final URI uri;
   private final String mimeType;
@@ -92,15 +93,15 @@ public class ImageCVIO implements MediaReader<ImageElement> {
     FileCache cache = media.getFileCache();
 
     Path imgCachePath = null;
-    File file;
+    Path file;
     if (cache.isRequireTransformation()) {
       file = cache.getTransformedFile();
       if (file == null) {
         String filename =
             StringUtil.bytesToMD5(media.getMediaURI().toString().getBytes(StandardCharsets.UTF_8));
-        imgCachePath = CACHE_UNCOMPRESSED_DIR.toPath().resolve(filename + ".wcv");
+        imgCachePath = CACHE_UNCOMPRESSED_DIR.resolve(filename + ".wcv");
         if (Files.isReadable(imgCachePath)) {
-          file = imgCachePath.toFile();
+          file = imgCachePath;
           cache.setTransformedFile(file);
           imgCachePath = null;
         } else {
@@ -112,14 +113,14 @@ public class ImageCVIO implements MediaReader<ImageElement> {
     }
 
     if (file != null) {
-      PlanarImage img = readImage(file, imgCachePath == null);
+      PlanarImage img = readImage(file);
       if (imgCachePath != null) {
-        File rawFile = uncompress(imgCachePath, img, media);
+        Path rawFile = uncompress(imgCachePath, img, media);
         if (rawFile != null) {
           file = rawFile;
         }
         cache.setTransformedFile(file);
-        img = readImage(file, true);
+        img = readImage(file);
       }
       return img;
     }
@@ -147,20 +148,20 @@ public class ImageCVIO implements MediaReader<ImageElement> {
     }
   }
 
-  private PlanarImage readImage(File file, boolean createTiledLayout) throws Exception {
+  private PlanarImage readImage(Path path) throws Exception {
     PlanarImage img;
-    if (file.getPath().endsWith(".wcv")) {
-      img = new FileRawImage(file).read();
+    if (path.toString().endsWith(".wcv")) {
+      img = new FileRawImage(path).read();
     } else if (codec instanceof NativeOpenCVCodec) {
       List<String> exifTags = new ArrayList<>();
-      img = ImageProcessor.readImageWithCvException(file, exifTags);
+      img = ImageIOHandler.readImageWithCvException(path, exifTags);
       applyExifTags(image, exifTags);
       if (img == null) {
         // Try ImageIO
-        img = readImageIOImage(file);
+        img = readImageIOImage(path);
       }
     } else {
-      img = readImageIOImage(file);
+      img = readImageIOImage(path);
     }
 
     if (img != null && image != null) {
@@ -170,14 +171,14 @@ public class ImageCVIO implements MediaReader<ImageElement> {
     return img;
   }
 
-  private PlanarImage readImageIOImage(File file) throws IOException {
+  private PlanarImage readImageIOImage(Path path) throws IOException {
     ImageReader reader = getDefaultReader(mimeType);
     if (reader == null) {
       LOGGER.info("Cannot find a reader for the mime type: {}", mimeType);
       return null;
     }
 
-    ImageInputStream stream = new FileImageInputStream(new RandomAccessFile(file, "r"));
+    ImageInputStream stream = new FileImageInputStream(new RandomAccessFile(path.toFile(), "r"));
     ImageReadParam param = reader.getDefaultReadParam();
     reader.setInput(stream, true, true);
     RenderedImage bi;
@@ -355,29 +356,24 @@ public class ImageCVIO implements MediaReader<ImageElement> {
     return fileCache;
   }
 
-  private File uncompress(Path imgCachePath, PlanarImage img, MediaElement media) {
+  private Path uncompress(Path imgCachePath, PlanarImage img, MediaElement media) {
     /*
      * Make an image cache with its thumbnail when the image size is larger than a tile size and if not DICOM file
      */
     if (img != null
         && (img.width() > TILE_SIZE || img.height() > TILE_SIZE)
         && !mimeType.contains("dicom")) { // NON-NLS
-      File outFile = imgCachePath.toFile();
       try {
-        new FileRawImage(outFile).write(img);
+        new FileRawImage(imgCachePath).write(img);
         PlanarImage img8 = img;
         if (CvType.depth(img.type()) > CvType.CV_8S && media instanceof ImageElement imgElement) {
           Map<String, Object> params = null;
           if (!imgElement.isImageAvailable()) {
             // Ensure to load image before calling the preset that requires pixel min and max
             params = new HashMap<>(2);
-            double min = 0;
-            double max = 65536;
-            MinMaxLocResult val = ImageProcessor.findMinMaxValues(img.toMat());
-            if (val != null) {
-              min = val.minVal;
-              max = val.maxVal;
-            }
+            MinMaxLocResult val = ImageAnalyzer.findMinMaxValues(img.toMat());
+            double min = val.minVal;
+            double max = val.maxVal;
 
             // Handle special case when min and max are equal, ex. black image
             // + 1 to max enables to display the correct value
@@ -390,11 +386,13 @@ public class ImageCVIO implements MediaReader<ImageElement> {
           }
           img8 = imgElement.getRenderedImage(img, params);
         }
-        ImageProcessor.writeThumbnail(
-            img8.toMat(), new File(changeExtension(outFile.getPath(), ".jpg")), Thumbnail.MAX_SIZE);
-        return outFile;
+        ImageIOHandler.writeThumbnail(
+            img8.toMat(),
+            Path.of(changeExtension(imgCachePath.toString(), ".jpg")),
+            Thumbnail.MAX_SIZE);
+        return imgCachePath;
       } catch (Exception e) {
-        FileUtil.delete(outFile);
+        FileUtil.delete(imgCachePath);
         LOGGER.error("Uncompress temporary image", e);
       }
     }

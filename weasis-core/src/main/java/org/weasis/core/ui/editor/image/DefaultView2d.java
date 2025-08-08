@@ -840,7 +840,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
   @Override
   public void drawLayers(
       Graphics2D g2d, AffineTransform transform, AffineTransform inverseTransform) {
-    if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(ActionW.DRAWINGS.cmd()))) {
+    if (LangUtil.nullToTrue((Boolean) actionsInView.get(ActionW.DRAWINGS.cmd()))) {
       Object[] oldRenderingHints =
           GuiUtils.setRenderingHints(g2d, true, false, requiredTextAntialiasing());
       graphicManager.draw(g2d, transform, inverseTransform, null);
@@ -931,7 +931,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
     } else if (synch.getLocation() != null) {
       Boolean cutlines = (Boolean) actionsInView.get(ActionW.SYNCH_CROSSLINE.cmd());
       if (cutlines != null && cutlines) {
-        if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
+        if (LangUtil.nullToTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
           // Compute cutlines from the location of selected image
           computeCrosslines(synch.getLocation().doubleValue());
         }

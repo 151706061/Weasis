@@ -79,8 +79,7 @@ public class WindowOp extends AbstractOp {
   }
 
   public WlPresentation getWlPresentation() {
-    boolean pixelPadding =
-        LangUtil.getNULLtoTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+    boolean pixelPadding = LangUtil.nullToTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
     PresentationStateLut pr = (PresentationStateLut) getParam("pr.element");
     return new DefaultWlPresentation(pr, pixelPadding);
   }

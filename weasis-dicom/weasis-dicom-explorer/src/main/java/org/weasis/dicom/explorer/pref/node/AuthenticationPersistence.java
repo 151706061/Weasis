@@ -35,8 +35,8 @@ import org.weasis.core.api.auth.OAuth2ServiceFactory;
 import org.weasis.core.api.gui.util.AppProperties;
 import org.weasis.core.api.service.BundlePreferences;
 import org.weasis.core.api.util.ResourceUtil;
-import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.LangUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 
 public class AuthenticationPersistence {
@@ -87,7 +87,7 @@ public class AuthenticationPersistence {
 
       // Load nodes from local data
       final BundleContext context = AppProperties.getBundleContext(AbstractDicomNode.class);
-      loadMethods(list, new File(BundlePreferences.getDataFolder(context), FILENAME), true);
+      loadMethods(list, BundlePreferences.getFileInDataFolder(context, FILENAME).toFile(), true);
       for (AuthMethod m : list) {
         methods.put(m.getUid(), m);
       }
@@ -111,7 +111,8 @@ public class AuthenticationPersistence {
     try {
       writer =
           factory.createXMLStreamWriter(
-              new FileOutputStream(new File(BundlePreferences.getDataFolder(context), FILENAME)),
+              new FileOutputStream(
+                  BundlePreferences.getFileInDataFolder(context, FILENAME).toFile()),
               "UTF-8"); // NON-NLS
 
       writer.writeStartDocument("UTF-8", "1.0"); // NON-NLS
@@ -148,7 +149,7 @@ public class AuthenticationPersistence {
     } catch (Exception e) {
       LOGGER.error("Error on writing DICOM node file", e);
     } finally {
-      FileUtil.safeClose(writer);
+      StreamUtil.safeClose(writer);
     }
   }
 
@@ -176,7 +177,7 @@ public class AuthenticationPersistence {
       } catch (Exception e) {
         LOGGER.error("Error on reading DICOM node file", e);
       } finally {
-        FileUtil.safeClose(xmler);
+        StreamUtil.safeClose(xmler);
       }
     }
   }
@@ -230,7 +231,7 @@ public class AuthenticationPersistence {
       p.setAuthorizationUri(xmler.getAttributeValue(null, T_AUTH_URI));
       p.setTokenUri(xmler.getAttributeValue(null, T_TOKEN_URI));
       p.setRevokeTokenUri(xmler.getAttributeValue(null, T_REVOKE_URI));
-      p.setOpenId(LangUtil.getEmptytoFalse(xmler.getAttributeValue(null, T_OPENID)));
+      p.setOpenId(LangUtil.emptyToFalse(xmler.getAttributeValue(null, T_OPENID)));
     } else if (T_REGISTRATION.equals(key)) {
       AuthRegistration reg = node.getAuthRegistration();
       reg.setClientId(xmler.getAttributeValue(null, T_CLIENT_ID));

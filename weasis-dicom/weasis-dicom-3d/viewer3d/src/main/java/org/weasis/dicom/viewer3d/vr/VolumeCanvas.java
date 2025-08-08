@@ -173,7 +173,7 @@ public class VolumeCanvas extends GLJPanel implements Canvas {
   public void setActionsInView(String action, Object value, Boolean repaint) {
     if (action != null) {
       actionsInView.put(action, value);
-      if (LangUtil.getNULLtoFalse(repaint)) {
+      if (LangUtil.nullToFalse(repaint)) {
         repaint();
       }
     }

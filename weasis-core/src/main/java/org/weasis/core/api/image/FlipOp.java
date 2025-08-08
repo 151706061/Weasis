@@ -11,7 +11,7 @@ package org.weasis.core.api.image;
 
 import org.weasis.core.Messages;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class FlipOp extends AbstractOp {
 
@@ -44,7 +44,7 @@ public class FlipOp extends AbstractOp {
     Boolean flip = (Boolean) params.get(P_FLIP);
 
     if (flip != null && flip) {
-      result = ImageProcessor.flip(source.toMat(), 1); // 1) means flipping around y-axis
+      result = ImageTransformer.flip(source.toMat(), 1); // 1) means flipping around y-axis
     }
 
     params.put(Param.OUTPUT_IMG, result);

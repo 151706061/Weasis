@@ -54,7 +54,7 @@ public class DicomExportAction {
   protected static final BiFunction<String, ImageViewerEventManager<?>, String> folderReplacement =
       (val, _) -> {
         if (Placeholder.DICOM_WADO_FOLDER.equals(val)) {
-          return DicomMediaIO.DICOM_EXPORT_DIR.getPath();
+          return DicomMediaIO.DICOM_EXPORT_DIR.toString();
         } else if (Placeholder.DICOM_QR_FOLDER.equals(val)) {
           return AppProperties.APP_TEMP_DIR
               + File.separator
@@ -137,7 +137,7 @@ public class DicomExportAction {
       for (TreePath treePath : paths) {
         DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
         if (node.getUserObject() instanceof DicomImageElement img) {
-          sources.add(img.getFile().toPath());
+          sources.add(img.getFilePath());
         }
       }
     }
@@ -161,8 +161,8 @@ public class DicomExportAction {
   }
 
   protected static File getSelectionTempFolder() {
-    return FileUtil.createTempDir(
-        AppProperties.buildAccessibleTempDirectory("tmp", "sel")); // NON-NLS
+    return FileUtil.createTempDir(AppProperties.buildAccessibleTempDirectory("tmp", "sel"))
+        .toFile(); // NON-NLS
   }
 
   protected static void copyFilesOrDirectories(Set<Path> sources, Path destination)

@@ -14,6 +14,8 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -238,11 +240,11 @@ public class RetrieveTask extends ExplorerTask<ExplorerTask<Boolean, String>, St
           } else {
             List<String> xmlFiles = new ArrayList<>(1);
             try {
-              File tempFile = File.createTempFile("wado_", ".xml", AppProperties.APP_TEMP_DIR);
+              Path tempFile = Files.createTempFile(AppProperties.APP_TEMP_DIR, "wado_", ".xml");
               FileUtil.writeStreamWithIOException(
                   new ByteArrayInputStream(wadoXmlGenerated.getBytes(StandardCharsets.UTF_8)),
                   tempFile);
-              xmlFiles.add(tempFile.getPath());
+              xmlFiles.add(tempFile.toString());
 
             } catch (Exception e) {
               LOGGER.info("ungzip manifest", e);

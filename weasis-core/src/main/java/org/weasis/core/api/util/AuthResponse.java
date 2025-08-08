@@ -13,7 +13,7 @@ import com.github.scribejava.core.model.Response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 
 public class AuthResponse implements HttpResponse {
 
@@ -25,7 +25,7 @@ public class AuthResponse implements HttpResponse {
 
   @Override
   public void close() {
-    FileUtil.safeClose(response);
+    StreamUtil.safeClose(response);
   }
 
   @Override

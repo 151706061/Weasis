@@ -52,7 +52,7 @@ import org.weasis.dicom.explorer.wado.LoadSeries;
 import org.weasis.dicom.mf.SopInstance;
 import org.weasis.dicom.mf.WadoParameters;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public class DicomDirLoader {
   private static final Logger LOGGER = LoggerFactory.getLogger(DicomDirLoader.class);
@@ -258,20 +258,21 @@ public class DicomDirLoader {
         if (pixelData != null) {
           ImageDescriptor imdDesc = new ImageDescriptor(iconInstance);
           File thumbnailPath =
-              File.createTempFile("thumb_", ".jpg", Thumbnail.THUMBNAIL_CACHE_DIR); // NON-NLS
+              File.createTempFile(
+                  "thumb_", ".jpg", Thumbnail.THUMBNAIL_CACHE_DIR.toFile()); // NON-NLS
 
           BytesWithImageDescriptor bytesWithImageDescriptor =
               new BytesWithImageDescriptor() {
                 @Override
                 public ByteBuffer getBytes(int frame) throws IOException {
-                  if (pixelData instanceof byte[] data) {
-                    return ByteBuffer.wrap(data);
-                  } else if (pixelData instanceof BulkData bulkData) {
-                    return ByteBuffer.wrap(bulkData.toBytes(holder.vr, bigEndian()));
-                  } else if (pixelData instanceof Fragments fragments) {
-                    return ByteBuffer.wrap(fragments.toBytes(holder.vr, bigEndian()));
-                  }
-                  return null;
+                  return switch (pixelData) {
+                    case byte[] data -> ByteBuffer.wrap(data);
+                    case BulkData bulkData ->
+                        ByteBuffer.wrap(bulkData.toBytes(holder.vr, bigEndian()));
+                    case Fragments fragments ->
+                        ByteBuffer.wrap(fragments.toBytes(holder.vr, bigEndian()));
+                    default -> null;
+                  };
                 }
 
                 @Override
@@ -295,26 +296,8 @@ public class DicomDirLoader {
                 }
 
                 @Override
-                public Attributes getPaletteColorLookupTable() {
-                  Attributes dcm = new Attributes(6);
-                  copyValue(iconInstance, dcm, Tag.RedPaletteColorLookupTableDescriptor);
-                  copyValue(iconInstance, dcm, Tag.GreenPaletteColorLookupTableDescriptor);
-                  copyValue(iconInstance, dcm, Tag.BluePaletteColorLookupTableDescriptor);
-                  copyValue(iconInstance, dcm, Tag.RedPaletteColorLookupTableData);
-                  copyValue(iconInstance, dcm, Tag.GreenPaletteColorLookupTableData);
-                  copyValue(iconInstance, dcm, Tag.BluePaletteColorLookupTableData);
-                  return dcm;
-                }
-
-                @Override
                 public ImageDescriptor getImageDescriptor() {
                   return imdDesc;
-                }
-
-                private static void copyValue(Attributes original, Attributes copy, int tag) {
-                  if (original.containsValue(tag)) {
-                    copy.setValue(tag, original.getVR(tag), original.getValue(tag));
-                  }
                 }
               };
           reader.setInput(bytesWithImageDescriptor);
@@ -328,7 +311,7 @@ public class DicomDirLoader {
                 desc.getColumns(),
                 desc.getRows());
           }
-          if (ImageProcessor.writeImage(img.toMat(), thumbnailPath)) {
+          if (ImageIOHandler.writeImage(img.toMat(), thumbnailPath.toPath())) {
             return thumbnailPath.getPath();
           }
         }

@@ -87,6 +87,7 @@ import org.weasis.core.ui.pref.PreferenceDialog;
 import org.weasis.core.ui.tp.raven.spinner.SpinnerProgress;
 import org.weasis.core.ui.util.CalendarUtil;
 import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.display.CharsetEncoding;
@@ -365,7 +366,8 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
 
   public static File getSessionTempFolder() {
     return FileUtil.createTempDir(
-        AppProperties.buildAccessibleTempDirectory("tmp", "qr")); // NON-NLS
+            AppProperties.buildAccessibleTempDirectory("tmp", "qr")) // NON-NLS
+        .toFile();
   }
 
   public void initGUI() {
@@ -1008,7 +1010,8 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
       writer =
           factory.createXMLStreamWriter(
               new FileOutputStream(
-                  new File(BundlePreferences.getDataFolder(context), SearchParameters.FILENAME)),
+                  BundlePreferences.getFileInDataFolder(context, SearchParameters.FILENAME)
+                      .toFile()),
               "UTF-8"); // NON-NLS
 
       writer.writeStartDocument("UTF-8", "1.0"); // NON-NLS
@@ -1025,7 +1028,7 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
     } catch (Exception e) {
       LOGGER.error("Error on writing DICOM node file", e);
     } finally {
-      FileUtil.safeClose(writer);
+      StreamUtil.safeClose(writer);
     }
   }
 

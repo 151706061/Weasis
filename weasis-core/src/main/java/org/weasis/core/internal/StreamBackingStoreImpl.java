@@ -45,6 +45,7 @@ import org.weasis.core.api.util.NetworkUtil;
 import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.util.EscapeChars;
 import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 
 /**
@@ -83,7 +84,7 @@ public class StreamBackingStoreImpl implements BackingStore {
   protected OutputStream getOutputStream(PreferencesDescription desc) throws IOException {
     File file = getFile(desc);
     // Write user folder if not exists
-    FileUtil.prepareToWriteFile(file);
+    FileUtil.prepareToWriteFile(file.toPath());
     return new FileOutputStream(file);
   }
 
@@ -244,7 +245,7 @@ public class StreamBackingStoreImpl implements BackingStore {
         throw new BackingStoreException(
             "Unable to load preferences from File: " + file.getPath(), e);
       } finally {
-        FileUtil.safeClose(xmler);
+        StreamUtil.safeClose(xmler);
       }
     }
     return null;
@@ -308,7 +309,7 @@ public class StreamBackingStoreImpl implements BackingStore {
             "Unable to read remote preferences from Service: " + conn.getUrlConnection().getURL(),
             e);
     } finally {
-      FileUtil.safeClose(xmler);
+      StreamUtil.safeClose(xmler);
     }
     return null;
   }
@@ -388,7 +389,7 @@ public class StreamBackingStoreImpl implements BackingStore {
       }
       out.flush();
     } finally {
-      FileUtil.safeClose(inputStream);
+      StreamUtil.safeClose(inputStream);
     }
   }
 
@@ -407,7 +408,7 @@ public class StreamBackingStoreImpl implements BackingStore {
     } catch (XMLStreamException e) {
       throw new BackingStoreException("Unable to store preferences.", e);
     } finally {
-      FileUtil.safeClose(writer);
+      StreamUtil.safeClose(writer);
     }
   }
 

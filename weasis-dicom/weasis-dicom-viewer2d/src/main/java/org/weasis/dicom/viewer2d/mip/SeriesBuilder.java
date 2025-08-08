@@ -10,6 +10,8 @@
 package org.weasis.dicom.viewer2d.mip;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -50,9 +52,8 @@ import org.weasis.opencv.data.PlanarImage;
 
 public class SeriesBuilder {
   private static final Logger LOGGER = LoggerFactory.getLogger(SeriesBuilder.class);
-  public static final File MIP_CACHE_DIR =
-      AppProperties.buildAccessibleTempDirectory(
-          AppProperties.FILE_CACHE_DIR.getName(), "mip"); // NON-NLS
+  public static final Path MIP_CACHE_DIR =
+      AppProperties.buildAccessibleTempDirectory(AppProperties.CACHE_NAME, "mip"); // NON-NLS
 
   private SeriesBuilder() {}
 
@@ -120,18 +121,18 @@ public class SeriesBuilder {
           DicomImageElement imgRef = (DicomImageElement) sources.get(sources.size() / 2);
           FileRawImage raw = null;
           try {
-            File dir = MIP_CACHE_DIR;
+            File dir = MIP_CACHE_DIR.toFile();
             if (fullSeries) {
-              dir = new File(MIP_CACHE_DIR, seriesUID);
+              dir = new File(MIP_CACHE_DIR.toFile(), seriesUID);
               dir.mkdirs();
             }
-            raw = new FileRawImage(File.createTempFile("mip_", ".wcv", dir)); // NON-NLS
+            raw = new FileRawImage(Files.createTempFile(dir.toPath(), "mip_", ".wcv")); // NON-NLS
             if (!raw.write(curImage)) {
               raw = null;
             }
           } catch (Exception e) {
             if (raw != null) {
-              FileUtil.delete(raw.file());
+              FileUtil.delete(raw.path());
               raw = null;
             }
             LOGGER.error("Writing MIP", e);
@@ -140,7 +141,7 @@ public class SeriesBuilder {
             return;
           }
           RawImageIO rawIO = new RawImageIO(raw, null);
-          rawIO.getFileCache().setOriginalTempFile(raw.file());
+          rawIO.getFileCache().setOriginalTempFile(raw.path());
           rawIO.setBaseAttributes(cpTags);
 
           // Tags with same values for all the Series

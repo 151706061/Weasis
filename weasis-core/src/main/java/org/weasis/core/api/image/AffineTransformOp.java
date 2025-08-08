@@ -17,7 +17,7 @@ import org.opencv.core.Size;
 import org.weasis.core.Messages;
 import org.weasis.core.util.MathUtil;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class AffineTransformOp extends AbstractOp {
 
@@ -76,7 +76,7 @@ public class AffineTransformOp extends AbstractOp {
           inter = interpolation.getOpencvValue();
         }
         result =
-            ImageProcessor.warpAffine(
+            ImageTransformer.warpAffine(
                 source.toMat(), mat, new Size(bound.getWidth(), bound.getHeight()), inter);
       } else {
         result = null;

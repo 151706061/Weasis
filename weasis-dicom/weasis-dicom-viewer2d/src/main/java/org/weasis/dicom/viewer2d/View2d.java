@@ -293,7 +293,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         } else if (command.equals(ActionW.KO_SELECTION.cmd())) {
           int frameIndex =
               tile
-                  ? LangUtil.getNULLtoFalse(
+                  ? LangUtil.nullToFalse(
                           (Boolean) synch.getView().getActionValue(ActionW.KO_FILTER.cmd()))
                       ? 0
                       : synch.getView().getFrameIndex() - synch.getView().getTileOffset()
@@ -306,7 +306,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         } else if (command.equals(ActionW.KO_FILTER.cmd())) {
           int frameIndex =
               tile
-                  ? LangUtil.getNULLtoFalse((Boolean) val)
+                  ? LangUtil.nullToFalse((Boolean) val)
                       ? 0
                       : synch.getView().getFrameIndex() - synch.getView().getTileOffset()
                   : -1;
@@ -395,7 +395,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
           }
           if (v instanceof View2d view2d
               && fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))
-              && LangUtil.getNULLtoTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
+              && LangUtil.nullToTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
             view2d.computeCrosshair(p3, p);
             view2d.repaint();
           }
@@ -426,7 +426,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     imageLayer.fireOpEvent(new ImageOpEvent(ImageOpEvent.OpEvent.RESET_DISPLAY, series, m, null));
 
     boolean changePixConfig =
-        LangUtil.getNULLtoFalse((Boolean) actionsInView.get(PRManager.TAG_CHANGE_PIX_CONFIG));
+        LangUtil.nullToFalse((Boolean) actionsInView.get(PRManager.TAG_CHANGE_PIX_CONFIG));
     if (m != null) {
       // Restore the original image pixel size
       if (changePixConfig) {
@@ -1235,7 +1235,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     }
 
     String pClose = "weasis.contextmenu.close";
-    if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(pClose))
+    if (LangUtil.nullToTrue((Boolean) actionsInView.get(pClose))
         && GuiUtils.getUICore().getSystemPreferences().getBooleanProperty(pClose, true)) {
       JMenuItem close = new JMenuItem(Messages.getString("View2d.close"));
       close.addActionListener(e -> View2d.this.setSeries(null, null));

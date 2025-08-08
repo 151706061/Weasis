@@ -198,7 +198,7 @@ public class PRManager {
     if (node == null) {
       return true;
     }
-    return LangUtil.getNULLtoTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+    return LangUtil.nullToTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
   }
 
   private static void applySpatialTransformations(PresentationContext context) {

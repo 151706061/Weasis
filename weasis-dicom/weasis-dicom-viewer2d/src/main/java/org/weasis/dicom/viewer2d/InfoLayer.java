@@ -439,7 +439,7 @@ public class InfoLayer extends AbstractInfoLayer<DicomImageElement> {
           vc.negate();
         }
 
-        if (LangUtil.getNULLtoFalse((Boolean) view2DPane.getActionValue((ActionW.FLIP.cmd())))) {
+        if (LangUtil.nullToFalse((Boolean) view2DPane.getActionValue((ActionW.FLIP.cmd())))) {
           vr.negate();
         }
 
@@ -451,7 +451,7 @@ public class InfoLayer extends AbstractInfoLayer<DicomImageElement> {
         Integer rotationAngle = (Integer) view2DPane.getActionValue(ActionW.ROTATION.cmd());
         if (po != null && po.length == 2 && (rotationAngle == null || rotationAngle == 0)) {
           // Do not display if there is a transformation
-          if (LangUtil.getNULLtoFalse((Boolean) view2DPane.getActionValue((ActionW.FLIP.cmd())))) {
+          if (LangUtil.nullToFalse((Boolean) view2DPane.getActionValue((ActionW.FLIP.cmd())))) {
             colLeft = po[0];
           } else {
             StringBuilder buf = new StringBuilder();

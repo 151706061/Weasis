@@ -567,7 +567,7 @@ public class Dose extends RtSpecialElement implements SpecialElementRegion {
     thr.convertTo(thrSrc, CvType.CV_8U);
     ImageConversion.releaseMat(thr);
 
-    List<Segment> segmentList = SegContour.buildSegmentList(ImageCV.toImageCV(thrSrc));
+    List<Segment> segmentList = SegContour.buildSegmentList(ImageCV.fromMat(thrSrc));
     if (segmentList.isEmpty()) {
       ImageConversion.releaseMat(thrSrc);
       return null;

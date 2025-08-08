@@ -21,7 +21,7 @@ import org.weasis.core.Messages;
 import org.weasis.core.util.MathUtil;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class RotationOp extends AbstractOp {
 
@@ -70,7 +70,7 @@ public class RotationOp extends AbstractOp {
             getRotatedImage(
                 source.toMat(), rotationAngle, source.width() / 2.0, source.height() / 2.0);
       } else {
-        result = ImageProcessor.getRotatedImage(source.toMat(), rotOp);
+        result = ImageTransformer.getRotatedImage(source.toMat(), rotOp);
       }
     }
     params.put(Param.OUTPUT_IMG, result);
@@ -78,7 +78,7 @@ public class RotationOp extends AbstractOp {
 
   public static ImageCV getRotatedImage(Mat source, double angle, double centerx, double centery) {
     if (MathUtil.isEqualToZero(angle)) {
-      return ImageCV.toImageCV(source);
+      return ImageCV.fromMat(source);
     }
     Mat srcImg = Objects.requireNonNull(source);
     Point ptCenter = new Point(centerx, centery);

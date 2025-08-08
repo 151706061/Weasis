@@ -677,7 +677,7 @@ public class View2dContainer extends DicomViewerPlugin implements PropertyChange
           if (koFilterAction != null) {
             if (enableFilter == null) {
               enableFilter =
-                  LangUtil.getNULLtoFalse(
+                  LangUtil.nullToFalse(
                       (Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
             }
             koFilterAction.setSelected(enableFilter);
@@ -685,7 +685,7 @@ public class View2dContainer extends DicomViewerPlugin implements PropertyChange
         }
 
         boolean koFilterActive =
-            LangUtil.getNULLtoFalse((Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
+            LangUtil.nullToFalse((Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
         if (updateAll && koFilterActive) {
           List<ViewCanvas<DicomImageElement>> viewList = getImagePanels(true);
           for (ViewCanvas<DicomImageElement> view : viewList) {

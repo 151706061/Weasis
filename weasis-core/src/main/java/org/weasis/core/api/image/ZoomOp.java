@@ -14,7 +14,7 @@ import org.opencv.imgproc.Imgproc;
 import org.weasis.core.Messages;
 import org.weasis.core.util.MathUtil;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageTransformer;
 
 public class ZoomOp extends AbstractOp {
 
@@ -112,7 +112,7 @@ public class ZoomOp extends AbstractOp {
       } else if (interpolation != null) {
         inter = interpolation.getOpencvValue();
       }
-      result = ImageProcessor.scale(source.toMat(), dim, inter);
+      result = ImageTransformer.scale(source.toMat(), dim, inter);
     }
 
     params.put(Param.OUTPUT_IMG, result);

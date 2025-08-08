@@ -10,11 +10,12 @@
 package org.weasis.dicom.explorer.wado;
 
 import java.io.BufferedInputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -70,6 +71,7 @@ import org.weasis.core.ui.serialize.XmlSerializer;
 import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.StreamIOException;
+import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.StringUtil.Suffix;
 import org.weasis.dicom.codec.DicomSeries;
@@ -313,24 +315,25 @@ public class DownloadManager {
         stream = urlInputStream;
       } else {
         // In case wado file has no extension
-        File outFile = File.createTempFile("wado_", "", AppProperties.APP_TEMP_DIR); // NON-NLS
+        Path outFile = Files.createTempFile(AppProperties.APP_TEMP_DIR, "wado_", ""); // NON-NLS
         FileUtil.writeStreamWithIOException(urlInputStream, outFile);
         if (MimeInspector.isMatchingMimeTypeFromMagicNumber(
-            outFile, "application/x-gzip")) { // NON-NLS
-          stream = new BufferedInputStream(new GZIPInputStream(new FileInputStream(outFile)));
+            outFile.toFile(), "application/x-gzip")) { // NON-NLS
+          stream =
+              new BufferedInputStream(new GZIPInputStream(new FileInputStream(outFile.toFile())));
         } else {
-          stream = new FileInputStream(outFile);
+          stream = new FileInputStream(outFile.toFile());
         }
       }
 
-      File tempFile;
+      Path tempFile;
       if (uri.toString().startsWith("file:") && path.endsWith(".xml")) { // NON-NLS
-        tempFile = new File(path);
+        tempFile = Path.of(path);
       } else {
-        tempFile = File.createTempFile("wado_", ".xml", AppProperties.APP_TEMP_DIR); // NON-NLS
+        tempFile = Files.createTempFile(AppProperties.APP_TEMP_DIR, "wado_", ".xml"); // NON-NLS
         FileUtil.writeStreamWithIOException(stream, tempFile);
       }
-      xmler = factory.createXMLStreamReader(new FileInputStream(tempFile));
+      xmler = factory.createXMLStreamReader(new FileInputStream(tempFile.toFile()));
 
       Source xmlFile = new StAXSource(xmler);
       SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
@@ -350,7 +353,7 @@ public class DownloadManager {
 
       ReaderParams params = new ReaderParams(model, seriesMap);
       // Try to read the xml even it is not valid.
-      xmler = factory.createXMLStreamReader(new FileInputStream(tempFile));
+      xmler = factory.createXMLStreamReader(new FileInputStream(tempFile.toFile()));
 
       BiConsumerWithException<XMLStreamReader, ReaderParams, XMLStreamException> method =
           (x, r) -> {
@@ -408,8 +411,8 @@ public class DownloadManager {
             }
           });
     } finally {
-      FileUtil.safeClose(xmler);
-      FileUtil.safeClose(stream);
+      StreamUtil.safeClose(xmler);
+      StreamUtil.safeClose(stream);
     }
     return seriesMap.values();
   }

@@ -65,7 +65,7 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
             textField, btnSearch, Messages.getString("LocalImport.imp_files"), LAST_OPEN_DIR));
 
     checkboxSearch.setSelected(
-        LangUtil.geEmptytoTrue(LocalPersistence.getProperties().getProperty(LAST_RECURSIVE_MODE)));
+        LangUtil.emptyToTrue(LocalPersistence.getProperties().getProperty(LAST_RECURSIVE_MODE)));
 
     add(GuiUtils.getFlowLayoutPanel(ITEM_SEPARATOR_SMALL, ITEM_SEPARATOR, checkboxSearch));
 

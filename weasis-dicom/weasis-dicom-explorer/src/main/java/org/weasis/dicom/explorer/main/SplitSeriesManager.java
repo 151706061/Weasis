@@ -41,7 +41,8 @@ public class SplitSeriesManager {
   private final DicomModel model;
 
   // Thread-safe collections for split series tracking
-  private final ConcurrentHashMap<String, List<DicomSeries>> splitSeriesCache = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, List<DicomSeries>> splitSeriesCache =
+      new ConcurrentHashMap<>();
   private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
   public SplitSeriesManager(DicomExplorer explorer) {
@@ -52,6 +53,7 @@ public class SplitSeriesManager {
   /**
    * Updates split series for the given DICOM series. This is the main entry point for split series
    * processing.
+   *
    * @param dcmSeries the DICOM series to update
    */
   public void updateSplitSeries(DicomSeries dcmSeries) {
@@ -108,9 +110,7 @@ public class SplitSeriesManager {
     return splitSeries;
   }
 
-  /**
-   * Updates split series numbers for proper ordering and display.
-   */
+  /** Updates split series numbers for proper ordering and display. */
   private void updateSplitSeriesNumbers(List<DicomSeries> splitSeries) {
     if (splitSeries.size() <= 1) {
       return;
@@ -171,6 +171,7 @@ public class SplitSeriesManager {
 
   /**
    * Gets all split series for a given SeriesInstanceUID. This method checks the cache first
+   *
    * @param seriesInstanceUID the SeriesInstanceUID to look up
    * @return a list of DicomSeries that are part of the split series, or an empty list if none found
    */

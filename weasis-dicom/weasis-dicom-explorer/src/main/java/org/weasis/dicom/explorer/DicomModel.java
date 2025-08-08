@@ -14,6 +14,8 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -1178,10 +1180,11 @@ public class DicomModel implements TreeModel, DataExplorerModel {
       List<String> xmlFiles = new ArrayList<>(iargs.size());
       for (String iarg : iargs) {
         try {
-          File tempFile =
-              File.createTempFile("wado_", ".xml", AppProperties.APP_TEMP_DIR); // NON-NLS
-          if (GzipManager.gzipUncompressToFile(Base64.getDecoder().decode(iarg), tempFile)) {
-            xmlFiles.add(tempFile.getPath());
+          Path tempFile =
+              Files.createTempFile(AppProperties.APP_TEMP_DIR, "wado_", ".xml"); // NON-NLS
+          if (GzipManager.gzipUncompressToFile(
+              Base64.getDecoder().decode(iarg), tempFile.toFile())) {
+            xmlFiles.add(tempFile.toString());
           }
 
         } catch (Exception e) {
