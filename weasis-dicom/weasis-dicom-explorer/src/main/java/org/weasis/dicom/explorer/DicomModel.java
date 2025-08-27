@@ -62,7 +62,6 @@ import org.weasis.core.api.media.data.SeriesEvent;
 import org.weasis.core.api.media.data.SeriesThumbnail;
 import org.weasis.core.api.media.data.TagView;
 import org.weasis.core.api.media.data.TagW;
-import org.weasis.core.api.media.data.Thumbnail;
 import org.weasis.core.api.util.GzipManager;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.OtherIcon;
