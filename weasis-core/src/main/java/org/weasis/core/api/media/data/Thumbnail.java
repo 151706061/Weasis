@@ -58,7 +58,7 @@ public class Thumbnail extends JLabel implements Thumbnailable {
   public static final Path THUMBNAIL_CACHE_DIR =
       AppProperties.buildAccessibleTempDirectory(AppProperties.CACHE_NAME, "thumb"); // NON-NLS
   public static final ExecutorService THUMB_LOADER =
-      ThreadUtil.buildNewSingleThreadExecutor("Thumbnail Loader"); // NON-NLS
+      ThreadUtil.newManagedImageIOThreadPool("ThumbnailLoader");
 
   public static final String KEY_SIZE = "explorer.thumbnail.size";
   public static final int MIN_SIZE = 48;
