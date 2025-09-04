@@ -47,7 +47,7 @@ import org.weasis.dicom.param.DicomProgress;
 import org.weasis.dicom.param.DicomState;
 import org.weasis.dicom.web.ContentType;
 import org.weasis.dicom.web.DicomStowRS;
-import org.weasis.dicom.web.Multipart;
+import org.weasis.dicom.web.MultipartConstants;
 import org.xml.sax.SAXException;
 
 public class StowRS extends DicomStowRS {
@@ -78,10 +78,10 @@ public class StowRS extends DicomStowRS {
         "multipart/related;type=\"" // NON-NLS
             + ContentType.APPLICATION_DICOM.getType()
             + "\";boundary=" // NON-NLS
-            + MULTIPART_BOUNDARY);
-    headers.put("Accept", Multipart.ContentType.XML.toString()); // NON-NLS
+            + DEFAULT_BOUNDARY);
+    headers.put("Accept", MultipartConstants.DicomContentType.XML.toString()); // NON-NLS
 
-    MultipartPayload multipart = new MultipartPayload(MULTIPART_BOUNDARY, headers);
+    MultipartPayload multipart = new MultipartPayload(DEFAULT_BOUNDARY, headers);
 
     for (String entry : filesOrFolders) {
       File file = new File(entry);

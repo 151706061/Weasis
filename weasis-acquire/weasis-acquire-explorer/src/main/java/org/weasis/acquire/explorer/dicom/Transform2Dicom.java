@@ -94,15 +94,15 @@ public final class Transform2Dicom {
       String sopInstanceUID =
           Objects.requireNonNull((String) mediaElement.getTagValue(TagD.getUID(Level.INSTANCE)));
       var type = mediaInfo.getSeries().getType();
-      var file = new File(exportDirDicom.toFile(), sopInstanceUID);
+      var file = exportDirDicom.resolve(sopInstanceUID);
       if (type == Type.PDF) {
-        Dicomizer.pdf(attrs, mediaFile.toFile(), file);
+        Dicomizer.pdf(attrs, mediaFile, file);
       } else if (type == Type.STL) {
-        Dicomizer.stl(attrs, mediaFile.toFile(), file);
+        Dicomizer.stl(attrs, mediaFile, file);
       } else if (type == Type.VIDEO_MP4) {
-        Dicomizer.mpeg4(attrs, mediaFile.toFile(), file);
+        Dicomizer.mpeg4(attrs, mediaFile, file);
       } else if (type == Type.VIDEO_MP2) {
-        Dicomizer.mpeg2(attrs, mediaFile.toFile(), file);
+        Dicomizer.mpeg2(attrs, mediaFile, file);
       }
       return true;
     } catch (Exception e) {
@@ -169,8 +169,7 @@ public final class Transform2Dicom {
       }
 
       try {
-        Dicomizer.jpeg(
-            attrs, imgFile.toFile(), exportDirDicom.resolve(sopInstanceUID).toFile(), false);
+        Dicomizer.jpeg(attrs, imgFile, exportDirDicom.resolve(sopInstanceUID), false);
       } catch (Exception e) {
         LOGGER.error("Cannot Dicomize {}", imageElement.getName(), e);
         return false;

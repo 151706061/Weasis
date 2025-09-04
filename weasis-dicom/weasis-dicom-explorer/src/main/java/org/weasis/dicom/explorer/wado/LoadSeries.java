@@ -96,7 +96,11 @@ import org.weasis.dicom.explorer.main.ThumbnailMouseAndKeyAdapter;
 import org.weasis.dicom.mf.HttpTag;
 import org.weasis.dicom.mf.SopInstance;
 import org.weasis.dicom.mf.WadoParameters;
-import org.weasis.dicom.web.Multipart;
+import org.weasis.dicom.web.BoundaryExtractor;
+import org.weasis.dicom.web.MultipartConstants;
+import org.weasis.dicom.web.MultipartHeaderParser;
+import org.weasis.dicom.web.MultipartReader;
+import org.weasis.dicom.web.MultipartStreamException;
 
 public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesImporter {
 
@@ -545,7 +549,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         } else {
           request.append(instance.getDirectDownloadFile());
         }
-        request.append(wado.getAdditionnalParameters());
+        request.append(wado.getAdditionalParameters());
         String url = request.toString();
 
         LOGGER.debug("Download DICOM instance {} index {}.", url, k);
@@ -734,7 +738,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
   public File getJpegThumbnails(
       WadoParameters wadoParameters, String studyUID, String seriesUID, String sopInstanceUID)
       throws Exception {
-    String addParams = wadoParameters.getAdditionnalParameters();
+    String addParams = wadoParameters.getAdditionalParameters();
     if (StringUtil.hasText(addParams)) {
       addParams =
           Arrays.stream(addParams.split("&"))
@@ -985,28 +989,48 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         if (wadoParams != null && wadoParams.isWadoRS()) {
 
           int[] readBytes = {0};
-          Multipart.Handler handler =
-              (multipartReader, partNumber, headers) -> {
-                // At sop instance level must have only one part
-                try (InputStream in = multipartReader.newPartInputStream()) {
-                  readBytes[0] =
-                      FileUtil.writeStream(
-                          new SeriesProgressMonitor(dicomSeries, in), tempFile.toPath(), false);
-                }
-              };
 
+          String contentTypeHeader;
           if (response instanceof ClosableURLConnection urlConnection) {
-            Multipart.parseMultipartRelated(
-                urlConnection.getUrlConnection().getContentType(),
-                response.getInputStream(),
-                handler);
+            contentTypeHeader = urlConnection.getUrlConnection().getContentType();
           } else {
             AuthResponse authResponse = (AuthResponse) response;
-            Multipart.parseMultipartRelated(
-                authResponse.getResponse().getHeader("Content-Type"), // NON-NLS
-                response.getInputStream(),
-                handler);
+            contentTypeHeader = authResponse.getResponse().getHeader("Content-Type");
           }
+
+          // Extract boundary from Content-Type header
+          byte[] boundary =
+              BoundaryExtractor.extractBoundary(
+                  contentTypeHeader, MultipartConstants.MULTIPART_RELATED);
+          if (boundary == null) {
+            throw new IOException("No boundary found in Content-Type header: " + contentTypeHeader);
+          }
+
+          try (MultipartReader reader = new MultipartReader(response.getInputStream(), boundary)) {
+
+            // Skip first boundary
+            if (!reader.skipFirstBoundary()) {
+              throw new MultipartStreamException("Failed to skip first boundary");
+            }
+
+            boolean hasMoreParts = true;
+
+            while (hasMoreParts) {
+              reader.readHeaders();
+
+              try (var partInputStream = reader.newPartInputStream()) {
+                readBytes[0] =
+                    FileUtil.writeStream(
+                        new SeriesProgressMonitor(dicomSeries, partInputStream),
+                        tempFile.toPath(),
+                        false);
+              }
+              hasMoreParts = reader.readBoundary();
+            }
+          } catch (MultipartStreamException e) {
+            throw new IOException("Failed to parse multipart content", e);
+          }
+
           bytesTransferred = readBytes[0];
         } else {
           bytesTransferred =

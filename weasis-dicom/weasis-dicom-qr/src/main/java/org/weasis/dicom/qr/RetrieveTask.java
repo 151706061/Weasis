@@ -76,7 +76,7 @@ import org.weasis.dicom.param.DicomState;
 import org.weasis.dicom.param.ListenerParams;
 import org.weasis.dicom.qr.manisfest.CFindQueryResult;
 import org.weasis.dicom.tool.DicomListener;
-import org.weasis.dicom.web.Multipart;
+import org.weasis.dicom.web.MultipartConstants;
 
 public class RetrieveTask extends ExplorerTask<ExplorerTask<Boolean, String>, String> {
   private static final Logger LOGGER = LoggerFactory.getLogger(RetrieveTask.class);
@@ -121,7 +121,7 @@ public class RetrieveTask extends ExplorerTask<ExplorerTask<Boolean, String>, St
 
     DicomParam[] dcmParams = {new DicomParam(Tag.StudyInstanceUID, studies.toArray(new String[0]))};
 
-    File tempFolder = null;
+    Path tempFolder = null;
     Object selectedItem = dicomQrView.getComboDestinationNode().getSelectedItem();
     if (selectedItem instanceof final DefaultDicomNode node) {
       DefaultDicomNode callingNode =
@@ -152,11 +152,11 @@ public class RetrieveTask extends ExplorerTask<ExplorerTask<Boolean, String>, St
           openingStrategy.setFullImportSession(false);
           progress.addProgressListener(
               p -> {
-                File current = p.getProcessedFile();
+                Path current = p.getProcessedFile();
                 if (current != null && p.getAttributes() == null) {
                   LoadLocalDicom task =
                       new LoadLocalDicom(
-                          new File[] {current}, false, explorerDcmModel, openingStrategy);
+                          new File[] {current.toFile()}, false, explorerDcmModel, openingStrategy);
                   DicomModel.LOADING_EXECUTOR.execute(task);
                 }
               });
@@ -390,9 +390,9 @@ public class RetrieveTask extends ExplorerTask<ExplorerTask<Boolean, String>, St
     retrieveNode.getHeaders().forEach(wadoParameters::addHttpTag);
     wadoParameters.addHttpTag(
         "Accept", // NON-NLS
-        Multipart.MULTIPART_RELATED
+        MultipartConstants.MULTIPART_RELATED
             + ";type=\"" // NON-NLS
-            + Multipart.ContentType.DICOM // NON-NLS
+            + MultipartConstants.DicomContentType.DICOM // NON-NLS
             + "\";"
             + props.getProperty(RsQueryParams.P_ACCEPT_EXT));
 

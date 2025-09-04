@@ -51,7 +51,8 @@ import org.weasis.dicom.explorer.wado.LoadSeries;
 import org.weasis.dicom.mf.AbstractQueryResult;
 import org.weasis.dicom.mf.SopInstance;
 import org.weasis.dicom.mf.WadoParameters;
-import org.weasis.dicom.web.Multipart;
+import org.weasis.dicom.web.MultipartConstants;
+import org.weasis.dicom.web.MultipartConstants.DicomContentType;
 
 public class RsQueryResult extends AbstractQueryResult {
   private static final Logger LOGGER = LoggerFactory.getLogger(RsQueryResult.class);
@@ -79,9 +80,9 @@ public class RsQueryResult extends AbstractQueryResult {
     // Accept only multipart/related and retrieve dicom at the stored syntax
     wadoParameters.addHttpTag(
         "Accept", // NON-NLS
-        Multipart.MULTIPART_RELATED
+        MultipartConstants.MULTIPART_RELATED
             + ";type=\"" // NON-NLS
-            + Multipart.ContentType.DICOM
+            + DicomContentType.DICOM
             + "\";"
             + rsQueryParams.getProperties().getProperty(RsQueryParams.P_ACCEPT_EXT));
     defaultStartDownloading =

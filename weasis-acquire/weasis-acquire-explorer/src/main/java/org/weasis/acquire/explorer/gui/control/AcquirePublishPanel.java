@@ -11,6 +11,7 @@ package org.weasis.acquire.explorer.gui.control;
 
 import java.beans.PropertyChangeEvent;
 import java.io.File;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,7 +85,7 @@ public class AcquirePublishPanel extends JPanel {
       AbstractDicomNode destinationNode,
       String callingAet,
       List<AcquireMediaInfo> toPublish) {
-    SwingWorker<DicomState, File> publishDicomTask = null;
+    SwingWorker<DicomState, Path> publishDicomTask = null;
     if (destinationNode instanceof DefaultDicomNode defaultDicomNode) {
       publishDicomTask =
           publishDicomDimse(exportDirDicom, defaultDicomNode.getDicomNode(), callingAet);

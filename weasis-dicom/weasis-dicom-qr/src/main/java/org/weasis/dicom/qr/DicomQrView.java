@@ -18,6 +18,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -341,10 +342,11 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
         DicomProgress progress = new DicomProgress();
         progress.addProgressListener(
             p -> {
-              File current = p.getProcessedFile();
+              Path current = p.getProcessedFile();
               if (current != null && p.getAttributes() == null) {
                 LoadLocalDicom task =
-                    new LoadLocalDicom(new File[] {current}, false, model, openingStrategy);
+                    new LoadLocalDicom(
+                        new File[] {current.toFile()}, false, model, openingStrategy);
                 DicomModel.LOADING_EXECUTOR.execute(task);
               }
             });
@@ -363,10 +365,9 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
     return GuiUtils.getUICore().getPluginPersistence(DicomQrView.class.getPackageName());
   }
 
-  public static File getSessionTempFolder() {
+  public static Path getSessionTempFolder() {
     return FileUtil.createTempDir(
-            AppProperties.buildAccessibleTempDirectory("tmp", "qr")) // NON-NLS
-        .toFile();
+        AppProperties.buildAccessibleTempDirectory("tmp", "qr")); // NON-NLS;
   }
 
   public void initGUI() {

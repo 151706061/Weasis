@@ -433,7 +433,7 @@ public class DownloadManager {
             TagUtil.getTagAttribute(
                 xmler, WadoParameters.WADO_ONLY_SOP_UID, Boolean.FALSE.toString()));
     String additionalParameters =
-        TagUtil.getTagAttribute(xmler, ArcParameters.ADDITIONNAL_PARAMETERS, "");
+        TagUtil.getTagAttribute(xmler, ArcParameters.ADDITIONAL_PARAMETERS, "");
     String overrideList = TagUtil.getTagAttribute(xmler, ArcParameters.OVERRIDE_TAGS, null);
     String webLogin = TagUtil.getTagAttribute(xmler, ArcParameters.WEB_LOGIN, null);
     final WadoParameters wadoParameters =
@@ -451,7 +451,7 @@ public class DownloadManager {
             TagUtil.getTagAttribute(
                 xmler, WadoParameters.WADO_ONLY_SOP_UID, Boolean.FALSE.toString()));
     String additionalParameters =
-        TagUtil.getTagAttribute(xmler, ArcParameters.ADDITIONNAL_PARAMETERS, "");
+        TagUtil.getTagAttribute(xmler, ArcParameters.ADDITIONAL_PARAMETERS, "");
     String overrideList = TagUtil.getTagAttribute(xmler, ArcParameters.OVERRIDE_TAGS, null);
     String queryMode = TagUtil.getTagAttribute(xmler, "queryMode", null);
     // TODO replace with enum in library
