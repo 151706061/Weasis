@@ -116,10 +116,6 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
     }
   }
 
-  public JFormattedTextField getEditor() {
-    return editor;
-  }
-
   public boolean is24HourView() {
     return panelClock.isUse24hour();
   }
@@ -298,10 +294,7 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
 
   private TimeSelectionListener getTimeSelectionListener() {
     if (timeSelectionListener == null) {
-      timeSelectionListener =
-          timeSelectionEvent -> {
-            setEditorValue();
-          };
+      timeSelectionListener = _ -> setEditorValue();
     }
     return timeSelectionListener;
   }
@@ -317,7 +310,7 @@ public class TimePicker extends PanelPopupEditor implements TimeSelectionModelLi
     }
   }
 
-  private InputValidationListener getInputValidationListener() {
+  private InputValidationListener<LocalTime> getInputValidationListener() {
     if (inputValidationListener == null) {
       inputValidationListener =
           new InputValidationListener<>() {

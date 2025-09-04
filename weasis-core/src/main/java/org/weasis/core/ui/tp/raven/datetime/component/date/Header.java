@@ -10,13 +10,13 @@
 package org.weasis.core.ui.tp.raven.datetime.component.date;
 
 import com.formdev.flatlaf.FlatClientProperties;
-import java.text.DateFormatSymbols;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.ActionIcon;
+import org.weasis.core.ui.tp.raven.datetime.DatePicker;
 import org.weasis.core.ui.tp.raven.datetime.component.date.event.DateControlEvent;
 import org.weasis.core.ui.tp.raven.datetime.component.date.event.DateControlListener;
 
@@ -110,7 +110,7 @@ public class Header extends JPanel {
   }
 
   public void setDate(int month, int year) {
-    buttonMonth.setText(DateFormatSymbols.getInstance().getMonths()[month]);
+    buttonMonth.setText(DatePicker.getDefaultMonths()[month]);
     buttonYear.setText(year + "");
   }
 

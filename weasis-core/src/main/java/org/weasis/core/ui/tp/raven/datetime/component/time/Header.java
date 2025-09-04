@@ -13,6 +13,7 @@ import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.Color;
 import java.text.DateFormatSymbols;
 import java.text.DecimalFormat;
+import java.util.Locale;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -140,13 +141,10 @@ public class Header extends JPanel {
   }
 
   protected JButton createAmPmButton(boolean isAm) {
-    String[] amPM = DateFormatSymbols.getInstance().getAmPmStrings();
+    String[] amPM = DateFormatSymbols.getInstance(Locale.ENGLISH).getAmPmStrings();
     String amOrPm = isAm ? amPM[0] : amPM[1];
     JButton button = new JButton(amOrPm);
-    button.addActionListener(
-        e -> {
-          actionAmPmChanged(isAm);
-        });
+    button.addActionListener(e -> actionAmPmChanged(isAm));
     button.putClientProperty(
         FlatClientProperties.STYLE,
         "font:+1;"

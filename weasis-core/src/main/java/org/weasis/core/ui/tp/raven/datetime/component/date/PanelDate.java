@@ -11,7 +11,6 @@ package org.weasis.core.ui.tp.raven.datetime.component.date;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.Component;
-import java.text.DateFormatSymbols;
 import java.util.Calendar;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -55,9 +54,13 @@ public class PanelDate extends JPanel {
     final int t = col * row;
     Calendar calendar = Calendar.getInstance();
     calendar.set(Calendar.YEAR, year);
-    calendar.set(Calendar.MONDAY, month);
+    calendar.set(Calendar.MONTH, month);
     calendar.set(Calendar.DATE, 1);
-    int startDay = calendar.get(Calendar.DAY_OF_WEEK) - (datePicker.isStartWeekOnMonday() ? 2 : 1);
+    int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+    if (datePicker.isStartWeekOnMonday() && dayOfWeek == Calendar.SUNDAY) {
+      dayOfWeek = 8;
+    }
+    int startDay = dayOfWeek - (datePicker.isStartWeekOnMonday() ? 2 : 1);
     calendar.add(Calendar.DATE, -startDay);
     int rowIndex = 0;
     for (int i = 1; i <= t; i++) {
@@ -68,8 +71,7 @@ public class PanelDate extends JPanel {
                   .getDateSelectionModel()
                   .getDateSelectionAble()
                   .isDateSelectedAble(singleDate.toLocalDate());
-      boolean enable =
-          calendar.get(Calendar.MONDAY) == month && calendar.get(Calendar.YEAR) == year;
+      boolean enable = calendar.get(Calendar.MONTH) == month && calendar.get(Calendar.YEAR) == year;
       JButton button = createButton(new SingleDate(calendar), enable, rowIndex);
       if (!selectable) {
         button.setEnabled(false);
@@ -86,7 +88,7 @@ public class PanelDate extends JPanel {
   }
 
   protected void createDateHeader() {
-    String[] weekdays = DateFormatSymbols.getInstance().getShortWeekdays();
+    String[] weekdays = DatePicker.getDefaultWeekdays();
     // swap monday to the start day of week
     if (datePicker.isStartWeekOnMonday()) {
       String sunday = weekdays[1];
@@ -122,8 +124,7 @@ public class PanelDate extends JPanel {
   public void checkSelection() {
     for (int i = 0; i < getComponentCount(); i++) {
       Component com = getComponent(i);
-      if (com instanceof ButtonDate) {
-        ButtonDate buttonDate = (ButtonDate) com;
+      if (com instanceof ButtonDate buttonDate) {
         if (datePicker.getDateSelectionModel().getDateSelectionMode()
             == DatePicker.DateSelectionMode.SINGLE_DATE_SELECTED) {
           buttonDate.setSelected(

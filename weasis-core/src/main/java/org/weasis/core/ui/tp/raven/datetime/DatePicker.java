@@ -11,8 +11,10 @@ package org.weasis.core.ui.tp.raven.datetime;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.*;
+import java.text.DateFormatSymbols;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -21,6 +23,7 @@ import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.OtherIcon;
 import org.weasis.core.ui.tp.raven.datetime.component.PanelPopupEditor;
 import org.weasis.core.ui.tp.raven.datetime.component.date.DateSelectionModel;
+import org.weasis.core.ui.tp.raven.datetime.component.date.DefaultDateCellRenderer;
 import org.weasis.core.ui.tp.raven.datetime.component.date.Header;
 import org.weasis.core.ui.tp.raven.datetime.component.date.PanelDate;
 import org.weasis.core.ui.tp.raven.datetime.component.date.PanelMonth;
@@ -47,6 +50,9 @@ import org.weasis.core.ui.tp.raven.slider.SliderTransition;
 public class DatePicker extends PanelPopupEditor
     implements DateSelectionModelListener, DateControlListener, ChangeListener {
 
+  private static String[] defaultWeekdays = null;
+  private static String[] defaultMonths = null;
+
   private DateTimeFormatter format;
   private String dateFormatPattern = "dd/MM/yyyy";
   private DateSelectionListener dateSelectionListener;
@@ -61,6 +67,7 @@ public class DatePicker extends PanelPopupEditor
   private boolean closeAfterSelected;
   private boolean animationEnabled = true;
   private boolean startWeekOnMonday;
+  private float selectionArc = 999;
   private int month = 10;
   private int year = 2023;
   private Color color;
@@ -70,6 +77,7 @@ public class DatePicker extends PanelPopupEditor
   private PanelMonth panelMonth;
   private PanelYear panelYear;
 
+  private DefaultDateCellRenderer defaultDateCellRenderer = new DefaultDateCellRenderer();
   private final Header header = new Header();
   private final PanelSlider panelSlider = new PanelSlider();
 
@@ -86,7 +94,7 @@ public class DatePicker extends PanelPopupEditor
         FlatClientProperties.STYLE,
         "[light]background:darken($Panel.background,2%);"
             + "[dark]background:lighten($Panel.background,2%);");
-    setLayout(new MigLayout("wrap,insets 10,fill", "[fill]"));
+    setLayout(new MigLayout("wrap,insets 10,fill", "[fill]", "[top,grow 0][center,fill]"));
 
     format = DateTimeFormatter.ofPattern(dateFormatPattern);
     header.addDateControlListener(this);
@@ -285,10 +293,6 @@ public class DatePicker extends PanelPopupEditor
     }
   }
 
-  public JFormattedTextField getEditor() {
-    return editor;
-  }
-
   public Icon getEditorIcon() {
     return editorIcon;
   }
@@ -431,7 +435,20 @@ public class DatePicker extends PanelPopupEditor
       if (selectionState == SelectionState.DATE && panelDate != null) {
         // update the panel date
         panelDate.load();
+        panelDate.repaint();
+        panelDate.revalidate();
       }
+    }
+  }
+
+  public float getSelectionArc() {
+    return selectionArc;
+  }
+
+  public void setSelectionArc(float selectionArc) {
+    if (this.selectionArc != selectionArc) {
+      this.selectionArc = selectionArc;
+      updateSelected();
     }
   }
 
@@ -514,6 +531,15 @@ public class DatePicker extends PanelPopupEditor
 
   public void removeDateSelectionListener(DateSelectionListener listener) {
     listenerList.remove(DateSelectionListener.class, listener);
+  }
+
+  public DefaultDateCellRenderer getDefaultDateCellRenderer() {
+    return defaultDateCellRenderer;
+  }
+
+  public void setDefaultDateCellRenderer(DefaultDateCellRenderer defaultDateCellRenderer) {
+    this.defaultDateCellRenderer = defaultDateCellRenderer;
+    repaint();
   }
 
   public Header getHeader() {
@@ -661,10 +687,7 @@ public class DatePicker extends PanelPopupEditor
 
   private DateSelectionListener getDateSelectionListener() {
     if (dateSelectionListener == null) {
-      dateSelectionListener =
-          dateSelectionEvent -> {
-            setEditorValue();
-          };
+      dateSelectionListener = _ -> setEditorValue();
     }
     return dateSelectionListener;
   }
@@ -672,7 +695,7 @@ public class DatePicker extends PanelPopupEditor
   private void setEditorValue() {
     String value = getSelectedDateAsString();
     if (value != null) {
-      if (!editor.getText().toLowerCase().equals(value.toLowerCase())) {
+      if (!editor.getText().equalsIgnoreCase(value)) {
         editor.setValue(value);
       }
     } else {
@@ -680,7 +703,7 @@ public class DatePicker extends PanelPopupEditor
     }
   }
 
-  private InputValidationListener getInputValidationListener() {
+  private InputValidationListener<LocalDate> getInputValidationListener() {
     if (inputValidationListener == null) {
       inputValidationListener =
           new InputValidationListener<LocalDate>() {
@@ -787,6 +810,36 @@ public class DatePicker extends PanelPopupEditor
     PanelYear panelYear = new PanelYear(this, year);
     setPanelYear(panelYear);
     return panelYear;
+  }
+
+  public static void setDefaultWeekdays(String[] defaultWeekdays) {
+    if (defaultWeekdays == null) {
+      DatePicker.defaultWeekdays = null;
+    } else {
+      DatePicker.defaultWeekdays = Arrays.copyOf(defaultWeekdays, defaultWeekdays.length);
+    }
+  }
+
+  public static String[] getDefaultWeekdays() {
+    if (defaultWeekdays == null) {
+      return DateFormatSymbols.getInstance().getShortWeekdays();
+    }
+    return Arrays.copyOf(defaultWeekdays, defaultWeekdays.length);
+  }
+
+  public static void setDefaultMonths(String[] defaultMonths) {
+    if (defaultMonths == null) {
+      DatePicker.defaultMonths = null;
+    } else {
+      DatePicker.defaultMonths = Arrays.copyOf(defaultMonths, defaultMonths.length);
+    }
+  }
+
+  public static String[] getDefaultMonths() {
+    if (defaultMonths == null) {
+      return DateFormatSymbols.getInstance().getMonths();
+    }
+    return Arrays.copyOf(defaultMonths, defaultMonths.length);
   }
 
   public enum DateSelectionMode {

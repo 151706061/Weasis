@@ -11,7 +11,6 @@ package org.weasis.core.ui.tp.raven.datetime.component.date;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import java.awt.Component;
-import java.text.DateFormatSymbols;
 import javax.swing.JPanel;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -47,7 +46,7 @@ public class PanelMonth extends JPanel {
     for (int i = 0; i < count; i++) {
       final int month = i;
       ButtonMonthYear button = new ButtonMonthYear(datePicker, i);
-      button.setText(DateFormatSymbols.getInstance().getMonths()[i]);
+      button.setText(DatePicker.getDefaultMonths()[i]);
       if (checkSelected(month + 1)) {
         button.setSelected(true);
       }
