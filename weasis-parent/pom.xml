@@ -14,7 +14,7 @@
   <properties>
     <!-- force command line arguments settings to set version -->
     <!-- $ mvn clean install -Drevision=4.2.2 -Dchangelist=-SNAPSHOT -->
-    <revision>4.6.4</revision>
+    <revision>4.7.0</revision>
     <changelist>-SNAPSHOT</changelist>  <!-- Remove "-SNAPSHOT" for release -->
 
     <java-version>24</java-version>
@@ -27,7 +27,7 @@
     <app.version>${revision}${changelist}</app.version>
     <base.minimal.version>4.6.0</base.minimal.version>
     <i18n.version>4.0.0-SNAPSHOT</i18n.version>
-    <weasis.releasenotes>https://github.com/nroduit/Weasis/blob/master/CHANGELOG.md#v463-2025-08-15</weasis.releasenotes>
+    <weasis.releasenotes>https://github.com/nroduit/Weasis/blob/master/CHANGELOG.md#v465-2025-10-05</weasis.releasenotes>
 
     <felix.framework.version>7.0.5</felix.framework.version>
     <flatlaf.version>3.6.1</flatlaf.version>
@@ -48,12 +48,12 @@
     <felix.scr.version>2.2.14</felix.scr.version>
 
     <slf4j.version>2.0.17</slf4j.version>
-    <logback.version>1.5.18</logback.version>
+    <logback.version>1.5.19</logback.version>
     <dockingframes.version>1.1.7</dockingframes.version>
-    <weasis-dicom-tools.version>5.34.0.3-SNAPSHOT</weasis-dicom-tools.version>
-    <weasis.core.img.version>4.11.0.3</weasis.core.img.version>
-    <weasis.opencv.native.version>4.11.0-dcm</weasis.opencv.native.version>
-    <weasis.opencv.pkg.version>4.11.1-dcm</weasis.opencv.pkg.version>
+    <weasis-dicom-tools.version>5.34.1.1</weasis-dicom-tools.version>
+    <weasis.core.img.version>4.12.2</weasis.core.img.version>
+    <weasis.opencv.native.version>4.12.2-dcm</weasis.opencv.native.version>
+    <weasis.opencv.pkg.version>4.12.2-dcm</weasis.opencv.pkg.version>
     <osgi.resource.locator.version>3.0.0</osgi.resource.locator.version>
     <jaxb.osgi.version>4.0.3</jaxb.osgi.version>
     <xml.bind-api.version>4.0.4</xml.bind-api.version>
@@ -646,6 +646,12 @@
     <dependency>
       <groupId>org.apache.felix</groupId>
       <artifactId>org.apache.felix.prefs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+      <version>26.0.2</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- FOR TESTS -->
