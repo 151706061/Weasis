@@ -404,7 +404,7 @@ public class VolImageIO implements DcmMediaReader {
       try (DicomOutputStream dos = new DicomOutputStream(new FileOutputStream(output), dstTsuid)) {
         dos.writeFileMetaInformation(dataSet.createFileMetaInformation(dstTsuid));
         if (DicomOutputData.isNativeSyntax(dstTsuid)) {
-          imgData.writRawImageData(dos, dataSet);
+          imgData.writeRawImageData(dos, dataSet);
         } else {
           int[] jpegWriteParams =
               imgData.adaptTagsToCompressedImage(

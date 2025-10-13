@@ -49,6 +49,7 @@ import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.geometry.ImageOrientation;
 import org.weasis.dicom.explorer.DicomModel;
+import org.weasis.dicom.explorer.LoadLocalDicom;
 import org.weasis.dicom.explorer.Messages;
 import org.weasis.dicom.explorer.MimeSystemAppFactory;
 import org.weasis.dicom.explorer.tag.DicomFieldsView;
