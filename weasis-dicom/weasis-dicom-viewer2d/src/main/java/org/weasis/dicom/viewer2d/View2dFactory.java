@@ -100,7 +100,7 @@ public class View2dFactory implements SeriesViewerFactory {
       Iterator<LayoutConstraints> enumVal = layout.getConstraints().keySet().iterator();
       while (enumVal.hasNext()) {
         try {
-          Class<?> clazz = Class.forName(enumVal.next().getType());
+          Class<?> clazz = Class.forName(enumVal.next().type());
           if (defaultClass.isAssignableFrom(clazz)) {
             val++;
           }

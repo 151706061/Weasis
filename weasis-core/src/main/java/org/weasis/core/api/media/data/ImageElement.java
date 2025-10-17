@@ -239,7 +239,7 @@ public class ImageElement extends MediaElement {
     if (unit.equals(Unit.PIXEL)) {
       unitRatio = 1.0;
     } else {
-      unitRatio = getPixelSize() * unit.getConversionRatio(pixelSpacingUnit.getConvFactor());
+      unitRatio = getPixelSize() * unit.getConversionRatio(pixelSpacingUnit.getFactorToMeters());
     }
     int offsetx = offset == null ? 0 : -offset.x;
     int offsety = offset == null ? 0 : -offset.y;
@@ -409,10 +409,10 @@ public class ImageElement extends MediaElement {
       }
     }
     if (manager != null && cacheImage != null) {
-      PlanarImage img = manager.getLastNodeOutputImage();
-      if (manager.getFirstNodeInputImage() != cacheImage || manager.needProcessing()) {
+      PlanarImage img = manager.getLastNodeOutputImage().orElse(null);
+      if (manager.getFirstNodeInputImage().orElse(null) != cacheImage || manager.needProcessing()) {
         manager.setFirstNode(cacheImage);
-        img = manager.process();
+        img = manager.process().orElse(null);
         // Compute again the min/max with the manager (preprocessing)
         resetImageAvailable();
         findMinMaxValues(img, true);

@@ -258,12 +258,13 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
           if (val instanceof PresetWindowLevel preset) {
             DicomImageElement img = getImage();
-            ImageOpNode node = disOp.getNode(WindowOp.OP_NAME);
+            Optional<ImageOpNode> node = disOp.getNode(WindowOp.OP_NAME);
 
-            if (node != null) {
-              node.setParam(ActionW.WINDOW.cmd(), preset.getWindow());
-              node.setParam(ActionW.LEVEL.cmd(), preset.getLevel());
-              node.setParam(ActionW.LUT_SHAPE.cmd(), preset.getLutShape());
+            if (node.isPresent()) {
+              ImageOpNode n = node.get();
+              n.setParam(ActionW.WINDOW.cmd(), preset.getWindow());
+              n.setParam(ActionW.LEVEL.cmd(), preset.getLevel());
+              n.setParam(ActionW.LUT_SHAPE.cmd(), preset.getLutShape());
               // When series synchronization, do not synch preset from other series
               if (img == null || !img.containsPreset(preset)) {
                 List<PresetWindowLevel> presets =
@@ -272,17 +273,15 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                   preset = null;
                 }
               }
-              node.setParam(ActionW.PRESET.cmd(), preset);
+              n.setParam(ActionW.PRESET.cmd(), preset);
             }
             imageLayer.updateDisplayOperations();
           }
         } else if (command.equals(ActionW.DEFAULT_PRESET.cmd())) {
           disOp.setParamValue(WindowOp.OP_NAME, ActionW.DEFAULT_PRESET.cmd(), val);
         } else if (command.equals(ActionW.LUT_SHAPE.cmd())) {
-          ImageOpNode node = disOp.getNode(WindowOp.OP_NAME);
-          if (node != null) {
-            node.setParam(ActionW.LUT_SHAPE.cmd(), val);
-          }
+          Optional<ImageOpNode> node = disOp.getNode(WindowOp.OP_NAME);
+          node.ifPresent(imageOpNode -> imageOpNode.setParam(ActionW.LUT_SHAPE.cmd(), val));
           imageLayer.updateDisplayOperations();
         } else if (command.equals(ActionW.SORT_STACK.cmd())) {
           actionsInView.put(ActionW.SORT_STACK.cmd(), val);
@@ -1017,9 +1016,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
       final PixelInfo pixelInfo, final DicomImageElement imageElement, final double[] c) {
     if (c != null && c.length >= 1) {
       WlPresentation wlp = null;
-      WindowOp wlOp = (WindowOp) getDisplayOpManager().getNode(WindowOp.OP_NAME);
-      if (wlOp != null) {
-        wlp = wlOp.getWlPresentation();
+      Optional<ImageOpNode> wlOp = getDisplayOpManager().getNode(WindowOp.OP_NAME);
+      if (wlOp.isPresent() && wlOp.get() instanceof WindowOp windowOp) {
+        wlp = windowOp.getWlPresentation();
       }
       for (int i = 0; i < c.length; i++) {
         c[i] = imageElement.pixelToRealValue(c[i], wlp).doubleValue();

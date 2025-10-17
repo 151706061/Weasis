@@ -220,7 +220,7 @@ public class VolumeCanvas extends GLJPanel implements Canvas {
           if (realFactor > 0.0) {
             Unit imgUnit = vol.getPixelSpacingUnit();
             if (!Unit.PIXEL.equals(imgUnit)) {
-              viewScale = imgUnit.getConvFactor() * vol.getTexelSize().x / realFactor;
+              viewScale = imgUnit.getFactorToMeters() * vol.getTexelSize().x / realFactor;
               viewScale = -adjustViewScale(viewScale);
             }
           }

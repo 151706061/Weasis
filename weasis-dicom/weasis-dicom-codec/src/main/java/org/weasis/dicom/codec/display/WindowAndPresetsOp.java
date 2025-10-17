@@ -33,12 +33,12 @@ public class WindowAndPresetsOp extends WindowOp {
 
   @Override
   public void handleImageOpEvent(ImageOpEvent event) {
-    OpEvent type = event.getEventType();
+    OpEvent type = event.eventType();
     if (OpEvent.IMAGE_CHANGE.equals(type)) {
-      setParam(P_IMAGE_ELEMENT, event.getImage());
+      setParam(P_IMAGE_ELEMENT, event.image());
       removeParam(P_PR_ELEMENT);
     } else if (OpEvent.RESET_DISPLAY.equals(type) || OpEvent.SERIES_CHANGE.equals(type)) {
-      ImageElement img = event.getImage();
+      ImageElement img = event.image();
       setParam(P_IMAGE_ELEMENT, img);
       PrDicomObject pr = (PrDicomObject) getParam(P_PR_ELEMENT);
       removeParam(P_PR_ELEMENT);
@@ -61,7 +61,7 @@ public class WindowAndPresetsOp extends WindowOp {
         setPreset(preset, img, pixelPadding);
       }
     } else if (OpEvent.APPLY_PR.equals(type)) {
-      ImageElement img = event.getImage();
+      ImageElement img = event.image();
       setParam(P_IMAGE_ELEMENT, img);
       if (img != null) {
         if (!img.isImageAvailable()) {
@@ -70,7 +70,7 @@ public class WindowAndPresetsOp extends WindowOp {
         }
         boolean pixelPadding =
             LangUtil.nullToTrue((Boolean) getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
-        Map<String, Object> p = event.getParams();
+        Map<String, Object> p = event.params();
         if (p != null) {
           PRSpecialElement pr =
               Optional.ofNullable(p.get(ActionW.PR_STATE.cmd()))
@@ -104,7 +104,7 @@ public class WindowAndPresetsOp extends WindowOp {
   }
 
   public void process() throws Exception {
-    PlanarImage source = (PlanarImage) params.get(Param.INPUT_IMG);
+    PlanarImage source = getSourceImage();
     PlanarImage result = source;
     ImageElement imageElement = (ImageElement) params.get(P_IMAGE_ELEMENT);
 

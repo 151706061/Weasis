@@ -211,7 +211,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
     disOp.setParamValue(
         AffineTransformOp.OP_NAME,
         AffineTransformOp.P_INTERPOLATION,
-        Interpolation.getInterpolation(eventManager.getZoomSetting().getInterpolation()));
+        Interpolation.fromPosition(eventManager.getZoomSetting().getInterpolation()));
     disOp.setParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_AFFINE_MATRIX, null);
     disOp.setParamValue(FilterOp.OP_NAME, FilterOp.P_KERNEL_DATA, KernelData.NONE);
     disOp.setParamValue(PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT, ColorLut.IMAGE.getByteLut());
@@ -619,7 +619,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
           if (realFactor > 0.0) {
             Unit imgUnit = img.getPixelSpacingUnit();
             if (!Unit.PIXEL.equals(imgUnit)) {
-              viewScale = imgUnit.getConvFactor() * img.getPixelSize() / realFactor;
+              viewScale = imgUnit.getFactorToMeters() * img.getPixelSize() / realFactor;
               viewScale = -adjustViewScale(viewScale);
             }
           }
@@ -867,8 +867,8 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
   }
 
   protected void updateAffineTransform() {
-    ImageOpNode node = getDisplayOpManager().getNode(AffineTransformOp.OP_NAME);
-    super.updateAffineTransform(this, node, imageLayer, 0.0);
+    Optional<ImageOpNode> node = getDisplayOpManager().getNode(AffineTransformOp.OP_NAME);
+    super.updateAffineTransform(this, node.orElse(null), imageLayer, 0.0);
   }
 
   @Override
@@ -889,11 +889,11 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
 
   @Override
   public void changeZoomInterpolation(Interpolation interpolation) {
-    Interpolation val =
-        (Interpolation)
-            getDisplayOpManager()
-                .getParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_INTERPOLATION);
-    boolean update = !Objects.equals(val, interpolation);
+    Optional<Interpolation> val =
+        getDisplayOpManager()
+            .getParamValue(
+                AffineTransformOp.OP_NAME, AffineTransformOp.P_INTERPOLATION, Interpolation.class);
+    boolean update = !Objects.equals(val.orElse(null), interpolation);
     if (update) {
       getDisplayOpManager()
           .setParamValue(

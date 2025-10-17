@@ -417,11 +417,11 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
     GraphicSelectionListener glistener = null;
     final Map<LayoutConstraints, Component> elements = this.layoutModel.getConstraints();
     for (LayoutConstraints e : elements.keySet()) {
-      boolean typeView2d = isViewType(view2dClass, e.getType());
+      boolean typeView2d = isViewType(view2dClass, e.type());
       if (typeView2d) {
         ViewCanvas<E> viewCanvas;
         if (oldViews.isEmpty()) {
-          viewCanvas = createDefaultView(e.getType());
+          viewCanvas = createDefaultView(e.type());
           if (viewCanvas != null) {
             viewCanvas.registerDefaultListeners();
           }
@@ -437,7 +437,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
           }
         }
       } else {
-        Component component = createComponent(e.getType());
+        Component component = createComponent(e.type());
         if (component != null) {
           if (component instanceof JComponent jComponent) {
             jComponent.setOpaque(true);
@@ -910,7 +910,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
     int val = 0;
     if (layout != null) {
       for (LayoutConstraints layoutConstraints : layout.getConstraints().keySet()) {
-        if (layoutConstraints.getColor() == null) {
+        if (layoutConstraints.color() == null) {
           val++;
         }
       }
@@ -1003,13 +1003,13 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
         Component c = entry.getValue();
         if (c != null) {
           Rectangle rect = c.getBounds();
-          if (Math.abs(rect.x - pickPoint.x) <= LayoutConstraints.SPACE
+          if (Math.abs(rect.x - pickPoint.x) <= LayoutConstraints.DEFAULT_SPACE
               && (pickPoint.y >= rect.y && pickPoint.y <= rect.y + rect.height)
               && entry.getKey().gridx > 0) {
             splitVertical = true;
             point = new Point(entry.getKey().gridx, entry.getKey().gridy);
             break;
-          } else if (Math.abs(rect.y - pickPoint.y) <= LayoutConstraints.SPACE
+          } else if (Math.abs(rect.y - pickPoint.y) <= LayoutConstraints.DEFAULT_SPACE
               && (pickPoint.x >= rect.x && pickPoint.x <= rect.x + rect.width)
               && entry.getKey().gridy > 0) {
             splitVertical = false;
@@ -1163,12 +1163,12 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
         Component c = entry.getValue();
         if (c != null) {
           Rectangle rect = c.getBounds();
-          if ((Math.abs(rect.x - p.x) <= LayoutConstraints.SPACE
-                  || Math.abs(rect.x + rect.width - p.x) <= LayoutConstraints.SPACE)
+          if ((Math.abs(rect.x - p.x) <= LayoutConstraints.DEFAULT_SPACE
+                  || Math.abs(rect.x + rect.width - p.x) <= LayoutConstraints.DEFAULT_SPACE)
               && (p.y >= rect.y && p.y <= rect.y + rect.height)) {
             return Cursor.E_RESIZE_CURSOR;
-          } else if ((Math.abs(rect.y - p.y) <= LayoutConstraints.SPACE
-                  || Math.abs(rect.y + rect.height - p.y) <= LayoutConstraints.SPACE)
+          } else if ((Math.abs(rect.y - p.y) <= LayoutConstraints.DEFAULT_SPACE
+                  || Math.abs(rect.y + rect.height - p.y) <= LayoutConstraints.DEFAULT_SPACE)
               && (p.x >= rect.x && p.x <= rect.x + rect.width)) {
             return Cursor.S_RESIZE_CURSOR;
           }

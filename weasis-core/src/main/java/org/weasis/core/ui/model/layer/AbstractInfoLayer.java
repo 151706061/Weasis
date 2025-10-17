@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.osgi.service.prefs.Preferences;
 import org.weasis.core.api.gui.util.DecFormatter;
+import org.weasis.core.api.image.ImageOpNode;
 import org.weasis.core.api.image.OpManager;
 import org.weasis.core.api.image.WindowOp;
 import org.weasis.core.api.image.util.Unit;
@@ -356,9 +357,9 @@ public abstract class AbstractInfoLayer<E extends ImageElement> extends DefaultU
   private WlParams getWinLeveParameters() {
     if (view2DPane != null) {
       OpManager dispOp = view2DPane.getDisplayOpManager();
-      WindowOp wlOp = (WindowOp) dispOp.getNode(WindowOp.OP_NAME);
-      if (wlOp != null) {
-        return wlOp.getWindLevelParameters();
+      Optional<ImageOpNode> wlOp = dispOp.getNode(WindowOp.OP_NAME);
+      if (wlOp.isPresent() && wlOp.get() instanceof WindowOp windowOp) {
+        return windowOp.getWindLevelParameters();
       }
     }
     return null;
@@ -565,8 +566,8 @@ public abstract class AbstractInfoLayer<E extends ImageElement> extends DefaultU
 
     if (scaleLength < 1.0) {
       Unit down = adjustUnit;
-      while ((down = down.getDownUnit()) != null) {
-        double length = scaleLength * down.getConversionRatio(unit[0].getConvFactor());
+      while ((down = down.getNextSmallerUnit().orElse(null)) != null) {
+        double length = scaleLength * down.getConversionRatio(unit[0].getFactorToMeters());
         if (length > 1) {
           adjustUnit = down;
           adjustScaleLength = length;
@@ -575,8 +576,8 @@ public abstract class AbstractInfoLayer<E extends ImageElement> extends DefaultU
       }
     } else if (scaleLength > 10.0) {
       Unit up = adjustUnit;
-      while ((up = up.getUpUnit()) != null) {
-        double length = scaleLength * up.getConversionRatio(unit[0].getConvFactor());
+      while ((up = up.getNextLargerUnit().orElse(null)) != null) {
+        double length = scaleLength * up.getConversionRatio(unit[0].getFactorToMeters());
         if (length < 1) {
           break;
         }

@@ -239,7 +239,8 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
   }
 
   private ComboItemListener<KernelData> newFilterAction() {
-    return new ComboItemListener<>(ActionW.FILTER, KernelData.getAllFilters()) {
+    return new ComboItemListener<>(
+        ActionW.FILTER, KernelData.getAllFilters().toArray(new KernelData[0])) {
 
       @Override
       public void itemStateChanged(Object object) {
@@ -363,11 +364,10 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                   : null;
           PresetWindowLevel newPreset = null;
           boolean pixelPadding =
-              LangUtil.nullToTrue(
-                  (Boolean)
-                      view2d
-                          .getDisplayOpManager()
-                          .getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd()));
+              view2d
+                  .getDisplayOpManager()
+                  .getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd(), Boolean.class)
+                  .orElse(Boolean.TRUE);
           PRSpecialElement pr =
               Optional.ofNullable(view2d.getActionValue(ActionW.PR_STATE.cmd()))
                   .filter(PRSpecialElement.class::isInstance)
@@ -415,15 +415,15 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                   : newPreset.getLutShape();
 
           Double levelMin =
-              (Double)
-                  view2d
-                      .getDisplayOpManager()
-                      .getParamValue(WindowOp.OP_NAME, ActionW.LEVEL_MIN.cmd());
+              view2d
+                  .getDisplayOpManager()
+                  .getParamValue(WindowOp.OP_NAME, ActionW.LEVEL_MIN.cmd(), Double.class)
+                  .orElse(null);
           Double levelMax =
-              (Double)
-                  view2d
-                      .getDisplayOpManager()
-                      .getParamValue(WindowOp.OP_NAME, ActionW.LEVEL_MAX.cmd());
+              view2d
+                  .getDisplayOpManager()
+                  .getParamValue(WindowOp.OP_NAME, ActionW.LEVEL_MAX.cmd(), Double.class)
+                  .orElse(null);
 
           if (levelMin == null || levelMax == null) {
             levelMin = Math.min(levelValue - windowValue / 2.0, image.getMinValue(wlp));
@@ -437,15 +437,16 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
           // imageLayer.updateImageOperation(WindowOp.name.....
           // TODO pass to mediaEvent with PR and KO
 
-          ImageOpNode node = view2d.getDisplayOpManager().getNode(WindowOp.OP_NAME);
-          if (node != null) {
-            node.setParam(ActionW.PRESET.cmd(), newPreset);
-            node.setParam(ActionW.DEFAULT_PRESET.cmd(), isDefaultPresetSelected);
-            node.setParam(ActionW.WINDOW.cmd(), windowValue);
-            node.setParam(ActionW.LEVEL.cmd(), levelValue);
-            node.setParam(ActionW.LEVEL_MIN.cmd(), levelMin);
-            node.setParam(ActionW.LEVEL_MAX.cmd(), levelMax);
-            node.setParam(ActionW.LUT_SHAPE.cmd(), lutShapeItem);
+          Optional<ImageOpNode> node = view2d.getDisplayOpManager().getNode(WindowOp.OP_NAME);
+          if (node.isPresent()) {
+            ImageOpNode n = node.get();
+            n.setParam(ActionW.PRESET.cmd(), newPreset);
+            n.setParam(ActionW.DEFAULT_PRESET.cmd(), isDefaultPresetSelected);
+            n.setParam(ActionW.WINDOW.cmd(), windowValue);
+            n.setParam(ActionW.LEVEL.cmd(), levelValue);
+            n.setParam(ActionW.LEVEL_MIN.cmd(), levelMin);
+            n.setParam(ActionW.LEVEL_MAX.cmd(), levelMax);
+            n.setParam(ActionW.LUT_SHAPE.cmd(), lutShapeItem);
           }
           updateWindowLevelComponentsListener(image, view2d);
         }
@@ -678,14 +679,14 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
   }
 
   private ComboItemListener<ByteLut> newLutAction() {
-    List<ByteLut> luts = new ArrayList<>();
-    luts.add(ColorLut.GRAY.getByteLut());
+    List<ByteLut> lutEntries = new ArrayList<>();
+    lutEntries.add(ColorLut.GRAY.getByteLut());
     ByteLutCollection.readLutFilesFromResourcesDir(
-        luts, ResourceUtil.getResource(DicomResource.LUTS));
+        lutEntries, ResourceUtil.getResource(DicomResource.LUTS).toPath());
     // Set default first as the list has been sorted
-    luts.addFirst(ColorLut.IMAGE.getByteLut());
+    lutEntries.addFirst(ColorLut.IMAGE.getByteLut());
 
-    return new ComboItemListener<>(ActionW.LUT, luts.toArray(new ByteLut[0])) {
+    return new ComboItemListener<>(ActionW.LUT, lutEntries.toArray(new ByteLut[0])) {
 
       @Override
       public void itemStateChanged(Object object) {
@@ -1022,8 +1023,10 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
         .ifPresent(
             a ->
                 a.setSelectedWithoutTriggerAction(
-                    (Boolean)
-                        dispOp.getParamValue(PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT_INVERSE)));
+                    dispOp
+                        .getParamValue(
+                            PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT_INVERSE, Boolean.class)
+                        .orElse(Boolean.FALSE)));
     getAction(ActionW.FILTER)
         .ifPresent(
             a ->
@@ -1158,17 +1161,18 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
   private void updateWindowLevelComponentsListener(
       DicomImageElement image, ViewCanvas<DicomImageElement> view2d) {
 
-    ImageOpNode node = view2d.getDisplayOpManager().getNode(WindowOp.OP_NAME);
-    if (node != null) {
+    Optional<ImageOpNode> node = view2d.getDisplayOpManager().getNode(WindowOp.OP_NAME);
+    if (node.isPresent()) {
+      ImageOpNode n = node.get();
       int imageDataType = ImageConversion.convertToDataType(image.getImage().type());
-      PresetWindowLevel preset = (PresetWindowLevel) node.getParam(ActionW.PRESET.cmd());
+      PresetWindowLevel preset = (PresetWindowLevel) n.getParam(ActionW.PRESET.cmd());
       boolean defaultPreset =
-          LangUtil.nullToTrue((Boolean) node.getParam(ActionW.DEFAULT_PRESET.cmd()));
-      Double windowValue = (Double) node.getParam(ActionW.WINDOW.cmd());
-      Double levelValue = (Double) node.getParam(ActionW.LEVEL.cmd());
-      LutShape lutShapeItem = (LutShape) node.getParam(ActionW.LUT_SHAPE.cmd());
+          LangUtil.nullToTrue((Boolean) n.getParam(ActionW.DEFAULT_PRESET.cmd()));
+      Double windowValue = (Double) n.getParam(ActionW.WINDOW.cmd());
+      Double levelValue = (Double) n.getParam(ActionW.LEVEL.cmd());
+      LutShape lutShapeItem = (LutShape) n.getParam(ActionW.LUT_SHAPE.cmd());
       boolean pixelPadding =
-          LangUtil.nullToTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+          LangUtil.nullToTrue((Boolean) n.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
       PrDicomObject prDicomObject =
           PRManager.getPrDicomObject(view2d.getActionValue(ActionW.PR_STATE.cmd()));
       DefaultWlPresentation wlp = new DefaultWlPresentation(prDicomObject, pixelPadding);
@@ -1188,8 +1192,8 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
         if (levelValue == null) {
           levelValue = levelAction.get().getRealValue();
         }
-        Double levelMin = (Double) node.getParam(ActionW.LEVEL_MIN.cmd());
-        Double levelMax = (Double) node.getParam(ActionW.LEVEL_MAX.cmd());
+        Double levelMin = (Double) n.getParam(ActionW.LEVEL_MIN.cmd());
+        Double levelMax = (Double) n.getParam(ActionW.LEVEL_MAX.cmd());
         double levelLow = Math.min(levelValue - windowValue / 2.0, image.getMinValue(wlp));
         double levelHigh = Math.max(levelValue + windowValue / 2.0, image.getMaxValue(wlp));
         if (levelMin == null || levelMax == null) {

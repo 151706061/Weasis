@@ -164,7 +164,7 @@ public final class Transform2Dicom {
         double unitRatio =
             imageElement.getPixelSize()
                 * Unit.MILLIMETER.getConversionRatio(
-                    imageElement.getPixelSpacingUnit().getConvFactor());
+                    imageElement.getPixelSpacingUnit().getFactorToMeters());
         attrs.setDouble(Tag.PixelSpacing, VR.DS, unitRatio, unitRatio);
       }
 
@@ -196,8 +196,10 @@ public final class Transform2Dicom {
       Attributes attrs) {
     Point2D offset = null;
     Rectangle crop =
-        (Rectangle)
-            imageInfo.getPostProcessOpManager().getParamValue(CropOp.OP_NAME, CropOp.P_AREA);
+        imageInfo
+            .getPostProcessOpManager()
+            .getParamValue(CropOp.OP_NAME, CropOp.P_AREA, Rectangle.class)
+            .orElse(null);
     if (crop != null) {
       offset = new Point2D.Double(crop.getX(), crop.getY());
     }

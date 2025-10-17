@@ -311,8 +311,10 @@ public class InfoLayer extends AbstractInfoLayer<DicomImageElement> {
 
   private float paintWindowLevel(
       Graphics2D g2, DicomImageElement image, OpManager disOp, float drawY, int fontHeight) {
-    Number window = (Number) disOp.getParamValue(WindowOp.OP_NAME, ActionW.WINDOW.cmd());
-    Number level = (Number) disOp.getParamValue(WindowOp.OP_NAME, ActionW.LEVEL.cmd());
+    Number window =
+        disOp.getParamValue(WindowOp.OP_NAME, ActionW.WINDOW.cmd(), Number.class).orElse(null);
+    Number level =
+        disOp.getParamValue(WindowOp.OP_NAME, ActionW.LEVEL.cmd(), Number.class).orElse(null);
 
     if (window != null && level != null) {
       boolean outside = isWindowLevelOutside(image, disOp, window, level);
@@ -332,7 +334,9 @@ public class InfoLayer extends AbstractInfoLayer<DicomImageElement> {
     PrDicomObject prDicomObject =
         PRManager.getPrDicomObject(view2DPane.getActionValue(ActionW.PR_STATE.cmd()));
     boolean pixelPadding =
-        (Boolean) disOp.getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd());
+        disOp
+            .getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd(), Boolean.class)
+            .orElse(true);
     DefaultWlPresentation wlp = new DefaultWlPresentation(prDicomObject, pixelPadding);
 
     double minModLUT = image.getMinValue(wlp);

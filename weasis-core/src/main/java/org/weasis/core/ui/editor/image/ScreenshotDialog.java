@@ -20,6 +20,7 @@ import java.awt.Window;
 import java.awt.image.RenderedImage;
 import java.io.File;
 import java.util.Objects;
+import java.util.Optional;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -201,14 +202,14 @@ public class ScreenshotDialog<I extends ImageElement> extends JDialog {
                       shutterCheckBox.isSelected(),
                       overlayCheckBox.isSelected(),
                       ratio);
-              PlanarImage inputImage = manager.getFirstNodeInputImage();
-              if (inputImage != null) {
-                PlanarImage rimage = manager.process();
-                if (rimage == null) {
+              Optional<PlanarImage> inputImage = manager.getFirstNodeInputImage();
+              if (inputImage.isPresent()) {
+                Optional<PlanarImage> rimage = manager.process();
+                if (rimage.isEmpty()) {
                   rimage = inputImage;
                 }
                 mustBeReleased = !Objects.equals(rimage, inputImage);
-                result = rimage;
+                result = rimage.orElse(null);
               }
             }
           }

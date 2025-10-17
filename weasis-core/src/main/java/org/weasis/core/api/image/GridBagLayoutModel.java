@@ -20,6 +20,8 @@ import java.awt.geom.Rectangle2D;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import javax.swing.Icon;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.SAXParser;
@@ -35,14 +37,22 @@ import org.weasis.core.api.util.Copyable;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.util.StringUtil;
 import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-/** GridBagLayoutModel is the model for the plugin container. */
-public class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel> {
+/**
+ * Model for grid-based layout management in plugin containers.
+ *
+ * <p>Manages layout constraints for component positioning using GridBagLayout and provides visual
+ * representation through dynamically generated icons. Supports initialization from code, XML
+ * streams, or copy construction.
+ */
+public final class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GridBagLayoutModel.class);
-  public static final int ICON_SIZE = 22;
+  private static final int ICON_SIZE = 22;
+  private static final String ELEMENT_TAG = "element";
+  private static final String LAYOUT_MODEL_TAG = "layoutModel";
+  private static final String FRACTION_SEPARATOR = "/";
 
   private String title;
   private Icon icon;
@@ -50,18 +60,69 @@ public class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel
 
   private final Map<LayoutConstraints, Component> constraints;
 
+  /**
+   * Creates a model with uniform grid layout.
+   *
+   * @param id unique identifier for this layout
+   * @param title display name
+   * @param rows number of rows
+   * @param cols number of columns
+   * @param defaultClass default component class name
+   */
   public GridBagLayoutModel(String id, String title, int rows, int cols, String defaultClass) {
+    this(createGridConstraints(rows, cols, defaultClass), id, title);
+  }
+
+  /**
+   * Creates a model with predefined constraints.
+   *
+   * @param constraints map of layout constraints to components
+   * @param id unique identifier
+   * @param title display name
+   */
+  public GridBagLayoutModel(
+      Map<LayoutConstraints, Component> constraints, String id, String title) {
+    this.title = Objects.requireNonNull(title, "title cannot be null");
+    this.id = Objects.requireNonNull(id, "id cannot be null");
+    this.constraints = Objects.requireNonNull(constraints, "constraints cannot be null");
+    this.icon = buildIcon();
+  }
+
+  /**
+   * Creates a model from XML stream.
+   *
+   * @param stream XML input stream containing layout definition
+   * @param id unique identifier
+   * @param title display name
+   */
+  public GridBagLayoutModel(InputStream stream, String id, String title) {
     this.title = title;
-    this.id = id;
-    this.constraints = new LinkedHashMap<>(cols * rows);
+    this.id = Objects.requireNonNull(id, "id cannot be null");
+    this.constraints = new LinkedHashMap<>();
+    parseXmlLayout(stream);
+    this.icon = Optional.ofNullable(icon).orElseGet(this::buildIcon);
+  }
+
+  /** Copy constructor. */
+  public GridBagLayoutModel(GridBagLayoutModel layoutModel) {
+    this.title = layoutModel.title;
+    this.id = layoutModel.id;
+    this.icon = layoutModel.icon;
+    this.constraints = copyConstraints(layoutModel.constraints);
+  }
+
+  private static Map<LayoutConstraints, Component> createGridConstraints(
+      int rows, int cols, String defaultClass) {
+    var constraints = new LinkedHashMap<LayoutConstraints, Component>(cols * rows);
     double weightX = 1.0 / cols;
     double weightY = 1.0 / rows;
+
     for (int y = 0; y < rows; y++) {
       for (int x = 0; x < cols; x++) {
-        constraints.put(
+        var constraint =
             new LayoutConstraints(
                 defaultClass,
-                y * cols + cols,
+                y * cols + x + 1,
                 x,
                 y,
                 1,
@@ -69,105 +130,40 @@ public class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel
                 weightX,
                 weightY,
                 GridBagConstraints.CENTER,
-                GridBagConstraints.BOTH),
-            null);
+                GridBagConstraints.BOTH);
+        constraints.put(constraint, null);
       }
     }
-    this.icon = buildIcon();
+    return constraints;
   }
 
-  public GridBagLayoutModel(
-      Map<LayoutConstraints, Component> constraints, String id, String title) {
-    if (constraints == null) {
-      throw new IllegalArgumentException("constraints cannot be null");
-    }
-    this.title = title;
-    this.id = id;
-    this.constraints = constraints;
-    this.icon = buildIcon();
+  private static Map<LayoutConstraints, Component> copyConstraints(
+      Map<LayoutConstraints, Component> original) {
+    var copy = new LinkedHashMap<LayoutConstraints, Component>(original.size());
+    original.keySet().forEach(constraint -> copy.put(constraint.copy(), null));
+    return copy;
   }
 
-  public GridBagLayoutModel(InputStream stream, String id, String title) {
-    this.title = title;
-    this.id = id;
-    this.constraints = new LinkedHashMap<>();
+  private void parseXmlLayout(InputStream stream) {
     try {
       SAXParserFactory factory = SAXParserFactory.newInstance();
-      factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+      configureSecureXmlParser(factory);
       SAXParser parser = factory.newSAXParser();
       parser.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
       parser.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-      parser.parse(stream, new SAXAdapter());
+      parser.parse(stream, new LayoutXmlHandler());
     } catch (Exception e) {
-      LOGGER.error("Loading layout xml", e);
+      LOGGER.error("Failed to parse layout XML", e);
     }
-    this.icon = icon == null ? buildIcon() : icon;
   }
 
-  public GridBagLayoutModel(GridBagLayoutModel layoutModel) {
-    this.title = layoutModel.title;
-    this.id = layoutModel.id;
-    this.icon = layoutModel.icon;
-
-    this.constraints = new LinkedHashMap<>(layoutModel.constraints.size());
-    for (LayoutConstraints layoutConstraints : layoutModel.constraints.keySet()) {
-      this.constraints.put(layoutConstraints.copy(), null);
-    }
+  private void configureSecureXmlParser(SAXParserFactory factory) throws Exception {
+    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
   }
 
   private Icon buildIcon() {
-    return new Icon() {
-
-      @Override
-      public void paintIcon(Component c, Graphics g, int x, int y) {
-        Graphics2D g2d = (Graphics2D) g;
-        Color oldColor = g.getColor();
-        Object[] hints = GuiUtils.setRenderingHints(g, true, true, false);
-
-        Color background = IconColor.ACTIONS_GREY.color;
-        Color foreground = FlatUIUtils.getUIColor("MenuItem.background", Color.WHITE);
-        if (c instanceof RadioMenuItem menuItem && menuItem.isArmed()) {
-          background = FlatUIUtils.getUIColor("MenuItem.selectionForeground", Color.DARK_GRAY);
-          foreground = FlatUIUtils.getUIColor("MenuItem.selectionBackground", Color.LIGHT_GRAY);
-        } else if (c instanceof RadioMenuItem menuItem && menuItem.isSelected()) {
-          foreground = FlatUIUtils.getUIColor("MenuItem.checkBackground", Color.BLUE);
-        }
-        g2d.setColor(background);
-        g2d.fillRect(x, y, getIconWidth(), getIconHeight());
-        g2d.setColor(foreground);
-        Dimension dim = getGridSize();
-        double stepX = getIconWidth() / dim.getWidth();
-        double stepY = getIconHeight() / dim.getHeight();
-
-        for (LayoutConstraints l : constraints.keySet()) {
-          Rectangle2D rect =
-              new Rectangle2D.Double(
-                  x + l.gridx * stepX,
-                  y + l.gridy * stepY,
-                  l.gridwidth * stepX,
-                  l.gridheight * stepY);
-          Color color = l.getColor();
-          if (color != null) {
-            g2d.setColor(color);
-            g2d.fill(rect);
-            g2d.setColor(foreground);
-          }
-          g2d.draw(rect);
-        }
-        g2d.setColor(oldColor);
-        GuiUtils.resetRenderingHints(g, hints);
-      }
-
-      @Override
-      public int getIconWidth() {
-        return GuiUtils.getScaleLength(ICON_SIZE);
-      }
-
-      @Override
-      public int getIconHeight() {
-        return GuiUtils.getScaleLength(ICON_SIZE);
-      }
-    };
+    return new LayoutIcon();
   }
 
   public String getId() {
@@ -183,18 +179,18 @@ public class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel
     return constraints;
   }
 
+  /** Returns the grid dimensions based on maximum coordinates. */
   public Dimension getGridSize() {
-    int lastx = 0;
-    int lasty = 0;
-    for (LayoutConstraints key : constraints.keySet()) {
-      if (key.gridx > lastx) {
-        lastx = key.gridx;
-      }
-      if (key.gridy > lasty) {
-        lasty = key.gridy;
-      }
-    }
-    return new Dimension(lastx + 1, lasty + 1);
+    return constraints.keySet().stream()
+        .reduce(
+            new Dimension(0, 0),
+            (dim, constraint) ->
+                new Dimension(
+                    Math.max(dim.width, constraint.gridx + 1),
+                    Math.max(dim.height, constraint.gridy + 1)),
+            (dim1, dim2) ->
+                new Dimension(
+                    Math.max(dim1.width, dim2.width), Math.max(dim1.height, dim2.height)));
   }
 
   @Override
@@ -225,118 +221,200 @@ public class GridBagLayoutModel implements GUIEntry, Copyable<GridBagLayoutModel
     return new GridBagLayoutModel(this);
   }
 
-  private final class SAXAdapter extends DefaultHandler {
-    /**
-     * @see java.awt.GridBagConstraints#gridx
-     */
-    private int x;
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof GridBagLayoutModel that
+        && Objects.equals(id, that.id)
+        && Objects.equals(title, that.title)
+        && Objects.equals(constraints, that.constraints);
+  }
 
-    /**
-     * @see java.awt.GridBagConstraints#gridy
-     */
-    private int y;
+  @Override
+  public int hashCode() {
+    return Objects.hash(id, title, constraints);
+  }
 
-    /**
-     * @see java.awt.GridBagConstraints#gridwidth
-     */
-    private int width;
+  /** Icon renderer for layout visualization. */
+  private final class LayoutIcon implements Icon {
 
-    /**
-     * @see java.awt.GridBagConstraints#gridheight
-     */
-    private int height;
+    @Override
+    public void paintIcon(Component c, Graphics g, int x, int y) {
+      Graphics2D g2d = (Graphics2D) g;
+      Color originalColor = g2d.getColor();
+      Object[] renderingHints = GuiUtils.setRenderingHints(g2d, true, true, false);
 
-    /**
-     * @see java.awt.GridBagConstraints#weightx
-     */
-    private double weightx;
+      try {
+        ColorScheme colorScheme = determineColorScheme(c);
+        drawIconBackground(g2d, x, y, colorScheme.background);
+        drawGridCells(g2d, x, y, colorScheme.foreground);
+      } finally {
+        g2d.setColor(originalColor);
+        GuiUtils.resetRenderingHints(g2d, renderingHints);
+      }
+    }
 
-    /**
-     * @see java.awt.GridBagConstraints#weighty
-     */
-    private double weighty;
+    private ColorScheme determineColorScheme(Component c) {
+      Color background = IconColor.ACTIONS_GREY.color;
+      Color foreground = FlatUIUtils.getUIColor("MenuItem.background", Color.WHITE);
 
-    /**
-     * @see java.awt.GridBagConstraints#anchor
-     */
-    private int position;
+      if (c instanceof RadioMenuItem menuItem) {
+        if (menuItem.isArmed()) {
+          background = FlatUIUtils.getUIColor("MenuItem.selectionForeground", Color.DARK_GRAY);
+          foreground = FlatUIUtils.getUIColor("MenuItem.selectionBackground", Color.LIGHT_GRAY);
+        } else if (menuItem.isSelected()) {
+          foreground = FlatUIUtils.getUIColor("MenuItem.checkBackground", Color.BLUE);
+        }
+      }
 
-    /**
-     * @see java.awt.GridBagConstraints#fill
-     */
-    private int expand;
+      return new ColorScheme(background, foreground);
+    }
 
-    /** The component class */
+    private void drawIconBackground(Graphics2D g2d, int x, int y, Color background) {
+      g2d.setColor(background);
+      g2d.fillRect(x, y, getIconWidth(), getIconHeight());
+    }
+
+    private void drawGridCells(Graphics2D g2d, int x, int y, Color foreground) {
+      Dimension gridSize = getGridSize();
+      double stepX = (double) getIconWidth() / gridSize.width;
+      double stepY = (double) getIconHeight() / gridSize.height;
+
+      for (LayoutConstraints constraint : constraints.keySet()) {
+        Rectangle2D cellRect = createCellRectangle(constraint, x, y, stepX, stepY);
+        drawCell(g2d, cellRect, constraint.color(), foreground);
+      }
+    }
+
+    private Rectangle2D createCellRectangle(
+        LayoutConstraints constraint, int x, int y, double stepX, double stepY) {
+      return new Rectangle2D.Double(
+          x + constraint.gridx * stepX,
+          y + constraint.gridy * stepY,
+          constraint.gridwidth * stepX,
+          constraint.gridheight * stepY);
+    }
+
+    private void drawCell(Graphics2D g2d, Rectangle2D rect, Color cellColor, Color borderColor) {
+      if (cellColor != null) {
+        g2d.setColor(cellColor);
+        g2d.fill(rect);
+      }
+
+      g2d.setColor(borderColor);
+      g2d.draw(rect);
+    }
+
+    @Override
+    public int getIconWidth() {
+      return GuiUtils.getScaleLength(ICON_SIZE);
+    }
+
+    @Override
+    public int getIconHeight() {
+      return GuiUtils.getScaleLength(ICON_SIZE);
+    }
+  }
+
+  /** Color scheme for icon rendering. */
+  private record ColorScheme(Color background, Color foreground) {}
+
+  /** SAX handler for parsing layout XML files. */
+  private final class LayoutXmlHandler extends DefaultHandler {
+    private int x, y, width, height, position, expand;
+    private double weightx, weighty;
     private String type;
 
-    /** ID of the component */
     private int increment = 0;
 
     private Color color;
 
-    private int tag = -1;
-    private final StringBuilder name = new StringBuilder(80);
+    private final StringBuilder textBuffer = new StringBuilder(80);
 
     @Override
-    public void characters(char[] ch, int start, int length) throws SAXException {
-      if (tag != -1) {
-        name.append(ch, start, length);
+    public void characters(char[] ch, int start, int length) {
+      textBuffer.append(ch, start, length);
+    }
+
+    @Override
+    public void startElement(String uri, String localName, String qName, Attributes attributes) {
+      switch (qName) {
+        case ELEMENT_TAG -> parseElementAttributes(attributes);
+        case LAYOUT_MODEL_TAG -> parseLayoutModelAttributes(attributes);
+      }
+    }
+
+    private void parseElementAttributes(Attributes attributes) {
+      type = attributes.getValue("type");
+      x = parseIntAttribute(attributes, "x");
+      y = parseIntAttribute(attributes, "y");
+      width = parseIntAttribute(attributes, "width");
+      height = parseIntAttribute(attributes, "height");
+      weightx = parseDoubleAttribute(attributes, "weightx");
+      weighty = parseDoubleAttribute(attributes, "weighty");
+      position = parseIntAttribute(attributes, "position");
+      expand = parseIntAttribute(attributes, "expand");
+
+      String colorType = attributes.getValue("typeColor");
+      color = StringUtil.hasText(colorType) ? WProperties.hexadecimal2Color(colorType) : null;
+    }
+
+    private void parseLayoutModelAttributes(Attributes attributes) {
+      if (title == null) {
+        title = attributes.getValue("name");
+      }
+      String iconPath = attributes.getValue("icon");
+      if (StringUtil.hasText(iconPath)) {
+        icon = ResourceUtil.getIcon(iconPath).derive(ICON_SIZE, ICON_SIZE);
       }
     }
 
     @Override
-    public void startElement(String uri, String localName, String qName, Attributes attributes)
-        throws SAXException {
-      if ("element".equals(qName)) { // NON-NLS
-        type = attributes.getValue("type");
-        x = Integer.parseInt(attributes.getValue("x")); // NON-NLS
-        y = Integer.parseInt(attributes.getValue("y")); // NON-NLS
-        width = Integer.parseInt(attributes.getValue("width")); // NON-NLS
-        height = Integer.parseInt(attributes.getValue("height")); // NON-NLS
-        weightx = getDoubleValue(attributes.getValue("weightx")); // NON-NLS
-        weighty = getDoubleValue(attributes.getValue("weighty")); // NON-NLS
-        position = Integer.parseInt(attributes.getValue("position")); // NON-NLS
-        expand = Integer.parseInt(attributes.getValue("expand")); // NON-NLS
-        String ctype = attributes.getValue("typeColor");
-        if (StringUtil.hasText(ctype)) {
-          color = WProperties.hexadecimal2Color(ctype);
-        }
-      } else if ("layoutModel".equals(qName)) {
-        if (title == null) {
-          title = attributes.getValue("name"); // NON-NLS
-        }
-        String path = attributes.getValue("icon");
-        if (StringUtil.hasText(path)) {
-          icon = ResourceUtil.getIcon(path).derive(ICON_SIZE, ICON_SIZE);
-        }
+    public void endElement(String uri, String localName, String qName) {
+      if (ELEMENT_TAG.equals(qName)) {
+        addConstraint();
+        resetElementState();
       }
     }
 
-    @Override
-    public void endElement(String uri, String localName, String qName) throws SAXException {
-      if ("element".equals(qName)) { // NON-NLS
-        increment++;
-        LayoutConstraints c =
-            new LayoutConstraints(
-                type, increment, x, y, width, height, weightx, weighty, position, expand);
-        c.setColor(color);
-        constraints.put(c, null);
-        name.setLength(0);
-        tag = -1;
-      }
+    private void addConstraint() {
+      increment++;
+      var constraint =
+          new LayoutConstraints(
+              type, increment, x, y, width, height, weightx, weighty, position, expand);
+      constraint.setColor(color);
+      constraints.put(constraint, null);
     }
 
-    private double getDoubleValue(String val) {
-      if (!StringUtil.hasText(val)) {
+    private void resetElementState() {
+      textBuffer.setLength(0);
+      color = null;
+    }
+
+    private int parseIntAttribute(Attributes attributes, String name) {
+      String value = attributes.getValue(name);
+      return StringUtil.hasText(value) ? Integer.parseInt(value) : 0;
+    }
+
+    private double parseDoubleAttribute(Attributes attributes, String name) {
+      String value = attributes.getValue(name);
+      return StringUtil.hasText(value) ? parseDoubleValue(value) : 0.0;
+    }
+
+    private double parseDoubleValue(String value) {
+      if (!StringUtil.hasText(value)) {
         return 0.0;
       }
-      // handle fraction format
-      int index = val.indexOf('/');
-      if (index != -1) {
-        return (double) Integer.parseInt(val.substring(0, index))
-            / Integer.parseInt(val.substring(index + 1));
+      int fractionIndex = value.indexOf(FRACTION_SEPARATOR);
+      if (fractionIndex != -1) {
+        return parseFraction(value, fractionIndex);
       }
-      return Double.parseDouble(val);
+      return Double.parseDouble(value);
+    }
+
+    private double parseFraction(String value, int separatorIndex) {
+      int numerator = Integer.parseInt(value.substring(0, separatorIndex));
+      int denominator = Integer.parseInt(value.substring(separatorIndex + 1));
+      return (double) numerator / denominator;
     }
   }
 }

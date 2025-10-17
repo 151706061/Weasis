@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Vector;
 import javax.swing.BorderFactory;
@@ -602,18 +603,18 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
 
             SimpleOpManager manager =
                 img.buildSimpleOpManager(img16, padding, shutter, overlay, 1.0);
-            PlanarImage image = manager.getFirstNodeInputImage();
-            if (image != null) {
-              PlanarImage rimage = manager.process();
+            Optional<PlanarImage> image = manager.getFirstNodeInputImage();
+            if (image.isPresent()) {
+              PlanarImage rimage = manager.process().orElse(null);
               if (rimage == null) {
-                rimage = image;
+                rimage = image.get();
               }
-              boolean mustBeReleased = !Objects.equals(rimage, image);
-              image = rimage;
+              boolean mustBeReleased = !Objects.equals(rimage, image.get());
+              image = Optional.of(rimage);
 
               File destinationFile = new File(destinationDir, instance + "." + format.extension);
               if (format == Format.PNG) {
-                ImageIOHandler.writePNG(image.toMat(), destinationFile.toPath());
+                ImageIOHandler.writePNG(image.get().toMat(), destinationFile.toPath());
               } else {
                 MatOfInt map = new MatOfInt();
                 if (format == Format.JPEG) {
@@ -621,10 +622,10 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
                 } else if (format == Format.JPEG_XL) {
                   map.fromArray(Imgcodecs.IMWRITE_JPEGXL_QUALITY, jpegQuality);
                 }
-                ImageIOHandler.writeImage(image.toMat(), destinationFile.toPath(), map);
+                ImageIOHandler.writeImage(image.get().toMat(), destinationFile.toPath(), map);
               }
               if (mustBeReleased) {
-                ImageConversion.releasePlanarImage(image);
+                ImageConversion.releasePlanarImage(image.get());
               }
               if (seriesGph.contains(img.getTagValue(TagD.get(Tag.SeriesInstanceUID)))) {
                 XmlSerializer.writePresentation(img, destinationFile);
@@ -1004,7 +1005,9 @@ public class LocalExport extends AbstractItemDialogPage implements ExportDicom {
         manager.addImageOperationAction(rectifyZoomOp);
       }
       manager.setFirstNode(imgPl);
-      thumbnail = ImageIOHandler.buildThumbnail(manager.process(), new Dimension(128, 128), true);
+      thumbnail =
+          ImageIOHandler.buildThumbnail(
+              manager.process().orElse(null), new Dimension(128, 128), true);
     }
 
     if (thumbnail == null) {

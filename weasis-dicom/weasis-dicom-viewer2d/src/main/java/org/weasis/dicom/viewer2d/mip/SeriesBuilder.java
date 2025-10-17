@@ -31,9 +31,7 @@ import org.weasis.core.api.gui.util.ComboItemListener;
 import org.weasis.core.api.gui.util.Filter;
 import org.weasis.core.api.gui.util.SliderChangeListener;
 import org.weasis.core.api.gui.util.SliderCineListener;
-import org.weasis.core.api.image.op.MaxCollectionZprojection;
-import org.weasis.core.api.image.op.MeanCollectionZprojection;
-import org.weasis.core.api.image.op.MinCollectionZprojection;
+import org.weasis.core.api.image.op.ImageStackOperations;
 import org.weasis.core.api.media.data.ImageElement;
 import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.SeriesComparator;
@@ -289,14 +287,11 @@ public class SeriesBuilder {
 
   public static PlanarImage addCollectionOperation(Type mipType, List<ImageElement> sources) {
     if (Type.MIN.equals(mipType)) {
-      MinCollectionZprojection op = new MinCollectionZprojection(sources);
-      return op.computeMinCollectionOpImage();
+      return ImageStackOperations.min(sources);
     }
     if (Type.MEAN.equals(mipType)) {
-      MeanCollectionZprojection op = new MeanCollectionZprojection(sources);
-      return op.computeMeanCollectionOpImage();
+      return ImageStackOperations.mean(sources);
     }
-    MaxCollectionZprojection op = new MaxCollectionZprojection(sources);
-    return op.computeMaxCollectionOpImage();
+    return ImageStackOperations.max(sources);
   }
 }
