@@ -15,23 +15,20 @@ import com.github.scribejava.core.httpclient.jdk.JDKHttpFuture;
 import com.github.scribejava.core.httpclient.multipart.BodyPartPayload;
 import com.github.scribejava.core.httpclient.multipart.ByteArrayBodyPartPayload;
 import com.github.scribejava.core.httpclient.multipart.MultipartPayload;
-import com.github.scribejava.core.httpclient.multipart.MultipartUtils;
 import com.github.scribejava.core.model.OAuthAsyncRequestCallback;
-import com.github.scribejava.core.model.OAuthConstants;
 import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Response;
 import com.github.scribejava.core.model.Verb;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,13 +36,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import org.weasis.core.api.net.NetworkUtil;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StringUtil;
 
+/** HTTP client implementation using HttpURLConnection for OAuth requests. */
 public class BasicHttpClient implements HttpClient {
 
   @Override
   public void close() {
-    // Do nothing
+    // No resources to clean up
   }
 
   @Override
@@ -59,14 +57,7 @@ public class BasicHttpClient implements HttpClient {
       OAuthRequest.ResponseConverter<T> converter) {
 
     return doExecuteAsync(
-        userAgent,
-        headers,
-        httpVerb,
-        completeUrl,
-        BodyType.BYTE_ARRAY,
-        bodyContents,
-        callback,
-        converter);
+        userAgent, headers, httpVerb, completeUrl, bodyContents, callback, converter);
   }
 
   @Override
@@ -80,14 +71,7 @@ public class BasicHttpClient implements HttpClient {
       OAuthRequest.ResponseConverter<T> converter) {
 
     return doExecuteAsync(
-        userAgent,
-        headers,
-        httpVerb,
-        completeUrl,
-        BodyType.MULTIPART,
-        bodyContents,
-        callback,
-        converter);
+        userAgent, headers, httpVerb, completeUrl, bodyContents, callback, converter);
   }
 
   @Override
@@ -101,14 +85,7 @@ public class BasicHttpClient implements HttpClient {
       OAuthRequest.ResponseConverter<T> converter) {
 
     return doExecuteAsync(
-        userAgent,
-        headers,
-        httpVerb,
-        completeUrl,
-        BodyType.STRING,
-        bodyContents,
-        callback,
-        converter);
+        userAgent, headers, httpVerb, completeUrl, bodyContents, callback, converter);
   }
 
   @Override
@@ -121,14 +98,7 @@ public class BasicHttpClient implements HttpClient {
       OAuthAsyncRequestCallback<T> callback,
       OAuthRequest.ResponseConverter<T> converter) {
     return doExecuteAsync(
-        userAgent,
-        headers,
-        httpVerb,
-        completeUrl,
-        BodyType.STREAM,
-        bodyContents,
-        callback,
-        converter);
+        userAgent, headers, httpVerb, completeUrl, bodyContents, callback, converter);
   }
 
   private <T> Future<T> doExecuteAsync(
@@ -136,19 +106,17 @@ public class BasicHttpClient implements HttpClient {
       Map<String, String> headers,
       Verb httpVerb,
       String completeUrl,
-      BodyType bodyType,
       Object bodyContents,
       OAuthAsyncRequestCallback<T> callback,
       OAuthRequest.ResponseConverter<T> converter) {
     try {
-      final Response response =
-          doExecute(userAgent, headers, httpVerb, completeUrl, bodyType, bodyContents);
+      var response = doExecute(userAgent, headers, httpVerb, completeUrl, bodyContents);
       @SuppressWarnings("unchecked")
-      final T t = converter == null ? (T) response : converter.convert(response);
+      T result = converter == null ? (T) response : converter.convert(response);
       if (callback != null) {
-        callback.onCompleted(t);
+        callback.onCompleted(result);
       }
-      return new JDKHttpFuture<>(t);
+      return new JDKHttpFuture<>(result);
     } catch (IOException | RuntimeException e) {
       if (callback != null) {
         callback.onThrowable(e);
@@ -165,7 +133,7 @@ public class BasicHttpClient implements HttpClient {
       String completeUrl,
       byte[] bodyContents)
       throws InterruptedException, ExecutionException, IOException {
-    return doExecute(userAgent, headers, httpVerb, completeUrl, BodyType.BYTE_ARRAY, bodyContents);
+    return doExecute(userAgent, headers, httpVerb, completeUrl, bodyContents);
   }
 
   @Override
@@ -176,8 +144,7 @@ public class BasicHttpClient implements HttpClient {
       String completeUrl,
       MultipartPayload multipartPayloads)
       throws InterruptedException, ExecutionException, IOException {
-    return doExecute(
-        userAgent, headers, httpVerb, completeUrl, BodyType.MULTIPART, multipartPayloads);
+    return doExecute(userAgent, headers, httpVerb, completeUrl, multipartPayloads);
   }
 
   @Override
@@ -188,7 +155,7 @@ public class BasicHttpClient implements HttpClient {
       String completeUrl,
       String bodyContents)
       throws InterruptedException, ExecutionException, IOException {
-    return doExecute(userAgent, headers, httpVerb, completeUrl, BodyType.STRING, bodyContents);
+    return doExecute(userAgent, headers, httpVerb, completeUrl, bodyContents);
   }
 
   @Override
@@ -199,7 +166,7 @@ public class BasicHttpClient implements HttpClient {
       String completeUrl,
       File bodyContents)
       throws InterruptedException, ExecutionException, IOException {
-    return doExecute(userAgent, headers, httpVerb, completeUrl, BodyType.STREAM, bodyContents);
+    return doExecute(userAgent, headers, httpVerb, completeUrl, bodyContents);
   }
 
   private Response doExecute(
@@ -207,29 +174,40 @@ public class BasicHttpClient implements HttpClient {
       Map<String, String> headers,
       Verb httpVerb,
       String completeUrl,
-      BodyType bodyType,
       Object bodyContents)
       throws IOException {
-    final URL url = new URL(completeUrl);
-    final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+    var connection = createConnection(completeUrl, httpVerb);
+    addHeaders(connection, headers, userAgent);
+
+    if (httpVerb.isPermitBody()) {
+      setBody(connection, bodyContents, httpVerb.isRequiresBody());
+    }
+
+    return executeRequest(connection);
+  }
+
+  private static HttpURLConnection createConnection(String completeUrl, Verb httpVerb)
+      throws IOException {
+    var url = URI.create(completeUrl).toURL();
+    var connection = (HttpURLConnection) url.openConnection();
 
     connection.setInstanceFollowRedirects(true);
     connection.setRequestMethod(httpVerb.name());
     connection.setConnectTimeout(NetworkUtil.getUrlConnectionTimeout());
     connection.setReadTimeout(NetworkUtil.getUrlReadTimeout());
-    addHeaders(connection, headers, userAgent);
-    if (httpVerb.isPermitBody()) {
-      bodyType.setBody(connection, bodyContents, httpVerb.isRequiresBody());
-    }
+    return connection;
+  }
 
+  private static Response executeRequest(HttpURLConnection connection) throws IOException {
     try {
       connection.connect();
-      final int responseCode = connection.getResponseCode();
+      int responseCode = connection.getResponseCode();
       return new Response(
           responseCode,
           connection.getResponseMessage(),
           parseHeaders(connection),
-          responseCode >= 200 && responseCode < 400
+          isSuccessfulResponse(responseCode)
               ? connection.getInputStream()
               : connection.getErrorStream());
     } catch (UnknownHostException e) {
@@ -237,50 +215,37 @@ public class BasicHttpClient implements HttpClient {
     }
   }
 
-  private enum BodyType {
-    BYTE_ARRAY {
-      @Override
-      void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
-          throws IOException {
-        addBody(connection, (byte[]) bodyContents, requiresBody);
-      }
-    },
-    STREAM {
-      @Override
-      void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
-          throws IOException {
-        addBody(connection, (File) bodyContents, requiresBody);
-      }
-    },
-    MULTIPART {
-      @Override
-      void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
-          throws IOException {
-        addBody(connection, (MultipartPayload) bodyContents, requiresBody);
-      }
-    },
-    STRING {
-      @Override
-      void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
-          throws IOException {
-        addBody(connection, ((String) bodyContents).getBytes(StandardCharsets.UTF_8), requiresBody);
-      }
-    };
+  private static boolean isSuccessfulResponse(int responseCode) {
+    return responseCode >= 200 && responseCode < 400;
+  }
 
-    abstract void setBody(HttpURLConnection connection, Object bodyContents, boolean requiresBody)
-        throws IOException;
+  private static void setBody(
+      HttpURLConnection connection, Object bodyContents, boolean requiresBody) throws IOException {
+    switch (bodyContents) {
+      case null -> {
+        if (requiresBody) {
+          throw new IOException("Body content is required but null");
+        }
+      }
+      case byte[] bytes -> addBody(connection, bytes, requiresBody);
+      case String str -> addBody(connection, str.getBytes(StandardCharsets.UTF_8), requiresBody);
+      case File file -> addBody(connection, file.toPath(), requiresBody);
+      case Path path -> addBody(connection, path, requiresBody);
+      case MultipartPayload multi -> addBody(connection, multi, requiresBody);
+      default ->
+          throw new IllegalArgumentException("Unsupported body type: " + bodyContents.getClass());
+    }
   }
 
   private static Map<String, String> parseHeaders(HttpURLConnection conn) {
-    final Map<String, String> headers = new HashMap<>();
+    Map<String, String> headers = new HashMap<>();
+    var headerFields = conn.getHeaderFields();
 
-    for (Map.Entry<String, List<String>> headerField : conn.getHeaderFields().entrySet()) {
-      final String key = headerField.getKey();
-      final String value = headerField.getValue().get(0);
-      if ("Content-Encoding".equalsIgnoreCase(key)) { // NON-NLS
-        headers.put("Content-Encoding", value); // NON-NLS
-      } else {
-        headers.put(key, value);
+    for (var entry : headerFields.entrySet()) {
+      String key = entry.getKey();
+      var values = entry.getValue();
+      if (StringUtil.hasText(key) && !values.isEmpty()) {
+        headers.put(key, values.getFirst());
       }
     }
     return headers;
@@ -288,88 +253,65 @@ public class BasicHttpClient implements HttpClient {
 
   private static void addHeaders(
       HttpURLConnection connection, Map<String, String> headers, String userAgent) {
-    for (Map.Entry<String, String> header : headers.entrySet()) {
-      connection.setRequestProperty(header.getKey(), header.getValue());
+    if (StringUtil.hasText(userAgent)) {
+      connection.addRequestProperty("User-Agent", userAgent);
     }
 
-    if (userAgent != null) {
-      connection.setRequestProperty(OAuthConstants.USER_AGENT_HEADER_NAME, userAgent);
+    if (headers != null) {
+      headers.forEach(connection::addRequestProperty);
     }
   }
 
-  private static void addBody(HttpURLConnection connection, File file, boolean requiresBody)
+  private static void addBody(HttpURLConnection connection, Path filePath, boolean requiresBody)
       throws IOException {
-    if (requiresBody) {
-      String filename = file.getName();
-      String formName = "file";
-      InputStream stream = new FileInputStream(file);
-      connection.setDoInput(true);
-      connection.setDoOutput(true);
-      String boundary = MultipartUtils.generateDefaultBoundary();
-      connection.setRequestProperty(
-          "Content-Type", "multipart/form-data; boundary=" + boundary); // $NON-NLS-1$ //$NON-NLS-2$
-      connection.setRequestProperty("User-Agent", "OsmAnd"); // $NON-NLS-1$ //$NON-NLS-2$
-      final OutputStream ous = connection.getOutputStream();
-      ous.write(("--" + boundary + "\r\n").getBytes());
-      ous.write(
-          ("content-disposition: form-data; name=\""
-                  + formName
-                  + "\"; filename=\""
-                  + filename
-                  + "\"\r\n")
-              .getBytes()); //$NON-NLS-1$ //$NON-NLS-2$
-      ous.write(("Content-Type: application/octet-stream\r\n\r\n").getBytes()); // $NON-NLS-1$
-      BufferedInputStream bis = new BufferedInputStream(stream, 20 * 1024);
-      ous.flush();
-      byte[] buf = new byte[FileUtil.FILE_BUFFER];
-      int offset;
-      while ((offset = bis.read(buf)) > 0) {
-        ous.write(buf, 0, offset);
+    if (filePath == null || !Files.exists(filePath)) {
+      if (requiresBody) {
+        throw new IOException("File does not exist: " + filePath);
       }
-      ous.flush();
-      ous.write(("\r\n--" + boundary + "--\r\n").getBytes()); // $NON-NLS-1$ //$NON-NLS-2$
-      ous.flush();
-      FileUtil.safeClose(bis);
+      return;
+    }
+
+    long contentLength = Files.size(filePath);
+    try (var outputStream = prepareConnectionForBodyAndGetOutputStream(connection, contentLength);
+        var inputStream = Files.newInputStream(filePath)) {
+      inputStream.transferTo(outputStream);
     }
   }
 
   private static void addBody(HttpURLConnection connection, byte[] content, boolean requiresBody)
       throws IOException {
-    final int contentLength = content.length;
-    if (requiresBody || contentLength > 0) {
-      final OutputStream outputStream =
-          prepareConnectionForBodyAndGetOutputStream(connection, contentLength);
-      if (contentLength > 0) {
-        outputStream.write(content);
+    if (content == null || content.length == 0) {
+      if (requiresBody) {
+        throw new IOException("Body content is required but empty");
       }
+      return;
+    }
+
+    try (var outputStream =
+        prepareConnectionForBodyAndGetOutputStream(connection, content.length)) {
+      outputStream.write(content);
     }
   }
 
   public static void addBody(
       HttpURLConnection connection, MultipartPayload multipartPayload, boolean requiresBody)
       throws IOException {
+    if (multipartPayload == null) {
 
-    for (Map.Entry<String, String> header : multipartPayload.getHeaders().entrySet()) {
-      connection.setRequestProperty(header.getKey(), header.getValue());
+      if (requiresBody) {
+        throw new IOException("Multipart payload is required but null");
+      }
+      return;
     }
 
-    if (requiresBody) {
-      List<BodySupplier<InputStream>> bodySuppliers = new ArrayList<>();
-      prepareMultipartPayload(bodySuppliers, multipartPayload);
-      long contentLength =
-          bodySuppliers.stream().mapToLong(BodySupplier::length).reduce(0L, Long::sum);
-      final OutputStream outputStream =
-          prepareConnectionForBodyAndGetOutputStream(connection, contentLength);
-      if (contentLength > 0) {
-        byte[] buf = new byte[FileUtil.FILE_BUFFER];
-        for (BodySupplier<InputStream> b : bodySuppliers) {
-          try (InputStream inputStream = b.get()) {
-            int offset;
-            while ((offset = inputStream.read(buf)) > 0) {
-              outputStream.write(buf, 0, offset);
-            }
-            outputStream.flush();
-          }
+    var bodySuppliers = new ArrayList<BodySupplier<InputStream>>();
+    prepareMultipartPayload(bodySuppliers, multipartPayload);
+    long contentLength =
+        bodySuppliers.stream().mapToLong(BodySupplier::length).reduce(0L, Long::sum);
+    try (var outputStream = prepareConnectionForBodyAndGetOutputStream(connection, contentLength)) {
+      for (var supplier : bodySuppliers) {
+        try (var inputStream = supplier.get()) {
+          inputStream.transferTo(outputStream);
         }
       }
     }
@@ -377,109 +319,106 @@ public class BasicHttpClient implements HttpClient {
 
   private static OutputStream prepareConnectionForBodyAndGetOutputStream(
       HttpURLConnection connection, long contentLength) throws IOException {
-    connection.setRequestProperty(CONTENT_LENGTH, String.valueOf(contentLength));
-    if (connection.getRequestProperty(CONTENT_TYPE) == null) {
-      connection.setRequestProperty(CONTENT_TYPE, DEFAULT_CONTENT_TYPE);
-    }
     connection.setDoOutput(true);
-    connection.setFixedLengthStreamingMode(contentLength);
+    connection.setUseCaches(false);
+
+    if (contentLength >= 0) {
+      if (contentLength <= Integer.MAX_VALUE) {
+        connection.setFixedLengthStreamingMode((int) contentLength);
+      } else {
+        connection.setFixedLengthStreamingMode(contentLength);
+      }
+    } else {
+      connection.setChunkedStreamingMode(0);
+    }
     return connection.getOutputStream();
   }
 
-  public static void prepareMultipartPayload(
+  private static void prepareMultipartPayload(
       List<BodySupplier<InputStream>> bodySuppliers, MultipartPayload multipartPayload) {
-    StringBuilder buf = new StringBuilder();
 
-    final String preamble = multipartPayload.getPreamble();
-    if (preamble != null) {
-      buf.append(preamble);
-      buf.append("\r\n");
-    }
-    final List<BodyPartPayload> bodyParts = multipartPayload.getBodyParts();
+    addPreambleIfPresent(bodySuppliers, multipartPayload.getPreamble());
+
+    var bodyParts = multipartPayload.getBodyParts();
     if (!bodyParts.isEmpty()) {
-      final String boundary = multipartPayload.getBoundary();
-
-      for (BodyPartPayload bodyPart : bodyParts) {
-        buf.append("--");
-        buf.append(boundary);
-        buf.append("\r\n");
-
-        final Map<String, String> bodyPartHeaders = bodyPart.getHeaders();
-        if (bodyPartHeaders != null) {
-          for (Map.Entry<String, String> header : bodyPartHeaders.entrySet()) {
-            buf.append(header.getKey());
-            buf.append(": ");
-            buf.append(header.getValue());
-            buf.append("\r\n");
-          }
-        }
-
-        buf.append("\r\n");
-        bodySuppliers.add(newBodySupplier(buf));
-
-        if (bodyPart instanceof MultipartPayload multi) {
-          prepareMultipartPayload(bodySuppliers, multi);
-        } else if (bodyPart instanceof ByteArrayBodyPartPayload byteArrayBodyPart) {
-          bodySuppliers.add(
-              newBodySupplier(
-                  byteArrayBodyPart.getPayload(),
-                  byteArrayBodyPart.getOff(),
-                  byteArrayBodyPart.getLen()));
-        } else if (bodyPart instanceof FileBodyPartPayload fileBodyPart) {
-          bodySuppliers.add(fileBodyPart.getPayload());
-        } else {
-          throw new AssertionError(bodyPart.getClass());
-        }
-        buf.append("\r\n"); // CRLF for the next (starting or closing) boundary
-      }
-
-      buf.append("--");
-      buf.append(boundary);
-      buf.append("--");
-
-      final String epilogue = multipartPayload.getEpilogue();
-      if (epilogue != null) {
-        buf.append("\r\n");
-        buf.append(epilogue);
-      }
+      processBodyParts(bodySuppliers, bodyParts, multipartPayload.getBoundary());
+      addEpilogueIfPresent(bodySuppliers, multipartPayload.getEpilogue());
+    } else {
+      bodySuppliers.add(newBodySupplier(new StringBuilder()));
     }
+  }
+
+  private static void addPreambleIfPresent(
+      List<BodySupplier<InputStream>> bodySuppliers, String preamble) {
+    if (preamble != null) {
+      var buf = new StringBuilder(preamble).append("\r\n");
+      bodySuppliers.add(newBodySupplier(buf));
+    }
+  }
+
+  private static void processBodyParts(
+      List<BodySupplier<InputStream>> bodySuppliers,
+      List<BodyPartPayload> bodyParts,
+      String boundary) {
+
+    for (var bodyPart : bodyParts) {
+      addBoundaryAndHeaders(bodySuppliers, bodyPart, boundary);
+      addBodyPartContent(bodySuppliers, bodyPart);
+    }
+
+    addClosingBoundary(bodySuppliers, boundary);
+  }
+
+  private static void addBoundaryAndHeaders(
+      List<BodySupplier<InputStream>> bodySuppliers, BodyPartPayload bodyPart, String boundary) {
+
+    var buf = new StringBuilder().append("--").append(boundary).append("\r\n");
+
+    var headers = bodyPart.getHeaders();
+    if (headers != null) {
+      headers.forEach((key, value) -> buf.append(key).append(": ").append(value).append("\r\n"));
+    }
+
+    buf.append("\r\n");
     bodySuppliers.add(newBodySupplier(buf));
   }
 
-  private static BodySupplier<InputStream> newBodySupplier(StringBuilder buf) {
-    byte[] bytes = buf.toString().getBytes(StandardCharsets.UTF_8);
-    buf.setLength(0);
-    return newBodySupplier(bytes);
+  private static void addBodyPartContent(
+      List<BodySupplier<InputStream>> bodySuppliers, BodyPartPayload bodyPart) {
+
+    switch (bodyPart) {
+      case MultipartPayload multi -> prepareMultipartPayload(bodySuppliers, multi);
+      case ByteArrayBodyPartPayload byteArrayPart ->
+          bodySuppliers.add(
+              newBodySupplier(
+                  byteArrayPart.getPayload(), byteArrayPart.getOff(), byteArrayPart.getLen()));
+      case FileBodyPartPayload filePart -> bodySuppliers.add(filePart.getPayload());
+      default ->
+          throw new IllegalArgumentException("Unsupported body part type: " + bodyPart.getClass());
+    }
+
+    bodySuppliers.add(newBodySupplier(new StringBuilder("\r\n")));
   }
 
-  private static BodySupplier<InputStream> newBodySupplier(byte[] bytes) {
-    return new BodySupplier<>() {
-      @Override
-      public InputStream get() {
-        return new ByteArrayInputStream(bytes);
-      }
+  private static void addClosingBoundary(
+      List<BodySupplier<InputStream>> bodySuppliers, String boundary) {
+    var closingBoundary = new StringBuilder().append("--").append(boundary).append("--");
+    bodySuppliers.add(newBodySupplier(closingBoundary));
+  }
 
-      @Override
-      public long length() {
-        return bytes.length;
-      }
-    };
+  private static void addEpilogueIfPresent(
+      List<BodySupplier<InputStream>> bodySuppliers, String epilogue) {
+    if (epilogue != null) {
+      var buf = new StringBuilder("\r\n").append(epilogue);
+      bodySuppliers.add(newBodySupplier(buf));
+    }
+  }
+
+  private static BodySupplier<InputStream> newBodySupplier(StringBuilder buf) {
+    return BodySupplier.ofString(buf.toString());
   }
 
   private static BodySupplier<InputStream> newBodySupplier(byte[] payload, int off, int len) {
-    if (off == 0 && len == payload.length) {
-      return newBodySupplier(payload);
-    }
-    return new BodySupplier<>() {
-      @Override
-      public InputStream get() {
-        return new ByteArrayInputStream(payload, off, len);
-      }
-
-      @Override
-      public long length() {
-        return len;
-      }
-    };
+    return BodySupplier.ofBytes(payload, off, len);
   }
 }

@@ -15,10 +15,11 @@ import java.io.InputStream;
 import java.util.Objects;
 import org.weasis.core.util.StreamUtil;
 
+/** HTTP response wrapper providing HttpStream compatibility for OAuth2 authentication. */
 public record AuthResponse(Response response) implements HttpStream {
 
-  public AuthResponse(Response response) {
-    this.response = Objects.requireNonNull(response);
+  public AuthResponse {
+    Objects.requireNonNull(response, "Response cannot be null");
   }
 
   @Override

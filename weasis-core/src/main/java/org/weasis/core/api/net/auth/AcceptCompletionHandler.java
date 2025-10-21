@@ -17,15 +17,22 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.Messages;
 import org.weasis.core.util.StreamUtil;
 import org.weasis.core.util.StringUtil;
 
+/** Handles OAuth callback completion by processing authorization codes from HTTP requests. */
 public class AcceptCompletionHandler implements AcceptCallbackHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(AcceptCompletionHandler.class);
+  private static final int BUFFER_SIZE = 1024;
+  private static final String CODE_PARAM = "code=";
+  private static final String HTTP_OK = "HTTP/1.1 200 OK\r\n\r\n";
+  private static final String HTTP_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n\r\n";
 
   private final OAuth20Service service;
   private String code;
@@ -37,67 +44,17 @@ public class AcceptCompletionHandler implements AcceptCallbackHandler {
   @Override
   public void completed(AsynchronousSocketChannel channel, AsyncCallbackServerHandler handler) {
     handler.getSocketChannel().accept(handler, this);
-    ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-    channel.read(
-        byteBuffer,
-        byteBuffer,
-        new CompletionHandler<>() {
-          @Override
-          public void completed(Integer result, ByteBuffer attachment) {
-            byteBuffer.flip();
-            byte[] body = new byte[byteBuffer.remaining()];
-            byteBuffer.get(body);
-            String req = new String(body, StandardCharsets.UTF_8);
-            String returnedMsg =
-                "HTTP/1.1 404 Not Found" // NON-NLS
-                    + "\r\n\r\n"
-                    + Messages.getString("code.has.failed")
-                    + "\n";
-            try (BufferedReader reader = new BufferedReader(new StringReader(req))) {
-              String line = reader.readLine();
-              while (StringUtil.hasText(line)) {
-                int idx = line.indexOf("code="); // NON-NLS
-                if (idx >= 0) {
-                  String key = line.substring(idx + 5).trim();
-                  idx = key.indexOf('&');
-                  if (idx < 0) {
-                    idx = key.indexOf(' ');
-                  }
-                  if (idx >= 0) {
-                    key = key.substring(0, idx);
-                  }
-                  setCode(key);
-                  returnedMsg =
-                      "HTTP/1.1 200 OK" // NON-NLS
-                          + "\r\n\r\n"
-                          + Messages.getString("code.has.been.transmitted");
-                  break;
-                }
-                line = reader.readLine();
-              }
-            } catch (IOException e) {
-              LOGGER.error("Try to get code from callback", e);
-              returnedMsg = returnedMsg + e.getMessage();
-            } finally {
-              ByteBuffer buffer = ByteBuffer.wrap(returnedMsg.getBytes(StandardCharsets.UTF_8));
-              channel.write(buffer, channel, new WriteHandler(buffer));
-            }
-          }
-
-          @Override
-          public void failed(Throwable exc, ByteBuffer attachment) {
-            LOGGER.error("Cannot get code from callback", exc);
-          }
-        });
+    ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+    channel.read(buffer, buffer, new RequestHandler(channel));
   }
 
   @Override
-  public String getCode() {
-    return code;
+  public Optional<String> code() {
+    return Optional.ofNullable(code);
   }
 
   @Override
-  public void setCode(String code) {
+  public void code(String code) {
     this.code = code;
   }
 
@@ -107,28 +64,103 @@ public class AcceptCompletionHandler implements AcceptCallbackHandler {
   }
 
   @Override
-  public OAuth20Service getService() {
+  public OAuth20Service service() {
     return service;
   }
 
-  private static class WriteHandler
+  private String extractCodeFromRequest(String request) {
+    try (BufferedReader reader = new BufferedReader(new StringReader(request))) {
+      return reader
+          .lines()
+          .filter(StringUtil::hasText)
+          .map(this::parseCodeFromLine)
+          .filter(Objects::nonNull)
+          .findFirst()
+          .orElse(null);
+    } catch (IOException e) {
+      LOGGER.error("Error parsing request", e);
+      return null;
+    }
+  }
+
+  private String parseCodeFromLine(String line) {
+    int codeIndex = line.indexOf(CODE_PARAM);
+    if (codeIndex < 0) {
+      return null;
+    }
+
+    String codeSection = line.substring(codeIndex + CODE_PARAM.length()).trim();
+    int endIndex = findParameterEnd(codeSection);
+    return endIndex > 0 ? codeSection.substring(0, endIndex) : codeSection;
+  }
+
+  private int findParameterEnd(String codeSection) {
+    int ampersandIndex = codeSection.indexOf('&');
+    int spaceIndex = codeSection.indexOf(' ');
+
+    if (ampersandIndex >= 0 && spaceIndex >= 0) {
+      return Math.min(ampersandIndex, spaceIndex);
+    }
+    return Math.max(ampersandIndex, spaceIndex);
+  }
+
+  private String createResponse(boolean success) {
+    if (success) {
+      return HTTP_OK + Messages.getString("code.has.been.transmitted");
+    }
+    return HTTP_NOT_FOUND + Messages.getString("code.has.failed") + "\n";
+  }
+
+  /** Handles incoming HTTP request and processes authorization code. */
+  private final class RequestHandler implements CompletionHandler<Integer, ByteBuffer> {
+    private final AsynchronousSocketChannel channel;
+
+    private RequestHandler(AsynchronousSocketChannel channel) {
+      this.channel = channel;
+    }
+
+    @Override
+    public void completed(Integer result, ByteBuffer buffer) {
+      buffer.flip();
+      byte[] requestBytes = new byte[buffer.remaining()];
+      buffer.get(requestBytes);
+      String request = new String(requestBytes, StandardCharsets.UTF_8);
+
+      String extractedCode = extractCodeFromRequest(request);
+      boolean success = extractedCode != null;
+
+      if (success) {
+        code(extractedCode);
+      }
+
+      sendResponse(createResponse(success));
+    }
+
+    @Override
+    public void failed(Throwable exc, ByteBuffer buffer) {
+      LOGGER.error("Cannot get code from callback", exc);
+    }
+
+    private void sendResponse(String response) {
+      ByteBuffer responseBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
+      channel.write(responseBuffer, channel, new WriteHandler(responseBuffer));
+    }
+  }
+
+  /** Handles writing HTTP response back to client. */
+  private record WriteHandler(ByteBuffer buffer)
       implements CompletionHandler<Integer, AsynchronousSocketChannel> {
-    private final ByteBuffer buffer;
-
-    public WriteHandler(ByteBuffer buffer) {
-      this.buffer = buffer;
-    }
 
     @Override
-    public void completed(Integer result, AsynchronousSocketChannel attachment) {
+    public void completed(Integer result, AsynchronousSocketChannel channel) {
       buffer.clear();
-      StreamUtil.safeClose(attachment);
+      StreamUtil.safeClose(channel);
     }
 
     @Override
-    public void failed(Throwable exc, AsynchronousSocketChannel attachment) {
+    public void failed(Throwable exc, AsynchronousSocketChannel channel) {
       LOGGER.error("Cannot send acknowledge from callback", exc);
-      StreamUtil.safeClose(attachment);
+      StreamUtil.safeClose(channel);
     }
   }
 }

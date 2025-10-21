@@ -13,43 +13,59 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Objects;
 
-public class URIUtils {
+/** URI operations utility for conversions, protocol checks, and path extraction. */
+public final class URIUtils {
+
+  private URIUtils() {}
 
   public static URI getURI(String pathOrUri) throws URISyntaxException {
+    Objects.requireNonNull(pathOrUri, "Path or URI cannot be null");
     try {
       return new URI(pathOrUri);
     } catch (URISyntaxException e) {
-      // Try to convert Windows file path to URI
-      try {
-        return Paths.get(pathOrUri).toUri();
-      } catch (Exception ex) {
-        // Ignore
-      }
-      throw e;
+      return convertPathToURI(pathOrUri, e);
+    }
+  }
+
+  private static URI convertPathToURI(String path, URISyntaxException originalException)
+      throws URISyntaxException {
+    try {
+      return Paths.get(path).toUri();
+    } catch (Exception ex) {
+      originalException.addSuppressed(ex);
+      throw originalException;
     }
   }
 
   public static boolean isHttpURI(URI uri) {
-    return isProtocol(uri, "http") || isProtocol(uri, "https"); // $NON-NLS
+    Objects.requireNonNull(uri, "URI cannot be null");
+    return isProtocol(uri, "http") || isProtocol(uri, "https");
   }
 
   public static boolean isFileURI(URI uri) {
-    return isProtocol(uri, "file")
-        || (uri.getScheme() == null && uri.getPath() != null); // $NON-NLS
+    Objects.requireNonNull(uri, "URI cannot be null");
+    return isProtocol(uri, "file") || isSchemelesPath(uri);
+  }
+
+  private static boolean isSchemelesPath(URI uri) {
+    return uri.getScheme() == null && uri.getPath() != null;
   }
 
   public static boolean isProtocol(URI uri, String protocol) {
+    Objects.requireNonNull(uri, "URI cannot be null");
+    Objects.requireNonNull(protocol, "Protocol cannot be null");
     return protocol.equalsIgnoreCase(uri.getScheme());
   }
 
   public static Path getAbsolutePath(URI uri) {
-    if (isFileURI(uri)) {
-      String path = uri.getPath();
-      if (path != null) {
-        return Paths.get(path).toAbsolutePath();
-      }
+    Objects.requireNonNull(uri, "URI cannot be null");
+
+    if (!isFileURI(uri)) {
+      return null;
     }
-    return null;
+    String path = uri.getPath();
+    return path != null ? Paths.get(path).toAbsolutePath() : null;
   }
 }

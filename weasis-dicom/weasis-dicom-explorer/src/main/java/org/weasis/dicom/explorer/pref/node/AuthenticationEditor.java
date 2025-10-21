@@ -34,7 +34,7 @@ public class AuthenticationEditor extends AbstractListEditor<AuthMethod> {
     List<AuthMethod> list = new ArrayList<>();
     for (int i = 0; i < comboBox.getItemCount(); i++) {
       AuthMethod auth = comboBox.getItemAt(i);
-      if (!OAuth2ServiceFactory.noAuth.equals(auth)) {
+      if (!OAuth2ServiceFactory.NO_AUTH.equals(auth)) {
         list.add(auth);
       }
     }

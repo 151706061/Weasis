@@ -13,14 +13,24 @@ import com.github.scribejava.core.httpclient.HttpClientConfig;
 import java.net.ProxySelector;
 import org.weasis.core.api.net.NetworkUtil;
 
+/** Configuration for JavaNet HTTP client with timeout and proxy settings. */
 public class JavaNetHttpClientConfig implements HttpClientConfig {
 
   private final int connectTimeout;
   private final int readTimeout;
+  private final ProxySelector proxySelector;
 
   public JavaNetHttpClientConfig() {
-    this.connectTimeout = NetworkUtil.getUrlConnectionTimeout();
-    this.readTimeout = NetworkUtil.getUrlReadTimeout();
+    this(
+        NetworkUtil.getUrlConnectionTimeout(),
+        NetworkUtil.getUrlReadTimeout(),
+        ProxySelector.getDefault());
+  }
+
+  public JavaNetHttpClientConfig(int connectTimeout, int readTimeout, ProxySelector proxySelector) {
+    this.connectTimeout = connectTimeout;
+    this.readTimeout = readTimeout;
+    this.proxySelector = proxySelector;
   }
 
   public int getConnectTimeout() {
@@ -32,7 +42,7 @@ public class JavaNetHttpClientConfig implements HttpClientConfig {
   }
 
   public ProxySelector getProxy() {
-    return ProxySelector.getDefault();
+    return proxySelector;
   }
 
   @Override

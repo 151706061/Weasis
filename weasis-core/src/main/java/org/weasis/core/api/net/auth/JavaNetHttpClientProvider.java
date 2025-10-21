@@ -12,14 +12,19 @@ package org.weasis.core.api.net.auth;
 import com.github.scribejava.core.httpclient.HttpClient;
 import com.github.scribejava.core.httpclient.HttpClientConfig;
 import com.github.scribejava.core.httpclient.HttpClientProvider;
+import java.util.Objects;
 
+/** Factory for creating JavaNet HTTP clients with ScribeJava OAuth integration. */
 public class JavaNetHttpClientProvider implements HttpClientProvider {
 
   @Override
   public HttpClient createClient(HttpClientConfig httpClientConfig) {
-    if (httpClientConfig instanceof JavaNetHttpClientConfig config) {
-      return new JavaNetHttpClient(config);
-    }
-    return null;
+    Objects.requireNonNull(httpClientConfig, "HTTP client configuration cannot be null");
+    return switch (httpClientConfig) {
+      case JavaNetHttpClientConfig config -> new JavaNetHttpClient(config);
+      default ->
+          throw new IllegalArgumentException(
+              "Unsupported configuration type: " + httpClientConfig.getClass().getName());
+    };
   }
 }

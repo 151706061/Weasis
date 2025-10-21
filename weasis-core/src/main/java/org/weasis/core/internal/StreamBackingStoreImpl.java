@@ -373,7 +373,7 @@ public class StreamBackingStoreImpl implements BackingStore {
           writeStream(new FileInputStream(file), out);
         }
         if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
-          NetworkUtil.readResponse(httpURLConnection, urlParams.getUnmodifiableHeaders());
+          NetworkUtil.readResponse(httpURLConnection, urlParams.headers());
         }
       }
     }

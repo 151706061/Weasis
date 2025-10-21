@@ -9,75 +9,95 @@
  */
 package org.weasis.core.api.net.auth;
 
-import com.github.scribejava.core.model.OAuth2AccessToken;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AsyncCallbackServerHandler implements Runnable {
+/**
+ * Asynchronous OAuth2 callback server handler for processing authentication callbacks.
+ *
+ * <p>This handler creates a temporary HTTP server to receive OAuth2 authorization codes from
+ * authentication providers during the OAuth2 authorization code flow.
+ *
+ * <p>Uses virtual threads for optimal I/O performance with minimal resource overhead.
+ */
+public final class AsyncCallbackServerHandler implements Runnable, AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(AsyncCallbackServerHandler.class);
 
   private final AtomicBoolean stopped = new AtomicBoolean(true);
   private final AcceptCallbackHandler responseHandler;
   private final AsynchronousServerSocketChannel socketChannel;
   private final int port;
-  private CountDownLatch latch;
-  private Thread worker;
-  private OAuth2AccessToken token;
+  private final ExecutorService executor;
+  private volatile CountDownLatch latch;
 
+  /**
+   * Creates a new async callback server handler.
+   *
+   * @param port the port to bind the server to
+   * @param responseHandler the handler for processing incoming connections
+   * @throws IOException if the server socket cannot be created or bound
+   */
   public AsyncCallbackServerHandler(int port, AcceptCallbackHandler responseHandler)
       throws IOException {
     this.port = port;
-    this.latch = new CountDownLatch(1);
     this.responseHandler = responseHandler;
-    this.socketChannel = AsynchronousServerSocketChannel.open();
-    socketChannel.bind(new InetSocketAddress(port));
-    LOGGER.info("The async callback server is start in port {}", port);
+    this.latch = new CountDownLatch(1);
+    this.executor = Executors.newVirtualThreadPerTaskExecutor();
+    this.socketChannel = AsynchronousServerSocketChannel.open().bind(new InetSocketAddress(port));
+
+    LOGGER.info("Async callback server initialized on port {}", port);
   }
 
   @Override
   public void run() {
     stopped.set(false);
-    doAccept();
     try {
+      socketChannel.accept(this, responseHandler);
       latch.await();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
+      LOGGER.debug("Server handler interrupted", e);
+    } finally {
+      stopped.set(true);
     }
-    stopped.set(true);
   }
 
+  /** Starts the callback server in a background virtual thread. */
   public synchronized void start() {
     if (isStopped()) {
       this.latch = new CountDownLatch(1);
-      this.worker = new Thread(this, "AsyncCallbackServerHandler");
-      worker.start();
+      executor.submit(this);
     }
   }
 
-  boolean isStopped() {
+  /**
+   * Checks if the server is currently stopped.
+   *
+   * @return true if the server is stopped, false otherwise
+   */
+  public boolean isStopped() {
     return stopped.get();
   }
 
-  public void shutdown() {
+  @Override
+  public void close() {
     try {
-      if (socketChannel != null && socketChannel.isOpen()) {
+      if (socketChannel.isOpen()) {
         socketChannel.close();
       }
       latch.countDown();
-      worker.interrupt();
-      LOGGER.info("Async callback server shutdown");
+      executor.close(); // Java 19+ auto-shutdown
+      LOGGER.info("Async callback server shutdown completed");
     } catch (Exception e) {
-      LOGGER.error("Fail to shutdown async callback server");
+      LOGGER.error("Failed to shutdown async callback server", e);
     }
-  }
-
-  void doAccept() {
-    socketChannel.accept(this, responseHandler);
   }
 
   AsynchronousServerSocketChannel getSocketChannel() {

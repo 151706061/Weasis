@@ -12,7 +12,9 @@ package org.weasis.core.api.net;
 import java.io.IOException;
 import java.io.InputStream;
 
+/** HTTP response abstraction providing access to response content and metadata. */
 public interface HttpStream extends AutoCloseable {
+
   InputStream getInputStream() throws IOException;
 
   int getResponseCode();

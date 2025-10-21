@@ -16,20 +16,21 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import javax.net.ServerSocketFactory;
 
-public class SocketUtil {
+/** Socket operations utility for finding available TCP ports. */
+public final class SocketUtil {
 
   public static final int PORT_MIN = 1024;
   public static final int PORT_MAX = 65535;
-  private static final SecureRandom random = new SecureRandom();
+
+  private static final int MAX_ATTEMPTS_MULTIPLIER = 500;
+  private static final String LOCALHOST = "localhost";
+
+  private static final SecureRandom RANDOM = new SecureRandom();
 
   private SocketUtil() {}
 
   public static boolean isPortAvailable(int port) {
-    try {
-      ServerSocket socket =
-          ServerSocketFactory.getDefault()
-              .createServerSocket(port, 1, InetAddress.getByName("localhost")); // NON-NLS
-      socket.close();
+    try (ServerSocket _ = createServerSocket(port)) {
       return true;
     } catch (Exception ex) {
       return false;
@@ -37,41 +38,51 @@ public class SocketUtil {
   }
 
   public static SortedSet<Integer> findAvailablePorts(int numberOfPorts) {
-    SortedSet<Integer> availablePorts = new TreeSet<>();
-    int attemptCount = 0;
-    while ((++attemptCount <= numberOfPorts + 100) && availablePorts.size() < numberOfPorts) {
+    validatePortCount(numberOfPorts);
+
+    var availablePorts = new TreeSet<Integer>();
+    int maxAttempts = numberOfPorts + MAX_ATTEMPTS_MULTIPLIER;
+
+    for (int attempt = 0;
+        attempt < maxAttempts && availablePorts.size() < numberOfPorts;
+        attempt++) {
       availablePorts.add(findAvailablePort());
     }
 
     if (availablePorts.size() != numberOfPorts) {
       throw new IllegalStateException(
-          String.format(
-              "Could not find %s TCP ports available in the range [%d, %d]",
-              numberOfPorts, PORT_MIN, PORT_MAX));
+          "Could not find %d TCP ports available in the range [%d, %d]"
+              .formatted(numberOfPorts, PORT_MIN, PORT_MAX));
     }
     return availablePorts;
   }
 
-  private static int findRandomPort() {
-    int portRange = PORT_MAX - PORT_MIN;
-    return PORT_MIN + random.nextInt(portRange + 1);
+  public static int findAvailablePort() {
+    int portRange = PORT_MAX - PORT_MIN + 1;
+
+    for (int attempt = 0; attempt < portRange; attempt++) {
+      int port = generateRandomPort();
+      if (isPortAvailable(port)) {
+        return port;
+      }
+    }
+    throw new IllegalStateException(
+        "Could not find an available TCP port in the range [%d, %d] after %d attempts"
+            .formatted(PORT_MIN, PORT_MAX, portRange));
   }
 
-  public static int findAvailablePort() {
-    int portRange = PORT_MAX - PORT_MIN;
-    int port;
-    int count = 0;
-    do {
-      if (count > portRange) {
-        throw new IllegalStateException(
-            String.format(
-                "Could not find an available TCP port in the range [%d, %d] after %d attempts",
-                PORT_MIN, PORT_MAX, count));
-      }
-      port = findRandomPort();
-      count++;
-    } while (!isPortAvailable(port));
+  private static ServerSocket createServerSocket(int port) throws Exception {
+    return ServerSocketFactory.getDefault()
+        .createServerSocket(port, 1, InetAddress.getByName(LOCALHOST));
+  }
 
-    return port;
+  private static int generateRandomPort() {
+    return PORT_MIN + RANDOM.nextInt(PORT_MAX - PORT_MIN + 1);
+  }
+
+  private static void validatePortCount(int numberOfPorts) {
+    if (numberOfPorts <= 0) {
+      throw new IllegalArgumentException("Number of ports must be positive: " + numberOfPorts);
+    }
   }
 }

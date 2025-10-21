@@ -11,21 +11,61 @@ package org.weasis.core.api.net.auth;
 
 import com.github.scribejava.core.model.OAuth2AccessToken;
 
+/** OAuth2-based authentication method providing token management and configuration access. */
 public interface AuthMethod {
 
+  /**
+   * @return unique authentication code
+   */
   String getCode();
 
+  /**
+   * @return unique identifier for this authentication method
+   */
   String getUid();
 
+  /** Invalidates the current authentication token, forcing re-authentication on next access */
   void resetToken();
 
+  /**
+   * Retrieves the current OAuth2 access token, refreshing if necessary.
+   *
+   * @return OAuth2 access token, or null if authentication fails
+   */
   OAuth2AccessToken getToken();
 
+  /**
+   * @return authentication registration details
+   */
   AuthRegistration getAuthRegistration();
 
+  /**
+   * @return true if this is a local authentication method
+   */
   boolean isLocal();
 
+  /**
+   * @param local whether this authentication method is local
+   */
   void setLocal(boolean local);
 
+  /**
+   * @return authentication provider configuration
+   */
   AuthProvider getAuthProvider();
+
+  /**
+   * @return provider name for display purposes
+   */
+  default String getName() {
+    return getAuthProvider().name();
+  }
+
+  /**
+   * @return true if the authentication token is currently valid
+   */
+  default boolean hasValidToken() {
+    var token = getToken();
+    return token != null && !token.getAccessToken().isEmpty();
+  }
 }

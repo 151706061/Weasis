@@ -11,11 +11,8 @@ package org.weasis.core.api.net;
 
 import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Verb;
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -23,8 +20,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,10 +32,12 @@ import org.weasis.core.api.net.auth.OAuth2ServiceFactory;
 import org.weasis.core.util.StreamIOException;
 import org.weasis.core.util.StringUtil;
 
-public class NetworkUtil {
+/** Network operations utility for HTTP connections, redirects, and URL handling. */
+public final class NetworkUtil {
   private static final Logger LOGGER = LoggerFactory.getLogger(NetworkUtil.class);
 
-  static final int MAX_REDIRECTS = 3;
+  private static final int MAX_REDIRECTS = 3;
+  private static final String HTTP_SCHEME_PREFIX = "http";
 
   private NetworkUtil() {}
 
@@ -50,21 +50,23 @@ public class NetworkUtil {
   }
 
   public static URI getURI(String pathOrUri) throws MalformedURLException, URISyntaxException {
-    URI uri = null;
-    if (!pathOrUri.startsWith("http")) { // NON-NLS
-      try {
-        File file = new File(pathOrUri);
-        if (file.canRead()) {
-          uri = file.toURI();
-        }
-      } catch (Exception e) {
-        // Do nothing
+    if (!pathOrUri.startsWith(HTTP_SCHEME_PREFIX)) {
+      URI fileUri = tryCreateFileUri(pathOrUri);
+      if (fileUri != null) {
+        return fileUri;
       }
     }
-    if (uri == null) {
-      uri = new URL(pathOrUri).toURI();
+    return URI.create(pathOrUri);
+  }
+
+  private static URI tryCreateFileUri(String pathOrUri) {
+    try {
+      Path path = Path.of(pathOrUri);
+      return Files.isReadable(path) ? path.toUri() : null;
+    } catch (Exception e) {
+      LOGGER.debug("Failed to create file URI for path: {}", pathOrUri, e);
+      return null;
     }
-    return uri;
   }
 
   public static HttpStream getHttpResponse(
@@ -75,20 +77,23 @@ public class NetworkUtil {
   public static HttpStream getHttpResponse(
       String url, URLParameters urlParameters, AuthMethod authMethod, OAuthRequest authRequest)
       throws IOException {
-    if (authMethod == null || OAuth2ServiceFactory.noAuth.equals(authMethod)) {
-      return prepareConnection(new URL(url).openConnection(), urlParameters);
+    if (isNoAuth(authMethod)) {
+      return prepareConnection(URI.create(url).toURL().openConnection(), urlParameters);
     }
-    OAuthRequest request;
-    request =
+    OAuthRequest request =
         Objects.requireNonNullElseGet(
             authRequest,
-            () -> new OAuthRequest(urlParameters.isHttpPost() ? Verb.POST : Verb.GET, url));
-    return HttpUtils.prepareAuthConnection(request, urlParameters, authMethod);
+            () -> new OAuthRequest(urlParameters.httpPost() ? Verb.POST : Verb.GET, url));
+    return HttpUtils.executeAuthenticatedRequest(request, urlParameters, authMethod);
+  }
+
+  private static boolean isNoAuth(AuthMethod authMethod) {
+    return authMethod == null || OAuth2ServiceFactory.NO_AUTH.equals(authMethod);
   }
 
   public static ClosableURLConnection getUrlConnection(String url, URLParameters urlParameters)
       throws IOException {
-    return prepareConnection(new URL(url).openConnection(), urlParameters);
+    return prepareConnection(URI.create(url).toURL().openConnection(), urlParameters);
   }
 
   public static ClosableURLConnection getUrlConnection(URL url, URLParameters urlParameters)
@@ -96,131 +101,142 @@ public class NetworkUtil {
     return prepareConnection(url.openConnection(), urlParameters);
   }
 
-  private static void updateHeadersWithAppProperties(URLConnection urlConnection) {
+  private static void setAppHeaders(URLConnection urlConnection) {
     urlConnection.setRequestProperty("User-Agent", AppProperties.WEASIS_USER_AGENT);
     urlConnection.setRequestProperty("Weasis-User", AppProperties.WEASIS_USER);
   }
 
   private static ClosableURLConnection prepareConnection(
       URLConnection urlConnection, URLParameters urlParameters) throws StreamIOException {
-    Map<String, String> headers = urlParameters.getUnmodifiableHeaders();
+    urlParameters.headers().forEach(urlConnection::setRequestProperty);
+    setAppHeaders(urlConnection);
+    configureConnection(urlConnection, urlParameters);
 
-    if (!headers.isEmpty()) {
-      for (Entry<String, String> element : headers.entrySet()) {
-        urlConnection.setRequestProperty(element.getKey(), element.getValue());
-      }
+    if (urlConnection instanceof HttpURLConnection httpConn) {
+      return handleHttpConnection(httpConn, urlParameters);
     }
 
-    updateHeadersWithAppProperties(urlConnection);
-
-    urlConnection.setConnectTimeout(urlParameters.getConnectTimeout());
-    urlConnection.setReadTimeout(urlParameters.getReadTimeout());
-    urlConnection.setAllowUserInteraction(urlParameters.isAllowUserInteraction());
-    urlConnection.setUseCaches(urlParameters.isUseCaches());
-    urlConnection.setIfModifiedSince(urlParameters.getIfModifiedSince());
-    urlConnection.setDoInput(true);
-    if (urlParameters.isHttpPost()) {
-      urlConnection.setDoOutput(true);
-    }
-    if (urlConnection instanceof HttpURLConnection httpURLConnection) {
-      try {
-        if (urlParameters.isHttpPost()) {
-          httpURLConnection.setRequestMethod("POST");
-        } else {
-          return new ClosableURLConnection(readResponse(httpURLConnection, headers));
-        }
-      } catch (StreamIOException e) {
-        throw e;
-      } catch (IOException e) {
-        throw new StreamIOException(e);
-      }
-    }
     return new ClosableURLConnection(urlConnection);
   }
 
-  public static URLConnection readResponse(
-      HttpURLConnection httpURLConnection, Map<String, String> headers) throws IOException {
-    int code = httpURLConnection.getResponseCode();
-    if (code < HttpURLConnection.HTTP_OK || code >= HttpURLConnection.HTTP_MULT_CHOICE) {
-      if (code == HttpURLConnection.HTTP_MOVED_TEMP
-          || code == HttpURLConnection.HTTP_MOVED_PERM
-          || code == HttpURLConnection.HTTP_SEE_OTHER) {
-        return applyRedirectionStream(httpURLConnection, headers);
-      }
+  private static void configureConnection(URLConnection connection, URLParameters parameters) {
+    connection.setConnectTimeout(parameters.connectTimeout());
+    connection.setReadTimeout(parameters.readTimeout());
+    connection.setAllowUserInteraction(parameters.allowUserInteraction());
+    connection.setUseCaches(parameters.useCaches());
+    connection.setIfModifiedSince(parameters.ifModifiedSince());
+    connection.setDoInput(true);
 
-      LOGGER.warn("http Status {} - {}", code, httpURLConnection.getResponseMessage());
-
-      // Following is only intended LOG more info about Http Server Error
-      if (LOGGER.isTraceEnabled()) {
-        writeErrorResponse(httpURLConnection);
-      }
-      throw new StreamIOException(httpURLConnection.getResponseMessage());
+    if (parameters.httpPost()) {
+      connection.setDoOutput(true);
     }
-    return httpURLConnection;
+  }
+
+  private static ClosableURLConnection handleHttpConnection(
+      HttpURLConnection httpConn, URLParameters parameters) throws StreamIOException {
+    try {
+      if (parameters.httpPost()) {
+        httpConn.setRequestMethod("POST");
+      } else {
+        return new ClosableURLConnection(readResponse(httpConn, parameters.headers()));
+      }
+    } catch (StreamIOException e) {
+      throw e;
+    } catch (IOException e) {
+      throw new StreamIOException(e);
+    }
+    return new ClosableURLConnection(httpConn);
+  }
+
+  public static URLConnection readResponse(
+      HttpURLConnection httpConnection, Map<String, String> headers) throws IOException {
+    int responseCode = httpConnection.getResponseCode();
+
+    if (isSuccessResponse(responseCode)) {
+      return httpConnection;
+    }
+
+    if (isRedirectResponse(responseCode)) {
+      return applyRedirectionStream(httpConnection, headers);
+    }
+
+    handleErrorResponse(httpConnection, responseCode);
+    throw new StreamIOException(httpConnection.getResponseMessage());
+  }
+
+  private static boolean isSuccessResponse(int code) {
+    return code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_MULT_CHOICE;
+  }
+
+  private static boolean isRedirectResponse(int code) {
+    return code == HttpURLConnection.HTTP_MOVED_TEMP
+        || code == HttpURLConnection.HTTP_MOVED_PERM
+        || code == HttpURLConnection.HTTP_SEE_OTHER;
+  }
+
+  private static void handleErrorResponse(HttpURLConnection connection, int code)
+      throws IOException {
+    LOGGER.warn("HTTP Status {} - {}", code, connection.getResponseMessage());
+
+    if (LOGGER.isTraceEnabled()) {
+      logErrorResponse(connection);
+    }
   }
 
   public static String read(URLConnection urlConnection) throws IOException {
     urlConnection.connect();
-    try (BufferedReader in =
-        new BufferedReader(new InputStreamReader(urlConnection.getInputStream()))) {
-      StringBuilder body = new StringBuilder();
-      String inputLine;
-
-      while ((inputLine = in.readLine()) != null) {
-        body.append(inputLine);
-      }
-      return body.toString();
+    try (var inputStream = urlConnection.getInputStream()) {
+      return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
     }
   }
 
   public static URLConnection applyRedirectionStream(
       URLConnection urlConnection, Map<String, String> headers) throws IOException {
-    URLConnection c = urlConnection;
-    String redirect = c.getHeaderField("Location");
-    for (int i = 0; i < MAX_REDIRECTS; i++) {
-      if (redirect != null) {
-        String cookies = c.getHeaderField("Set-Cookie");
-        if (c instanceof HttpURLConnection httpURLConnection) {
-          httpURLConnection.disconnect();
-        }
-        c = new URL(redirect).openConnection();
-        c.setRequestProperty("Cookie", cookies);
-        if (headers != null && !headers.isEmpty()) {
-          for (Entry<String, String> element : headers.entrySet()) {
-            c.addRequestProperty(element.getKey(), element.getValue());
-          }
-        }
-        redirect = c.getHeaderField("Location");
-      } else {
-        break;
-      }
+    URLConnection connection = urlConnection;
+    String redirectUrl = connection.getHeaderField("Location");
+
+    for (int i = 0; i < MAX_REDIRECTS && redirectUrl != null; i++) {
+      connection = followRedirect(connection, redirectUrl, headers);
+      redirectUrl = connection.getHeaderField("Location");
     }
-    return c;
+
+    return connection;
+  }
+
+  private static URLConnection followRedirect(
+      URLConnection current, String redirectUrl, Map<String, String> headers) throws IOException {
+    String cookies = current.getHeaderField("Set-Cookie");
+
+    if (current instanceof HttpURLConnection httpConn) {
+      httpConn.disconnect();
+    }
+
+    URLConnection newConnection = URI.create(redirectUrl).toURL().openConnection();
+
+    if (cookies != null) {
+      newConnection.setRequestProperty("Cookie", cookies);
+    }
+    if (headers != null && !headers.isEmpty()) {
+      headers.forEach(newConnection::addRequestProperty);
+    }
+    return newConnection;
   }
 
   public static boolean isValidUrlLikeUri(String uri) {
     try {
-      URI u = new URI(uri);
-      return u.getScheme() != null && u.getHost() != null;
-    } catch (URISyntaxException exception) {
+      URI parsed = URI.create(uri);
+      return parsed.getScheme() != null && parsed.getHost() != null;
+    } catch (IllegalArgumentException e) {
       return false;
     }
   }
 
-  private static void writeErrorResponse(HttpURLConnection httpURLConnection) throws IOException {
-    InputStream errorStream = httpURLConnection.getErrorStream();
-    if (errorStream != null) {
-      try (InputStreamReader inputStream =
-              new InputStreamReader(errorStream, StandardCharsets.UTF_8);
-          BufferedReader reader = new BufferedReader(inputStream)) {
-        StringBuilder stringBuilder = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-          stringBuilder.append(line);
-        }
-        String errorDescription = stringBuilder.toString();
-        if (StringUtil.hasText(errorDescription)) {
-          LOGGER.trace("HttpURLConnection ERROR, server response: {}", errorDescription);
+  private static void logErrorResponse(HttpURLConnection connection) throws IOException {
+    try (InputStream errorStream = connection.getErrorStream()) {
+      if (errorStream != null) {
+        String errorContent = new String(errorStream.readAllBytes(), StandardCharsets.UTF_8);
+        if (StringUtil.hasText(errorContent)) {
+          LOGGER.trace("HttpURLConnection ERROR, server response: {}", errorContent);
         }
       }
     }

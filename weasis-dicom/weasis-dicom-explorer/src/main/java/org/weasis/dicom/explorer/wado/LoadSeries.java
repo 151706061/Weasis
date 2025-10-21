@@ -336,7 +336,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
               writer.write(new ObjectMapper().writeValueAsString(model));
             }
             if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
-              NetworkUtil.readResponse(httpURLConnection, urlParameters.getUnmodifiableHeaders());
+              NetworkUtil.readResponse(httpURLConnection, urlParameters.headers());
             }
           } catch (Exception e) {
             LOGGER.error("Cannot send log to the statisticService service", e);
@@ -644,7 +644,7 @@ public class LoadSeries extends ExplorerTask<Boolean, String> implements SeriesI
         if (thumbURL != null) {
           thumbURL +=
               "/thumbnail?viewport=" + Thumbnail.MAX_SIZE + "%2C" + Thumbnail.MAX_SIZE; // NON-NLS
-          HashMap<String, String> headers = new HashMap<>(urlParams.getUnmodifiableHeaders());
+          HashMap<String, String> headers = new HashMap<>(urlParams.headers());
           headers.put("Accept", "image/jpeg"); // NON-NLS
           params = new URLParameters(headers);
         }

@@ -164,7 +164,7 @@ public class DicomZipImport extends AbstractItemDialogPage implements ImportDico
                   .toFile(); // NON-NLS
 
           ClosableURLConnection urlConnection =
-              NetworkUtil.getUrlConnection(u.toURL(), new URLParameters());
+              NetworkUtil.getUrlConnection(u.toURL(), URLParameters.DEFAULT);
           FileUtil.writeStreamWithIOException(urlConnection.getInputStream(), zipFile.toPath());
         }
       } catch (Exception e) {

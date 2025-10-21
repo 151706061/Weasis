@@ -15,23 +15,27 @@ import java.io.InputStream;
 import java.net.http.HttpResponse;
 import java.util.Objects;
 import org.weasis.core.api.net.auth.JavaNetHttpClient;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.StreamUtil;
 
+/** HTTP response wrapper providing HttpStream compatibility for OAuth2 and Java 11+ responses. */
 public record HttpResponseStream(Response response) implements HttpStream {
 
-  public HttpResponseStream(Response response) {
-    this.response = Objects.requireNonNull(response);
+  public HttpResponseStream {
+    Objects.requireNonNull(response, "Response cannot be null");
   }
 
-  public HttpResponseStream(HttpResponse<InputStream> r) {
+  public HttpResponseStream(HttpResponse<InputStream> httpResponse) {
     this(
         new Response(
-            r.statusCode(), r.version().toString(), JavaNetHttpClient.parseHeaders(r), r.body()));
+            httpResponse.statusCode(),
+            httpResponse.version().toString(),
+            JavaNetHttpClient.parseHeaders(httpResponse),
+            httpResponse.body()));
   }
 
   @Override
   public void close() {
-    FileUtil.safeClose(response);
+    StreamUtil.safeClose(response);
   }
 
   @Override

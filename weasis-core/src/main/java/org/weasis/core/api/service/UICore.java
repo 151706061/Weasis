@@ -218,7 +218,7 @@ public final class UICore {
         props.store(new DataOutputStream(out), null);
       }
       if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
-        NetworkUtil.readResponse(httpURLConnection, urlParameters.getUnmodifiableHeaders());
+        NetworkUtil.readResponse(httpURLConnection, urlParameters.headers());
       }
     }
   }

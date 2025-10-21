@@ -9,69 +9,23 @@
  */
 package org.weasis.core.api.net.auth;
 
-public class AuthProvider {
+import org.weasis.core.util.StringUtil;
 
-  public static final String DEFAULT_NAME = "name"; // NON-NLS
-  private String name;
-  private String authorizationUri;
-  private String tokenUri;
-  private String revokeTokenUri;
-  private boolean openId;
-
-  public AuthProvider(
-      String name,
-      String authorizationUri,
-      String tokenUri,
-      String revokeTokenUri,
-      boolean openId) {
-    this.name = name;
-    this.authorizationUri = authorizationUri;
-    this.tokenUri = tokenUri;
-    this.revokeTokenUri = revokeTokenUri;
-    this.openId = openId;
-  }
-
-  public boolean getOpenId() {
-    return openId;
-  }
-
-  public void setOpenId(boolean openId) {
-    this.openId = openId;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public void setName(String name) {
-    this.name = name;
-  }
-
-  public String getAuthorizationUri() {
-    return authorizationUri;
-  }
-
-  public void setAuthorizationUri(String authorizationUri) {
-    this.authorizationUri = authorizationUri;
-  }
-
-  public String getTokenUri() {
-    return tokenUri;
-  }
-
-  public void setTokenUri(String tokenUri) {
-    this.tokenUri = tokenUri;
-  }
-
-  public String getRevokeTokenUri() {
-    return revokeTokenUri;
-  }
-
-  public void setRevokeTokenUri(String revokeTokenUri) {
-    this.revokeTokenUri = revokeTokenUri;
-  }
-
-  public String getUserNameAttribute() {
-    return DEFAULT_NAME;
+/**
+ * OAuth2/OpenID Connect provider configuration.
+ *
+ * @param name provider name
+ * @param authorizationUri authorization endpoint URI
+ * @param tokenUri token endpoint URI
+ * @param revokeTokenUri token revocation endpoint URI (optional)
+ * @param openId whether OpenID Connect is supported
+ */
+public record AuthProvider(
+    String name, String authorizationUri, String tokenUri, String revokeTokenUri, boolean openId) {
+  /**
+   * @return true if token revocation is supported
+   */
+  public boolean supportsTokenRevocation() {
+    return StringUtil.hasText(revokeTokenUri);
   }
 }

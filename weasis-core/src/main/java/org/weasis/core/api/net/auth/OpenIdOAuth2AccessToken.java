@@ -12,17 +12,9 @@ package org.weasis.core.api.net.auth;
 import com.github.scribejava.core.model.OAuth2AccessToken;
 import java.util.Objects;
 
+/** OAuth2 access token with OpenID Connect id_token support. */
 public class OpenIdOAuth2AccessToken extends OAuth2AccessToken {
 
-  /**
-   * Id_token is part of OpenID Connect specification. It can hold user information that you can
-   * directly extract without additional request to provider.
-   *
-   * <p>See http://openid.net/specs/openid-connect-core-1_0.html#id_token-tokenExample and
-   * https://bitbucket.org/nimbusds/nimbus-jose-jwt/wiki/Home
-   *
-   * <p>Here will be encoded and signed id token in JWT format or null, if not defined.
-   */
   private final String openIdToken;
 
   public OpenIdOAuth2AccessToken(String accessToken, String openIdToken, String rawResponse) {
@@ -47,26 +39,14 @@ public class OpenIdOAuth2AccessToken extends OAuth2AccessToken {
 
   @Override
   public int hashCode() {
-    int hash = super.hashCode();
-    hash = 37 * hash + Objects.hashCode(openIdToken);
-    return hash;
+    return Objects.hash(super.hashCode(), openIdToken);
   }
 
   @Override
   public boolean equals(Object obj) {
-    if (this == obj) {
-      return true;
-    }
-    if (obj == null) {
-      return false;
-    }
-    if (getClass() != obj.getClass()) {
-      return false;
-    }
-    if (!super.equals(obj)) {
-      return false;
-    }
-
-    return Objects.equals(openIdToken, ((OpenIdOAuth2AccessToken) obj).getOpenIdToken());
+    return this == obj
+        || (obj instanceof OpenIdOAuth2AccessToken other
+            && super.equals(obj)
+            && Objects.equals(openIdToken, other.openIdToken));
   }
 }

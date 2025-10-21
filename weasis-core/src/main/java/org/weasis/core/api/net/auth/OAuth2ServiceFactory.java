@@ -15,97 +15,110 @@ import com.github.scribejava.core.extractors.OAuth2AccessTokenJsonExtractor;
 import com.github.scribejava.core.extractors.TokenExtractor;
 import com.github.scribejava.core.model.OAuth2AccessToken;
 import com.github.scribejava.core.oauth.OAuth20Service;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.weasis.core.Messages;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.net.SocketUtil;
 
-public class OAuth2ServiceFactory {
-  static final String CALLBACK_URL = "http://127.0.0.1:";
-  public static final String NO = "5aa85854-8f1f-11eb-b339-d3daace59a05"; // NON-NLS
-  public static final DefaultAuthMethod noAuth =
-      new DefaultAuthMethod(
-          NO,
-          new AuthProvider(Messages.getString("no.authentication"), null, null, null, false),
-          new AuthRegistration()) {
-        @Override
-        public OAuth2AccessToken getToken() {
-          return null;
-        }
-      };
-  private static final AuthProvider googleProvider =
-      new AuthProvider(
-          "Google Cloud Healthcare", // NON-NLS
-          "https://accounts.google.com/o/oauth2/v2/auth",
-          "https://oauth2.googleapis.com/token",
-          "https://oauth2.googleapis.com/revoke",
-          true);
-  public static final DefaultAuthMethod googleAuthTemplate =
-      new DefaultAuthMethod(
-          "2c5dc28c-8fa0-11eb-9321-7fffcd64cef1", // NON-NLS
-          googleProvider,
-          new AuthRegistration(
-              null,
-              null,
-              "https://www.googleapis.com/auth/cloud-healthcare https://www.googleapis.com/auth/cloudplatformprojects.readonly",
-              null));
-  public static final DefaultAuthMethod keycloakTemplate =
-      new DefaultAuthMethod(
-          "68c845fc-93c5-11eb-b2f8-0f5db063091d", // NON-NLS
-          buildKeycloakProvider(
-              "Default Keycloak 18+", "http://localhost:8080/", "master"), // NON-NLS
-          new AuthRegistration(null, null, "openid", null)); // NON-NLS
+/** Factory for creating and caching OAuth2 services with predefined authentication methods. */
+public final class OAuth2ServiceFactory {
 
-  private static final Map<String, OAuth20Service> services = new HashMap<>();
+  public static final String CALLBACK_URL = "http://127.0.0.1:";
+  public static final String NO_AUTH_ID = "5aa85854-8f1f-11eb-b339-d3daace59a05"; // NON-NLS
 
-  private OAuth2ServiceFactory() {}
+  public static final DefaultAuthMethod NO_AUTH = createNoAuthMethod();
 
-  public static AuthProvider buildKeycloakProvider(String name, String baseUrl, String realm) {
-    String baseUrlWithRealm =
-        baseUrl + (baseUrl.endsWith("/") ? "" : "/") + "realms/" + realm.trim(); // NON-NLS
-    return new AuthProvider(
-        name,
-        baseUrlWithRealm + "/protocol/openid-connect/auth", // NON-NLS
-        baseUrlWithRealm + "/protocol/openid-connect/token", // NON-NLS
-        baseUrlWithRealm + "/protocol/openid-connect/revoke", // NON-NLS
-        true);
+  public static final DefaultAuthMethod GOOGLE_AUTH_TEMPLATE = createGoogleAuthTemplate();
+  public static final DefaultAuthMethod KEYCLOAK_TEMPLATE = createKeycloakTemplate();
+  private static final Map<String, OAuth20Service> services = new ConcurrentHashMap<>();
+
+  private OAuth2ServiceFactory() {
+    // Utility class
   }
 
   public static OAuth20Service getService(AuthMethod authMethod) {
-    int port =
+    var port =
         GuiUtils.getUICore().getSystemPreferences().getIntProperty("weasis.auth.back.port", 0);
     return getService(authMethod, port);
   }
 
   public static OAuth20Service getService(AuthMethod authMethod, int port) {
-    if (services.containsKey(authMethod.getUid())) {
-      return services.get(authMethod.getUid());
-    }
+    return services.computeIfAbsent(
+        authMethod.getUid(), uid -> createOAuth20Service(authMethod, port));
+  }
 
-    AuthRegistration registration = authMethod.getAuthRegistration();
-    AuthProvider provider = authMethod.getAuthProvider();
+  public static AuthProvider buildKeycloakProvider(String name, String baseUrl, String realm) {
+    var normalizedUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    var realmUrl = normalizedUrl + "realms/" + realm.trim(); // NON-NLS
+
+    return new AuthProvider(
+        name,
+        realmUrl + "/protocol/openid-connect/auth", // NON-NLS
+        realmUrl + "/protocol/openid-connect/token", // NON-NLS
+        realmUrl + "/protocol/openid-connect/revoke", // NON-NLS
+        true);
+  }
+
+  private static DefaultAuthMethod createNoAuthMethod() {
+    return new DefaultAuthMethod(
+        NO_AUTH_ID,
+        new AuthProvider(Messages.getString("no.authentication"), null, null, null, false),
+        AuthRegistration.empty()) {
+      @Override
+      public OAuth2AccessToken getToken() {
+        return null;
+      }
+    };
+  }
+
+  private static DefaultAuthMethod createGoogleAuthTemplate() {
+    var provider =
+        new AuthProvider(
+            "Google Cloud Healthcare", // NON-NLS
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            "https://oauth2.googleapis.com/token",
+            "https://oauth2.googleapis.com/revoke",
+            true);
+    return new DefaultAuthMethod(
+        "2c5dc28c-8fa0-11eb-9321-7fffcd64cef1", // NON-NLS
+        provider,
+        AuthRegistration.of(
+            null,
+            null,
+            "https://www.googleapis.com/auth/cloud-healthcare https://www.googleapis.com/auth/cloudplatformprojects.readonly",
+            null));
+  }
+
+  private static DefaultAuthMethod createKeycloakTemplate() {
+    return new DefaultAuthMethod(
+        "68c845fc-93c5-11eb-b2f8-0f5db063091d", // NON-NLS
+        buildKeycloakProvider(
+            "Default Keycloak 18+", "http://localhost:8080/", "master"), // NON-NLS
+        AuthRegistration.of(null, null, "openid", null)); // NON-NLS
+  }
+
+  private static OAuth20Service createOAuth20Service(AuthMethod authMethod, int port) {
+    var registration = authMethod.getAuthRegistration();
+    var provider = authMethod.getAuthProvider();
+
     if (registration == null || provider == null) {
       return null;
     }
-    if (port <= 0) {
-      port = SocketUtil.findAvailablePort();
-    }
-    OAuth20Service oAuth20Service =
-        new ServiceBuilder(registration.getClientId())
-            .apiSecret(registration.getClientSecret())
-            .httpClient(new JavaNetHttpClient())
-            .defaultScope(registration.getScope())
-            .callback(CALLBACK_URL + port)
-            .responseType(registration.getAuthorizationGrantType())
-            .userAgent(System.getProperty("http.agent"))
-            .build(new OAuth2Api(provider));
+    var actualPort = port <= 0 ? SocketUtil.findAvailablePort() : port;
 
-    services.put(authMethod.getUid(), oAuth20Service);
-    return oAuth20Service;
+    return new ServiceBuilder(registration.clientId())
+        .apiSecret(registration.clientSecret())
+        .httpClient(new JavaNetHttpClient())
+        .defaultScope(registration.scope())
+        .callback(CALLBACK_URL + actualPort)
+        .responseType(registration.getAuthorizationGrantType())
+        .userAgent(System.getProperty("http.agent"))
+        .build(new OAuth2Api(provider));
   }
 
-  static class OAuth2Api extends DefaultApi20 {
+  /** OAuth2 API implementation for custom providers. */
+  static final class OAuth2Api extends DefaultApi20 {
     private final AuthProvider provider;
 
     OAuth2Api(AuthProvider provider) {
@@ -114,25 +127,24 @@ public class OAuth2ServiceFactory {
 
     @Override
     public String getAccessTokenEndpoint() {
-      return provider.getTokenUri();
+      return provider.tokenUri();
     }
 
     @Override
     public String getAuthorizationBaseUrl() {
-      return provider.getAuthorizationUri();
+      return provider.authorizationUri();
     }
 
     @Override
     public String getRevokeTokenEndpoint() {
-      return provider.getRevokeTokenUri();
+      return provider.revokeTokenUri();
     }
 
     @Override
     public TokenExtractor<OAuth2AccessToken> getAccessTokenExtractor() {
-      if (provider.getOpenId()) {
-        return OpenIdJsonTokenExtractor.instance();
-      }
-      return OAuth2AccessTokenJsonExtractor.instance();
+      return provider.openId()
+          ? OpenIdJsonTokenExtractor.instance()
+          : OAuth2AccessTokenJsonExtractor.instance();
     }
   }
 }

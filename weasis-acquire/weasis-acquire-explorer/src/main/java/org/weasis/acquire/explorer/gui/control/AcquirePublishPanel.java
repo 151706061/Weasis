@@ -125,7 +125,7 @@ public class AcquirePublishPanel extends JPanel {
   public PublishDicomTask publishStow(
       File tempDirDicom, DicomWebNode node, List<AcquireMediaInfo> toPublish) {
     AuthMethod auth = AuthenticationPersistence.getAuthMethod(node.getAuthMethodUid());
-    if (!OAuth2ServiceFactory.noAuth.equals(auth)) {
+    if (!OAuth2ServiceFactory.NO_AUTH.equals(auth)) {
       String oldCode = auth.getCode();
       authMethod = auth;
       if (authMethod.getToken() == null) {

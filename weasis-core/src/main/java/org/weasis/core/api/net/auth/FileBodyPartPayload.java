@@ -12,12 +12,14 @@ package org.weasis.core.api.net.auth;
 import com.github.scribejava.core.httpclient.HttpClient;
 import com.github.scribejava.core.httpclient.multipart.BodyPartPayload;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/** File body part payload for multipart HTTP requests. */
 public class FileBodyPartPayload extends BodyPartPayload {
 
+  private static final String CONTENT_DISPOSITION = "Content-Disposition";
+  private static final String FORM_DATA = "form-data";
   private final BodySupplier<InputStream> bodySupplier;
 
   public FileBodyPartPayload(BodySupplier<InputStream> bodySupplier) {
@@ -28,9 +30,14 @@ public class FileBodyPartPayload extends BodyPartPayload {
     this(null, bodySupplier, filename);
   }
 
+  /**
+   * @param contentType content type header (optional)
+   * @param bodySupplier input stream supplier for file content
+   * @param filename filename for Content-Disposition header (optional)
+   */
   public FileBodyPartPayload(
       String contentType, BodySupplier<InputStream> bodySupplier, String filename) {
-    super(composeHeaders(contentType, filename));
+    super(buildHeaders(contentType, filename));
     this.bodySupplier = bodySupplier;
   }
 
@@ -38,19 +45,17 @@ public class FileBodyPartPayload extends BodyPartPayload {
     return bodySupplier;
   }
 
-  private static Map<String, String> composeHeaders(String contentType, String filename) {
+  private static Map<String, String> buildHeaders(String contentType, String filename) {
+    var headers = new HashMap<String, String>();
 
-    String contentDispositionHeader = "form-data"; // NON-NLS
-    if (filename != null) {
-      contentDispositionHeader += "; filename=\"" + filename + '"'; // NON-NLS
-    }
-    if (contentType == null) {
-      return Collections.singletonMap("Content-Disposition", contentDispositionHeader); // NON-NLS
-    } else {
-      final Map<String, String> headers = new HashMap<>();
+    if (contentType != null) {
       headers.put(HttpClient.CONTENT_TYPE, contentType);
-      headers.put("Content-Disposition", contentDispositionHeader); // NON-NLS
-      return headers;
     }
+
+    headers.put(
+        CONTENT_DISPOSITION,
+        filename != null ? FORM_DATA + "; filename=\"" + filename + "\"" : FORM_DATA);
+
+    return Map.copyOf(headers);
   }
 }

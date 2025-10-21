@@ -777,7 +777,7 @@ public class DicomQrView extends AbstractItemDialogPage implements ImportDicom {
       process.start();
     } else if (selectedItem instanceof final DicomWebNode node) {
       AuthMethod auth = AuthenticationPersistence.getAuthMethod(node.getAuthMethodUid());
-      if (!OAuth2ServiceFactory.noAuth.equals(auth)) {
+      if (!OAuth2ServiceFactory.NO_AUTH.equals(auth)) {
         String oldCode = auth.getCode();
         authMethod = auth;
         if (authMethod.getToken() == null) {

@@ -60,7 +60,7 @@ public class DicomWebNode extends AbstractDicomNode {
     this.url = url;
     this.webType = webType;
     this.headers = new HashMap<>();
-    this.authMethodUid = OAuth2ServiceFactory.NO;
+    this.authMethodUid = OAuth2ServiceFactory.NO_AUTH_ID;
   }
 
   @Override
@@ -80,7 +80,7 @@ public class DicomWebNode extends AbstractDicomNode {
 
   public void setAuthMethodUid(String authMethodUid) {
     this.authMethodUid =
-        StringUtil.hasText(authMethodUid) ? authMethodUid : OAuth2ServiceFactory.NO;
+        StringUtil.hasText(authMethodUid) ? authMethodUid : OAuth2ServiceFactory.NO_AUTH_ID;
   }
 
   public AuthMethod getAuthMethod() {

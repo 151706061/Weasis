@@ -9,67 +9,72 @@
  */
 package org.weasis.core.api.net.auth;
 
-public class AuthRegistration {
+import org.weasis.core.util.StringUtil;
 
+/**
+ * Creates an AuthRegistration with the specified parameters.
+ *
+ * @param clientId OAuth2 client identifier
+ * @param clientSecret OAuth2 client secret
+ * @param scope OAuth2 scope permissions
+ * @param audience OAuth2 audience claim
+ * @param user associated username
+ */
+public record AuthRegistration(
+    String clientId, String clientSecret, String scope, String audience, String user) {
+
+  /** OAuth2 authorization code grant type constant */
   public static final String CODE = "code"; // NON-NLS
-  private String clientId;
-  private String clientSecret;
-  private String scope;
-  private String audience;
-  private String user;
 
-  public AuthRegistration() {
-    this(null, null, null, null);
+  public AuthRegistration {
+    clientId = normalizeString(clientId);
+    clientSecret = normalizeString(clientSecret);
+    scope = normalizeString(scope);
+    audience = normalizeString(audience);
+    user = normalizeString(user);
   }
 
-  public AuthRegistration(String clientId, String clientSecret, String scope, String audience) {
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
-    this.scope = scope;
-    this.audience = audience;
+  /**
+   * @return empty AuthRegistration with all null values
+   */
+  public static AuthRegistration empty() {
+    return new AuthRegistration(null, null, null, null, null);
   }
 
-  public String getClientId() {
-    return clientId;
+  public static AuthRegistration of(
+      String clientId, String clientSecret, String scope, String audience) {
+    return new AuthRegistration(clientId, clientSecret, scope, audience, null);
   }
 
-  public void setClientId(String clientId) {
-    this.clientId = clientId;
-  }
-
-  public String getClientSecret() {
-    return clientSecret;
-  }
-
-  public void setClientSecret(String clientSecret) {
-    this.clientSecret = clientSecret;
-  }
-
-  public String getScope() {
-    return scope;
-  }
-
-  public void setScope(String scope) {
-    this.scope = scope;
-  }
-
-  public String getUser() {
-    return user;
-  }
-
-  public void setUser(String user) {
-    this.user = user;
-  }
-
-  public String getAudience() {
-    return audience;
-  }
-
-  public void setAudience(String audience) {
-    this.audience = audience;
-  }
-
+  /**
+   * @return OAuth2 authorization grant type (always "code")
+   */
   public String getAuthorizationGrantType() {
     return CODE;
+  }
+
+  /**
+   * @return true if client ID is configured
+   */
+  public boolean hasClientId() {
+    return StringUtil.hasText(clientId);
+  }
+
+  /**
+   * @return true if client secret is configured
+   */
+  public boolean hasClientSecret() {
+    return StringUtil.hasText(clientSecret);
+  }
+
+  /**
+   * @return true if registration is properly configured for OAuth2
+   */
+  public boolean isComplete() {
+    return hasClientId() && hasClientSecret();
+  }
+
+  private static String normalizeString(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
   }
 }

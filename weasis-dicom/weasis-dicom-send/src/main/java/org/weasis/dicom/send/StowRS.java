@@ -121,7 +121,7 @@ public class StowRS extends DicomStowRS {
     DicomState state = new DicomState(new DicomProgress());
     Attributes error = null;
     int nbFile = 0;
-    boolean auth = authMethod != null && !OAuth2ServiceFactory.noAuth.equals(authMethod);
+    boolean auth = authMethod != null && !OAuth2ServiceFactory.NO_AUTH.equals(authMethod);
 
     String url = getRequestURL();
     OAuthRequest authRequest = null;

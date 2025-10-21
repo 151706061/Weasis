@@ -40,7 +40,7 @@ public class FileModel extends AbstractFileModel {
 
   private File getFile(String url) {
     Path outFile;
-    try (ClosableURLConnection http = NetworkUtil.getUrlConnection(url, new URLParameters());
+    try (ClosableURLConnection http = NetworkUtil.getUrlConnection(url, URLParameters.DEFAULT);
         InputStream in = http.getInputStream()) {
       outFile = Files.createTempFile(IMAGE_CACHE_DIR, "img_", FileUtil.getExtension(url));
       LOGGER.debug("Start to download image {} to {}.", url, outFile);
