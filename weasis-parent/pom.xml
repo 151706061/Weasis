@@ -313,7 +313,7 @@
         <configuration>
           <java>
             <googleJavaFormat>
-              <version>1.30.0</version>
+              <version>1.33.0</version>
             </googleJavaFormat>
             <toggleOffOn>
               <off>@formatter:off</off>
