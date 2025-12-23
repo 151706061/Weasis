@@ -221,6 +221,10 @@ public class ImageElement extends MediaElement {
     return pixelSizeCalibrationDescription;
   }
 
+  public void setPixelSizeCalibrationDescription(String pixelSizeCalibrationDescription) {
+    this.pixelSizeCalibrationDescription = pixelSizeCalibrationDescription;
+  }
+
   public Number pixelToRealValue(Number pixelValue, WlPresentation wlp) {
     return pixelValue;
   }

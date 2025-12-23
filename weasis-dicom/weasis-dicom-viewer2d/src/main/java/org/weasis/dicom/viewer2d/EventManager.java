@@ -374,6 +374,8 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                   .map(PRSpecialElement.class::cast)
                   .orElse(null);
           if (pr != null && !PresentationStateReader.isImageApplicable(pr, image)) {
+            // Remove the calibration included in the PR
+            view2d.getImage().initPixelConfiguration();
             pr = null;
           }
           DefaultWlPresentation wlp =
