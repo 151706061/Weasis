@@ -35,12 +35,12 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
-import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.function.Predicate;
@@ -668,30 +668,30 @@ public class GuiUtils {
     }
   }
 
-  public static void openSystemExplorer(Component parent, File file) {
-    if (file != null) {
+  public static void openSystemExplorer(Component parent, Path path) {
+    if (path != null) {
       if (SystemInfo.isLinux) {
-        openCommand("xdg-open", file); // NON-NLS
+        openCommand("xdg-open", path); // NON-NLS
       } else if (Desktop.isDesktopSupported()
           && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
-        Desktop.getDesktop().browseFileDirectory(file);
+        Desktop.getDesktop().browseFileDirectory(path.toFile());
       } else if (SystemInfo.isWindows) {
-        openCommand("explorer", file); // NON-NLS
+        openCommand("explorer", path); // NON-NLS
       } else if (SystemInfo.isMacOS) {
-        openCommand("/usr/bin/open", file); // NON-NLS
+        openCommand("/usr/bin/open", path); // NON-NLS
       } else {
         JOptionPane.showMessageDialog(
             WinUtil.getValidComponent(parent),
-            Messages.getString("JMVUtils.browser") + StringUtil.COLON_AND_SPACE + file.getPath(),
+            Messages.getString("JMVUtils.browser") + StringUtil.COLON_AND_SPACE + path,
             Messages.getString("JMVUtils.error"),
             JOptionPane.ERROR_MESSAGE);
       }
     }
   }
 
-  private static void openCommand(String cmd, File file) {
+  private static void openCommand(String cmd, Path path) {
     try {
-      String[] command = new String[] {cmd, file.getPath()}; // NON-NLS
+      String[] command = new String[] {cmd, path.toString()}; // NON-NLS
       Runtime.getRuntime().exec(command);
     } catch (IOException e) {
       LOGGER.error("Cannot open a file to the system explorer", e);

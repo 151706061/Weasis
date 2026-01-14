@@ -109,12 +109,12 @@ public class WeasisWinListener implements MainWindowListener {
             List<MediaSeries<MediaElement>> series = builder.getSeries();
             Map<String, Object> props = builder.getProperties();
             if (series != null
-                && LangUtil.getNULLtoTrue(
+                && LangUtil.nullToTrue(
                     (Boolean) props.get(ViewerPluginBuilder.CMP_ENTRY_BUILD_NEW_VIEWER))
                 && model.getTreeModelNodeForNewPlugin() != null
                 && model instanceof TreeModel treeModel) {
               boolean inSelView =
-                  LangUtil.getNULLtoFalse(
+                  LangUtil.nullToFalse(
                           (Boolean) props.get(ViewerPluginBuilder.ADD_IN_SELECTED_VIEW))
                       && builder.getFactory().isViewerCreatedByThisFactory(selectedPlugin);
 

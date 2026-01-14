@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,21 +33,18 @@ import org.dcm4che3.io.SAXReader;
 import org.dcm4che3.net.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.BasicHttpClient;
-import org.weasis.core.api.auth.BodySupplier;
-import org.weasis.core.api.auth.FileBodyPartPayload;
-import org.weasis.core.api.auth.OAuth2ServiceFactory;
-import org.weasis.core.api.util.ClosableURLConnection;
-import org.weasis.core.api.util.HttpResponse;
-import org.weasis.core.api.util.NetworkUtil;
-import org.weasis.core.api.util.URLParameters;
+import org.weasis.core.api.net.HttpStream;
+import org.weasis.core.api.net.HttpUtils;
+import org.weasis.core.api.net.URLParameters;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.BodySupplier;
+import org.weasis.core.api.net.auth.FileBodyPartPayload;
 import org.weasis.core.util.FileUtil;
 import org.weasis.dicom.param.DicomProgress;
 import org.weasis.dicom.param.DicomState;
 import org.weasis.dicom.web.ContentType;
 import org.weasis.dicom.web.DicomStowRS;
-import org.weasis.dicom.web.Multipart;
+import org.weasis.dicom.web.MultipartConstants;
 import org.xml.sax.SAXException;
 
 public class StowRS extends DicomStowRS {
@@ -77,18 +75,18 @@ public class StowRS extends DicomStowRS {
         "multipart/related;type=\"" // NON-NLS
             + ContentType.APPLICATION_DICOM.getType()
             + "\";boundary=" // NON-NLS
-            + MULTIPART_BOUNDARY);
-    headers.put("Accept", Multipart.ContentType.XML.toString()); // NON-NLS
+            + DEFAULT_BOUNDARY);
+    headers.put("Accept", MultipartConstants.DicomContentType.XML.toString()); // NON-NLS
 
-    MultipartPayload multipart = new MultipartPayload(MULTIPART_BOUNDARY, headers);
+    MultipartPayload multipart = new MultipartPayload(DEFAULT_BOUNDARY, headers);
 
     for (String entry : filesOrFolders) {
       File file = new File(entry);
       if (file.isDirectory()) {
-        List<File> fileList = new ArrayList<>();
-        FileUtil.getAllFilesInDirectory(file, fileList, recursive);
-        for (File f : fileList) {
-          addMultipartFile(multipart, f);
+        List<Path> fileList = new ArrayList<>();
+        FileUtil.getAllFilesInDirectory(file.toPath(), fileList, recursive);
+        for (Path f : fileList) {
+          addMultipartFile(multipart, f.toFile());
         }
       } else {
         addMultipartFile(multipart, file);
@@ -120,37 +118,20 @@ public class StowRS extends DicomStowRS {
     DicomState state = new DicomState(new DicomProgress());
     Attributes error = null;
     int nbFile = 0;
-    boolean auth = authMethod != null && !OAuth2ServiceFactory.noAuth.equals(authMethod);
 
     String url = getRequestURL();
-    OAuthRequest authRequest = null;
-    if (auth) {
-      authRequest = prepareAuthConnection(filesOrFolders, recursive);
-      nbFile = authRequest.getMultipartPayload().getBodyParts().size();
-    }
+    OAuthRequest authRequest = prepareAuthConnection(filesOrFolders, recursive);
+    nbFile = authRequest.getMultipartPayload().getBodyParts().size();
 
-    try (HttpResponse httpCon =
-        NetworkUtil.getHttpResponse(
+    try (HttpStream httpCon =
+        HttpUtils.getHttpResponse(
             url, new URLParameters(getHeaders(), true), authMethod, authRequest)) {
-      if (auth) {
-        int code = httpCon.getResponseCode();
-        if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
-          error = getResponseOutput(httpCon);
-        } else if (code == HttpURLConnection.HTTP_UNAUTHORIZED) {
-          authMethod.resetToken();
-          authMethod.getToken();
-        }
-      } else if (httpCon instanceof ClosableURLConnection urlConnection
-          && urlConnection.getUrlConnection() instanceof HttpURLConnection http) {
-        MultipartPayload multipartPayload = getMultipartPayload(filesOrFolders, recursive);
-        nbFile = multipartPayload.getBodyParts().size();
-        BasicHttpClient.addBody(http, multipartPayload, true);
-        int code = httpCon.getResponseCode();
-        if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
-          error = getResponseOutput(httpCon);
-        }
-      } else {
-        throw new IllegalStateException("HttpResponse type: not implemented");
+      int code = httpCon.getResponseCode();
+      if (code >= HttpURLConnection.HTTP_OK && code < HttpURLConnection.HTTP_BAD_REQUEST) {
+        error = getResponseOutput(httpCon);
+      } else if (code == HttpURLConnection.HTTP_UNAUTHORIZED && authMethod != null) {
+        authMethod.resetToken();
+        authMethod.getToken();
       }
       return buildErrorMessage(error, state, nbFile);
     } catch (Exception e) {
@@ -196,7 +177,7 @@ public class StowRS extends DicomStowRS {
     return DicomState.buildMessage(state, message, null);
   }
 
-  private Attributes getResponseOutput(HttpResponse httpPost)
+  private Attributes getResponseOutput(HttpStream httpPost)
       throws IOException, ParserConfigurationException, SAXException {
     int code = httpPost.getResponseCode();
     if (code == HttpURLConnection.HTTP_OK) {

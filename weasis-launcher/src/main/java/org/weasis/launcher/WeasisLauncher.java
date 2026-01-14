@@ -152,7 +152,8 @@ public class WeasisLauncher {
                     mainFrame.getWindow(),
                     String.format(
                         "%s\n\n%s", // NON-NLS
-                        String.format(Messages.getString("WeasisLauncher.update_min"), appName, minVersion),
+                        String.format(
+                            Messages.getString("WeasisLauncher.update_min"), appName, minVersion),
                         Messages.getString("WeasisLauncher.continue_local")),
                     null,
                     JOptionPane.YES_NO_OPTION,
@@ -335,12 +336,12 @@ Starting OSGI Bundles...
 
   private static void resetBundleCache() {
     // Set flag to clean cache at next launch
-    File sourceIdProps =
-        new File(
+    Path sourceIdProps =
+        Path.of(
             System.getProperty(P_WEASIS_PATH, ""),
             System.getProperty(P_WEASIS_SOURCE_ID) + ".properties"); // NON-NLS
     Properties localSourceProp = new Properties();
-    FileUtil.readProperties(sourceIdProps, localSourceProp);
+    FileUtil.loadProperties(sourceIdProps, localSourceProp);
     localSourceProp.setProperty(ConfigData.P_WEASIS_CLEAN_CACHE, Boolean.TRUE.toString());
     FileUtil.storeProperties(sourceIdProps, localSourceProp, null);
   }
@@ -352,7 +353,7 @@ Starting OSGI Bundles...
     if (versionOld == null) {
       String val = serverProp.get("prev." + ConfigData.P_WEASIS_SHOW_DISCLAIMER); // NON-NLS
       String accept = serverProp.get(ConfigData.P_WEASIS_ACCEPT_DISCLAIMER);
-      if (Utils.geEmptyToTrue(val) && !Utils.getEmptyToFalse(accept)) {
+      if (Utils.emptyToTrue(val) && !Utils.emptyToFalse(accept)) {
 
         EventQueue.invokeLater(
             () -> {
@@ -377,12 +378,12 @@ Starting OSGI Bundles...
                 // remotely. The user will accept the disclaimer only once.
                 System.setProperty(ConfigData.P_WEASIS_ACCEPT_DISCLAIMER, Boolean.TRUE.toString());
               } else {
-                File file =
-                    new File(
+                Path path =
+                    Path.of(
                         System.getProperty(P_WEASIS_PATH, ""),
                         System.getProperty(P_WEASIS_SOURCE_ID) + ".properties");
                 // delete the properties file to ask again
-                FileUtil.delete(file);
+                FileUtil.delete(path);
                 LOGGER.error("Refusing the disclaimer");
                 System.exit(-1);
               }
@@ -390,7 +391,7 @@ Starting OSGI Bundles...
       }
     } else if (versionNew != null && !versionNew.equals(versionOld)) {
       String val = serverProp.get("prev." + ConfigData.P_WEASIS_SHOW_RELEASE); // NON-NLS
-      if (Utils.geEmptyToTrue(val)) {
+      if (Utils.emptyToTrue(val)) {
         try {
           Version vOld = getVersion(versionOld);
           Version vNew = getVersion(versionNew);
@@ -657,7 +658,7 @@ Starting OSGI Bundles...
     serverProp.put("weasis.pref.dir", prefDir.getPath());
 
     Properties currentProps = new Properties();
-    FileUtil.readProperties(new File(prefDir, ConfigData.APP_PROPERTY_FILE), currentProps);
+    FileUtil.loadProperties(Path.of(prefDir.getPath(), ConfigData.APP_PROPERTY_FILE), currentProps);
     currentProps
         .stringPropertyNames()
         .forEach(key -> serverProp.put("wp.init." + key, currentProps.getProperty(key))); // NON-NLS
@@ -707,7 +708,7 @@ Starting OSGI Bundles...
             currentProps,
             true,
             true);
-    if (Utils.getEmptyToFalse(logActivation)) {
+    if (Utils.emptyToFalse(logActivation)) {
       String logFile = dir + File.separator + "log" + File.separator + "default.log"; // NON-NLS
       serverProp.put("org.apache.sling.commons.log.file", logFile);
       currentProps.remove("org.apache.sling.commons.log.file");
@@ -780,7 +781,7 @@ Starting OSGI Bundles...
               currentProps,
               true,
               true);
-      if (Utils.getEmptyToFalse(decoration)) {
+      if (Utils.emptyToFalse(decoration)) {
         // enable custom window decorations
         JFrame.setDefaultLookAndFeelDecorated(true);
         JDialog.setDefaultLookAndFeelDecorated(true);
@@ -844,10 +845,10 @@ Starting OSGI Bundles...
     }
     currentProps.put(P_WEASIS_LOOK, look);
 
-    File sourceIDProps =
-        new File(dir, configData.getProperty(P_WEASIS_SOURCE_ID) + ".properties"); // NON-NLS
+    Path sourceIDProps =
+        Path.of(dir, configData.getProperty(P_WEASIS_SOURCE_ID) + ".properties"); // NON-NLS
     Properties localSourceProp = new Properties();
-    FileUtil.readProperties(sourceIDProps, localSourceProp);
+    FileUtil.loadProperties(sourceIDProps, localSourceProp);
 
     final String versionOld = localSourceProp.getProperty(P_WEASIS_VERSION);
     if (Utils.hasText(versionOld)) {
@@ -871,11 +872,11 @@ Starting OSGI Bundles...
         }
       }
     }
-    File cacheDir = null;
+    Path cacheDir = null;
     try {
       if (isZipResource(resPath)) {
         cacheDir =
-            new File(
+            Path.of(
                 dir
                     + File.separator
                     + "data"
@@ -899,16 +900,16 @@ Starting OSGI Bundles...
       if (mavenRepo) {
         // In Development mode
         File f = new File(System.getProperty("user.dir"));
-        cacheDir = new File(f.getParent(), "weasis-distributions" + File.separator + F_RESOURCES);
+        cacheDir = Path.of(f.getParent(), "weasis-distributions" + File.separator + F_RESOURCES);
       } else {
         String cdbl = configData.getProperty(P_WEASIS_CODEBASE_LOCAL);
-        cacheDir = new File(cdbl, F_RESOURCES);
+        cacheDir = Path.of(cdbl, F_RESOURCES);
       }
     }
-    serverProp.put("weasis.resources.path", cacheDir.getPath());
+    serverProp.put("weasis.resources.path", cacheDir.toString());
 
     // Splash screen that shows bundles loading
-    final WeasisLoader loader = new WeasisLoader(cacheDir.toPath(), mainFrame);
+    final WeasisLoader loader = new WeasisLoader(cacheDir, mainFrame);
     // Display splash screen
     loader.open();
 
@@ -988,7 +989,7 @@ Starting OSGI Bundles...
     conf.append("\n  User home directory = "); // NON-NLS
     conf.append(dir);
     conf.append("\n  Resources path = "); // NON-NLS
-    conf.append(cacheDir.getPath());
+    conf.append(cacheDir);
     conf.append("\n  Preferences directory = "); // NON-NLS
     conf.append(prefDir.getPath());
     conf.append("\n  Look and Feel = "); // NON-NLS
@@ -1017,7 +1018,7 @@ Starting OSGI Bundles...
     conf.append("\n  Java Path = "); // NON-NLS
     conf.append(System.getProperty("java.home")); // NON-NLS
     conf.append("\n  Java max memory (less survivor space) = "); // NON-NLS
-    conf.append(FileUtil.humanReadableByteCount(Runtime.getRuntime().maxMemory(), false));
+    conf.append(FileUtil.humanReadableByte(Runtime.getRuntime().maxMemory(), false));
 
     conf.append("\n***** End of Configuration *****"); // NON-NLS
     LOGGER.info(conf.toString());
@@ -1147,16 +1148,16 @@ Starting OSGI Bundles...
           folders.forEach(
               p -> {
                 LOGGER.error("Delete old folder: {}", p);
-                FileUtil.delete(p.toFile());
+                FileUtil.delete(p);
                 Optional<String> id = getID(p.getFileName().toString());
                 if (id.isPresent()) {
                   Path file = Paths.get(dir, id.get() + ".properties");
                   if (Files.isReadable(file)) {
-                    FileUtil.delete(file.toFile());
+                    FileUtil.delete(file);
                   }
                   Path data = Paths.get(dir, "data", id.get());
                   if (Files.isReadable(data)) {
-                    FileUtil.delete(data.toFile());
+                    FileUtil.delete(data);
                   }
                 }
               });
@@ -1210,7 +1211,7 @@ Starting OSGI Bundles...
     String dir = System.getProperty("weasis.tmp.dir");
     if (Utils.hasText(dir)) {
       long startTime = System.currentTimeMillis();
-      FileUtil.deleteDirectoryContents(new File(dir), 3, 0);
+      FileUtil.deleteDirectoryContents(Path.of(dir), 3, 0);
       LOGGER.info(
           "*PERF* Clean temp folder, type:CLOSE time:{}", System.currentTimeMillis() - startTime);
     }

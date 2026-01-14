@@ -530,7 +530,7 @@ public class DicomImageElement extends ImageElement implements DicomElement {
     BytesWithImageDescriptor desc =
         ImageAdapter.imageTranscode(attributes, adaptTransferSyntax, context);
     if (ImageAdapter.writeDicomFile(
-        attributes, adaptTransferSyntax, context.getEditable(), desc, output)) {
+        attributes, adaptTransferSyntax, context.getEditable(), desc, output.toPath())) {
       return attributes;
     } else {
       LOGGER.error("Cannot export DICOM file: {}", getFileCache().getOriginalFile().orElse(null));

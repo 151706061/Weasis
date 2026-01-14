@@ -63,11 +63,11 @@ import org.weasis.core.api.media.data.ImageElement;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.media.data.Taggable;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.service.WProperties;
-import org.weasis.core.api.util.ClosableURLConnection;
 import org.weasis.core.api.util.GzipManager;
-import org.weasis.core.api.util.NetworkUtil;
-import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.ui.editor.image.ViewCanvas;
 import org.weasis.core.ui.model.GraphicModel;
 import org.weasis.core.ui.model.layer.GraphicLayer;
@@ -718,7 +718,8 @@ public class AcquireManager {
     try {
       URL url = Objects.requireNonNull(uri).toURL();
       LOGGER.debug("Download from URL: {}", url);
-      ClosableURLConnection urlConnection = NetworkUtil.getUrlConnection(url, new URLParameters());
+      ClosableURLConnection urlConnection =
+          NetworkUtil.getUrlConnection(url, URLParameters.DEFAULT);
       // note: fastest way to convert inputStream to string according to :
       // http://stackoverflow.com/questions/309424/read-convert-an-inputstream-to-a-string
       try (InputStream inputStream = urlConnection.getInputStream()) {

@@ -10,6 +10,8 @@
 package org.weasis.dicom.viewer2d.mip;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,9 +31,7 @@ import org.weasis.core.api.gui.util.ComboItemListener;
 import org.weasis.core.api.gui.util.Filter;
 import org.weasis.core.api.gui.util.SliderChangeListener;
 import org.weasis.core.api.gui.util.SliderCineListener;
-import org.weasis.core.api.image.op.MaxCollectionZprojection;
-import org.weasis.core.api.image.op.MeanCollectionZprojection;
-import org.weasis.core.api.image.op.MinCollectionZprojection;
+import org.weasis.core.api.image.op.ImageStackOperations;
 import org.weasis.core.api.media.data.ImageElement;
 import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.SeriesComparator;
@@ -50,9 +50,8 @@ import org.weasis.opencv.data.PlanarImage;
 
 public class SeriesBuilder {
   private static final Logger LOGGER = LoggerFactory.getLogger(SeriesBuilder.class);
-  public static final File MIP_CACHE_DIR =
-      AppProperties.buildAccessibleTempDirectory(
-          AppProperties.FILE_CACHE_DIR.getName(), "mip"); // NON-NLS
+  public static final Path MIP_CACHE_DIR =
+      AppProperties.buildAccessibleTempDirectory(AppProperties.CACHE_NAME, "mip"); // NON-NLS
 
   private SeriesBuilder() {}
 
@@ -120,18 +119,18 @@ public class SeriesBuilder {
           DicomImageElement imgRef = (DicomImageElement) sources.get(sources.size() / 2);
           FileRawImage raw = null;
           try {
-            File dir = MIP_CACHE_DIR;
+            File dir = MIP_CACHE_DIR.toFile();
             if (fullSeries) {
-              dir = new File(MIP_CACHE_DIR, seriesUID);
+              dir = new File(MIP_CACHE_DIR.toFile(), seriesUID);
               dir.mkdirs();
             }
-            raw = new FileRawImage(File.createTempFile("mip_", ".wcv", dir)); // NON-NLS
+            raw = new FileRawImage(Files.createTempFile(dir.toPath(), "mip_", ".wcv")); // NON-NLS
             if (!raw.write(curImage)) {
               raw = null;
             }
           } catch (Exception e) {
             if (raw != null) {
-              FileUtil.delete(raw.file());
+              FileUtil.delete(raw.path());
               raw = null;
             }
             LOGGER.error("Writing MIP", e);
@@ -140,7 +139,7 @@ public class SeriesBuilder {
             return;
           }
           RawImageIO rawIO = new RawImageIO(raw, null);
-          rawIO.getFileCache().setOriginalTempFile(raw.file());
+          rawIO.getFileCache().setOriginalTempFile(raw.path());
           rawIO.setBaseAttributes(cpTags);
 
           // Tags with same values for all the Series
@@ -288,14 +287,11 @@ public class SeriesBuilder {
 
   public static PlanarImage addCollectionOperation(Type mipType, List<ImageElement> sources) {
     if (Type.MIN.equals(mipType)) {
-      MinCollectionZprojection op = new MinCollectionZprojection(sources);
-      return op.computeMinCollectionOpImage();
+      return ImageStackOperations.min(sources);
     }
     if (Type.MEAN.equals(mipType)) {
-      MeanCollectionZprojection op = new MeanCollectionZprojection(sources);
-      return op.computeMeanCollectionOpImage();
+      return ImageStackOperations.mean(sources);
     }
-    MaxCollectionZprojection op = new MaxCollectionZprojection(sources);
-    return op.computeMaxCollectionOpImage();
+    return ImageStackOperations.max(sources);
   }
 }

@@ -164,6 +164,7 @@ public class ResourceUtil {
     AUDIO("svg/other/audio.svg"), // NON-NLS
     CALENDAR("svg/other/calendar.svg"), // NON-NLS
     CDROM("svg/other/cdrom.svg"), // NON-NLS
+    CLOCK("svg/other/clock.svg"), // NON-NLS
     ECG("svg/other/ecg.svg"), // NON-NLS
     HISTOGRAM("svg/other/histogram.svg"), // NON-NLS
     IMAGE_EDIT("svg/other/imageEdit.svg"), // NON-NLS

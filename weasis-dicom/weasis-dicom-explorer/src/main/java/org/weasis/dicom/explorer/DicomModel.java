@@ -14,6 +14,8 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -60,7 +62,6 @@ import org.weasis.core.api.media.data.SeriesEvent;
 import org.weasis.core.api.media.data.SeriesThumbnail;
 import org.weasis.core.api.media.data.TagView;
 import org.weasis.core.api.media.data.TagW;
-import org.weasis.core.api.media.data.Thumbnail;
 import org.weasis.core.api.util.GzipManager;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.OtherIcon;
@@ -91,6 +92,11 @@ import org.weasis.dicom.codec.utils.SplittingModalityRules;
 import org.weasis.dicom.codec.utils.SplittingModalityRules.Rule;
 import org.weasis.dicom.codec.utils.SplittingRules;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
+import org.weasis.dicom.explorer.imp.DicomDirImport;
+import org.weasis.dicom.explorer.imp.DicomDirLoader;
+import org.weasis.dicom.explorer.imp.DicomZipImport;
+import org.weasis.dicom.explorer.imp.LocalImport;
+import org.weasis.dicom.explorer.main.SeriesPane;
 import org.weasis.dicom.explorer.rs.RsQueryParams;
 import org.weasis.dicom.explorer.wado.DicomManager;
 import org.weasis.dicom.explorer.wado.DownloadManager;
@@ -833,15 +839,12 @@ public class DicomModel implements TreeModel, DataExplorerModel {
     }
   }
 
-  public void buildThumbnail(Series<?> dicomSeries) {
+  public void buildThumbnail(DicomSeries dicomSeries) {
     // Load image and create a thumbnail in this Thread
     SeriesThumbnail t = (SeriesThumbnail) dicomSeries.getTagValue(TagW.Thumbnail);
     if (t == null) {
-      int thumbnailSize =
-          GuiUtils.getUICore()
-              .getSystemPreferences()
-              .getIntProperty(Thumbnail.KEY_SIZE, Thumbnail.DEFAULT_SIZE);
-      t = DicomExplorer.createThumbnail(dicomSeries, this, thumbnailSize);
+      int thumbnailSize = SeriesThumbnail.getThumbnailSizeFromPreferences();
+      t = SeriesPane.createThumbnail(dicomSeries, this, thumbnailSize);
       dicomSeries.setTag(TagW.Thumbnail, t);
       firePropertyChange(new ObservableEvent(BasicAction.ADD, this, null, dicomSeries));
     }
@@ -1177,10 +1180,11 @@ public class DicomModel implements TreeModel, DataExplorerModel {
       List<String> xmlFiles = new ArrayList<>(iargs.size());
       for (String iarg : iargs) {
         try {
-          File tempFile =
-              File.createTempFile("wado_", ".xml", AppProperties.APP_TEMP_DIR); // NON-NLS
-          if (GzipManager.gzipUncompressToFile(Base64.getDecoder().decode(iarg), tempFile)) {
-            xmlFiles.add(tempFile.getPath());
+          Path tempFile =
+              Files.createTempFile(AppProperties.APP_TEMP_DIR, "wado_", ".xml"); // NON-NLS
+          if (GzipManager.gzipUncompressToFile(
+              Base64.getDecoder().decode(iarg), tempFile.toFile())) {
+            xmlFiles.add(tempFile.toString());
           }
 
         } catch (Exception e) {

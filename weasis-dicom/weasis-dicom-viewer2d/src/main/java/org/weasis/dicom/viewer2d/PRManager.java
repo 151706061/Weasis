@@ -194,11 +194,12 @@ public class PRManager {
   }
 
   private static boolean getPixelPaddingValue(ViewCanvas<DicomImageElement> view) {
-    ImageOpNode node = view.getDisplayOpManager().getNode(WindowOp.OP_NAME);
-    if (node == null) {
-      return true;
-    }
-    return LangUtil.getNULLtoTrue((Boolean) node.getParam(ActionW.IMAGE_PIX_PADDING.cmd()));
+    Optional<ImageOpNode> node = view.getDisplayOpManager().getNode(WindowOp.OP_NAME);
+    return node.map(
+            imageOpNode ->
+                LangUtil.nullToTrue(
+                    (Boolean) imageOpNode.getParam(ActionW.IMAGE_PIX_PADDING.cmd())))
+        .orElse(true);
   }
 
   private static void applySpatialTransformations(PresentationContext context) {

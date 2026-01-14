@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '24'
+          java-version: '25'
           cache: 'maven'
 
       - name: Build with Maven
@@ -58,7 +58,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          #- { os: ubuntu-latest, platform: x64, wsystem: linux, warc: x86-64 }
           - { os: macos-15-intel, platform: x64, wsystem: macosx, warc: x86-64 }
           - { os: macos-latest, platform: arm64, wsystem: macosx, warc: aarch64 }
           - { os: windows-latest, platform: x64, wsystem: windows, warc: x86-64 }
@@ -84,7 +83,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '24'
+          java-version: '25'
 
       - name: Download weasis-native
         uses: actions/download-artifact@v7
@@ -109,7 +108,7 @@ jobs:
           echo "$(ls ${{ env.WEASIS_INPUT_BIN }}/bundle/)"
 
       - name: Import Developer Certificate
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@v5
         if: matrix.wsystem == 'macosx'
         id: cert
         with:
@@ -117,7 +116,7 @@ jobs:
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
       - name: Import Installer Certificate
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@v5
         if: matrix.wsystem == 'macosx'
         with:
           create-keychain: "false"
@@ -296,7 +295,7 @@ jobs:
               sha256sum "$file" >> "$file.sha256"
             fi
           done
-        timeout-minutes: 30
+        timeout-minutes: 45
         continue-on-error: false
 
       - name: Upload Linux multi-arch installers

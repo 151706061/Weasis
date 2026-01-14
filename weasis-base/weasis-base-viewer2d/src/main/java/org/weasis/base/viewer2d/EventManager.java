@@ -151,7 +151,8 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
   }
 
   private ComboItemListener<KernelData> newFilterAction() {
-    return new ComboItemListener<>(ActionW.FILTER, KernelData.getAllFilters()) {
+    return new ComboItemListener<>(
+        ActionW.FILTER, KernelData.getAllFilters().toArray(new KernelData[0])) {
 
       @Override
       public void itemStateChanged(Object object) {
@@ -166,14 +167,14 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
   }
 
   private ComboItemListener<ByteLut> newLutAction() {
-    List<ByteLut> luts = new ArrayList<>();
-    luts.add(ColorLut.GRAY.getByteLut());
+    List<ByteLut> lutEntries = new ArrayList<>();
+    lutEntries.add(ColorLut.GRAY.getByteLut());
     ByteLutCollection.readLutFilesFromResourcesDir(
-        luts, ResourceUtil.getResource("luts")); // NON-NLS
+        lutEntries, ResourceUtil.getResource("luts").toPath()); // NON-NLS
     // Set default first as the list has been sorted
-    luts.add(0, ColorLut.IMAGE.getByteLut());
+    lutEntries.addFirst(ColorLut.IMAGE.getByteLut());
 
-    return new ComboItemListener<>(ActionW.LUT, luts.toArray(new ByteLut[0])) {
+    return new ComboItemListener<>(ActionW.LUT, lutEntries.toArray(new ByteLut[0])) {
       @Override
       public void itemStateChanged(Object object) {
         if (object instanceof ByteLut) {
@@ -312,11 +313,10 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
           ImageElement img = defaultView2d.getImage();
           if (img != null) {
             boolean pixelPadding =
-                LangUtil.getNULLtoTrue(
-                    (Boolean)
-                        defaultView2d
-                            .getDisplayOpManager()
-                            .getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd()));
+                defaultView2d
+                    .getDisplayOpManager()
+                    .getParamValue(WindowOp.OP_NAME, ActionW.IMAGE_PIX_PADDING.cmd(), Boolean.class)
+                    .orElse(Boolean.TRUE);
             DefaultWlPresentation wlp = new DefaultWlPresentation(null, pixelPadding);
             getAction(ActionW.WINDOW).ifPresent(a -> a.setRealValue(img.getDefaultWindow(wlp)));
             getAction(ActionW.LEVEL).ifPresent(a -> a.setRealValue(img.getDefaultLevel(wlp)));
@@ -361,13 +361,13 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
     MediaSeries<ImageElement> series = view2d.getSeries();
 
     OpManager dispOp = view2d.getDisplayOpManager();
-    ImageOpNode node = dispOp.getNode(WindowOp.OP_NAME);
-    if (node != null) {
+    Optional<ImageOpNode> node = dispOp.getNode(WindowOp.OP_NAME);
+    if (node.isPresent()) {
       Optional<SliderChangeListener> windowAction = getAction(ActionW.WINDOW);
       Optional<SliderChangeListener> levelAction = getAction(ActionW.LEVEL);
       if (windowAction.isPresent() && levelAction.isPresent()) {
-        Double windowValue = (Double) node.getParam(ActionW.WINDOW.cmd());
-        Double levelValue = (Double) node.getParam(ActionW.LEVEL.cmd());
+        Double windowValue = (Double) node.get().getParam(ActionW.WINDOW.cmd());
+        Double levelValue = (Double) node.get().getParam(ActionW.LEVEL.cmd());
 
         double window;
         double minLevel;
@@ -378,8 +378,8 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
         if (levelValue == null) {
           levelValue = levelAction.get().getRealValue();
         }
-        Double levelMin = (Double) node.getParam(ActionW.LEVEL_MIN.cmd());
-        Double levelMax = (Double) node.getParam(ActionW.LEVEL_MAX.cmd());
+        Double levelMin = (Double) node.get().getParam(ActionW.LEVEL_MIN.cmd());
+        Double levelMax = (Double) node.get().getParam(ActionW.LEVEL_MAX.cmd());
         if (levelMin == null || levelMax == null) {
           minLevel = levelValue - windowValue / 2.0;
           maxLevel = levelValue + windowValue / 2.0;
@@ -403,8 +403,10 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
         .ifPresent(
             a ->
                 a.setSelectedWithoutTriggerAction(
-                    (Boolean)
-                        dispOp.getParamValue(PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT_INVERSE)));
+                    dispOp
+                        .getParamValue(
+                            PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT_INVERSE, Boolean.class)
+                        .orElse(Boolean.FALSE)));
     getAction(ActionW.FILTER)
         .ifPresent(
             a ->
@@ -417,7 +419,7 @@ public class EventManager extends ImageViewerEventManager<ImageElement> implemen
         .ifPresent(
             a ->
                 a.setSelectedWithoutTriggerAction(
-                    LangUtil.getNULLtoFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
+                    LangUtil.nullToFalse((Boolean) view2d.getActionValue(ActionW.FLIP.cmd()))));
 
     getAction(ActionW.ZOOM)
         .ifPresent(

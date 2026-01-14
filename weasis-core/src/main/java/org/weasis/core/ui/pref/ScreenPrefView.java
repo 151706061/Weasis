@@ -276,19 +276,19 @@ public class ScreenPrefView extends AbstractItemDialogPage {
           if (index == 0) {
             int lineLength = cross.getHorizontalLength();
             if (lineLength > 100) {
-              monitor.setRealScaleFactor(unit.getConvFactor() * val / lineLength);
+              monitor.setRealScaleFactor(unit.getFactorToMeters() * val / lineLength);
             }
           } else if (index == 1) {
             int lineLength = cross.getVerticalLength();
             if (lineLength > 100) {
-              monitor.setRealScaleFactor(unit.getConvFactor() * val / lineLength);
+              monitor.setRealScaleFactor(unit.getFactorToMeters() * val / lineLength);
             }
           } else if (index == 2) {
             Rectangle bound = monitor.getBounds();
             double w = bound.getWidth() * bound.getWidth();
             double h = bound.getHeight() * bound.getHeight();
             double realHeight = Math.sqrt(val * val * h / (w + h));
-            monitor.setRealScaleFactor(unit.getConvFactor() * realHeight / bound.getHeight());
+            monitor.setRealScaleFactor(unit.getFactorToMeters() * realHeight / bound.getHeight());
           }
         }
         cross.repaint();

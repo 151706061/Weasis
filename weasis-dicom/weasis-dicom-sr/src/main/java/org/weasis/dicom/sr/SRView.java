@@ -11,8 +11,8 @@ package org.weasis.dicom.sr;
 
 import java.awt.BorderLayout;
 import java.beans.PropertyChangeListener;
-import java.io.File;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,12 +58,12 @@ import org.weasis.dicom.codec.KOSpecialElement;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.TagD.Level;
 import org.weasis.dicom.codec.utils.DicomMediaUtils;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.DicomSeriesHandler;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
 import org.weasis.dicom.explorer.LoadDicomObjects;
 import org.weasis.dicom.explorer.MimeSystemAppFactory;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.macro.SOPInstanceReference;
 
 public class SRView extends JScrollPane implements SeriesViewerListener {
@@ -388,13 +388,13 @@ public class SRView extends JScrollPane implements SeriesViewerListener {
     return null;
   }
 
-  private class SeriesHandler extends SequenceHandler {
+  private static class SeriesHandler extends SequenceHandler {
     public SeriesHandler() {
       super(false, true);
     }
 
     @Override
-    protected boolean dropFiles(List<File> files, TransferSupport support) {
+    protected boolean dropFiles(List<Path> files) {
       return DicomSeriesHandler.dropDicomFiles(files);
     }
   }

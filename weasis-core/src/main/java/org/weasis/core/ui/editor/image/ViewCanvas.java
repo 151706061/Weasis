@@ -247,7 +247,7 @@ public interface ViewCanvas<E extends ImageElement>
   void setSeries(MediaSeries<E> newSeries, E selectedMedia);
 
   default void setFocused(Boolean focused) {
-    boolean isFocused = LangUtil.getNULLtoFalse(focused);
+    boolean isFocused = LangUtil.nullToFalse(focused);
     MediaSeries<E> series = getSeries();
     if (series != null) {
       series.setFocused(isFocused);

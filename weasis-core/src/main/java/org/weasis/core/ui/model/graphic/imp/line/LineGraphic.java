@@ -167,27 +167,27 @@ public class LineGraphic extends AbstractDragGraphic {
         if (FIRST_POINT_X.getComputed()) {
           measVal.add(
               new MeasureItem(
-                  FIRST_POINT_X, adapter.getXCalibratedValue(ptA.getX()), adapter.getUnit()));
+                  FIRST_POINT_X, adapter.getXCalibratedValue(ptA.getX()), adapter.unit()));
         }
         if (FIRST_POINT_Y.getComputed()) {
           measVal.add(
               new MeasureItem(
-                  FIRST_POINT_Y, adapter.getYCalibratedValue(ptA.getY()), adapter.getUnit()));
+                  FIRST_POINT_Y, adapter.getYCalibratedValue(ptA.getY()), adapter.unit()));
         }
         if (LAST_POINT_X.getComputed()) {
           measVal.add(
               new MeasureItem(
-                  LAST_POINT_X, adapter.getXCalibratedValue(ptB.getX()), adapter.getUnit()));
+                  LAST_POINT_X, adapter.getXCalibratedValue(ptB.getX()), adapter.unit()));
         }
         if (LAST_POINT_Y.getComputed()) {
           measVal.add(
               new MeasureItem(
-                  LAST_POINT_Y, adapter.getYCalibratedValue(ptB.getY()), adapter.getUnit()));
+                  LAST_POINT_Y, adapter.getYCalibratedValue(ptB.getY()), adapter.unit()));
         }
         if (LINE_LENGTH.getComputed()) {
           measVal.add(
               new MeasureItem(
-                  LINE_LENGTH, ptA.distance(ptB) * adapter.getCalibRatio(), adapter.getUnit()));
+                  LINE_LENGTH, ptA.distance(ptB) * adapter.calibrationRatio(), adapter.unit()));
         }
         if (ORIENTATION.getComputed()) {
           measVal.add(

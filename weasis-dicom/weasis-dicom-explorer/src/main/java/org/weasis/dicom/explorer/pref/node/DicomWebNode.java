@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.OAuth2ServiceFactory;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.OAuth2ServiceFactory;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.TransferSyntax;
 
@@ -60,7 +60,7 @@ public class DicomWebNode extends AbstractDicomNode {
     this.url = url;
     this.webType = webType;
     this.headers = new HashMap<>();
-    this.authMethodUid = OAuth2ServiceFactory.NO;
+    this.authMethodUid = OAuth2ServiceFactory.NO_AUTH_ID;
   }
 
   @Override
@@ -80,7 +80,7 @@ public class DicomWebNode extends AbstractDicomNode {
 
   public void setAuthMethodUid(String authMethodUid) {
     this.authMethodUid =
-        StringUtil.hasText(authMethodUid) ? authMethodUid : OAuth2ServiceFactory.NO;
+        StringUtil.hasText(authMethodUid) ? authMethodUid : OAuth2ServiceFactory.NO_AUTH_ID;
   }
 
   public AuthMethod getAuthMethod() {

@@ -39,8 +39,8 @@ import org.weasis.core.ui.model.utils.bean.MeasureItem;
 import org.weasis.core.ui.model.utils.bean.Measurement;
 import org.weasis.core.util.MathUtil;
 import org.weasis.opencv.data.PlanarImage;
+import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
 import org.weasis.opencv.op.lut.ByteLut;
 
 public class ImageRegionStatistics {
@@ -68,7 +68,7 @@ public class ImageRegionStatistics {
       // Always apply pixel padding (deactivate in Display has no effect in statistics)
       Integer paddingValue = (Integer) layer.getSourceTagValue(TagW.get("PixelPaddingValue"));
       Integer paddingLimit = (Integer) layer.getSourceTagValue(TagW.get("PixelPaddingRangeLimit"));
-      return ImageProcessor.getMaskImage(image.toMat(), roi, paddingValue, paddingLimit);
+      return ImageAnalyzer.getMaskImage(image.toMat(), roi, paddingValue, paddingLimit);
     }
     return Collections.emptyList();
   }

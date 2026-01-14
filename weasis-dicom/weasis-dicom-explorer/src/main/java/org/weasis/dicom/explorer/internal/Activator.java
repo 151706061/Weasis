@@ -9,7 +9,6 @@
  */
 package org.weasis.dicom.explorer.internal;
 
-import java.io.File;
 import org.osgi.annotation.bundle.Header;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -17,30 +16,30 @@ import org.osgi.framework.Constants;
 import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.service.BundlePreferences;
-import org.weasis.core.util.FileUtil;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.core.util.PropertiesUtil;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.LocalPersistence;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.explorer.wado.DicomManager;
 
 @Header(name = Constants.BUNDLE_ACTIVATOR, value = "${@class}") // NON-NLS
 public class Activator implements BundleActivator {
 
   @Override
-  public void start(final BundleContext context) throws Exception {
+  public void start(final BundleContext context) {
     String cache = context.getProperty("weasis.portable.dicom.cache");
     DicomManager.getInstance()
         .setPortableDirCache(
             !((cache != null) && cache.equalsIgnoreCase(Boolean.FALSE.toString())));
-    FileUtil.readProperties(
-        new File(BundlePreferences.getDataFolder(context), "import-export.properties"),
+    PropertiesUtil.loadProperties(
+        BundlePreferences.getFileInDataFolder(context, "import-export.properties"),
         LocalPersistence.getProperties());
   }
 
   @Override
-  public void stop(BundleContext context) throws Exception {
-    FileUtil.storeProperties(
-        new File(BundlePreferences.getDataFolder(context), "import-export.properties"),
+  public void stop(BundleContext context) {
+    PropertiesUtil.storeProperties(
+        BundlePreferences.getFileInDataFolder(context, "import-export.properties"),
         LocalPersistence.getProperties(),
         null);
 

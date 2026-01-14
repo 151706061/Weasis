@@ -61,8 +61,8 @@ import org.weasis.core.ui.util.ImagePrint;
 import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.DicomSpecialElement;
 import org.weasis.dicom.codec.TagD;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.wave.dockable.MeasureAnnotationTool;
 
 public class WaveView extends JPanel implements SeriesViewerListener {

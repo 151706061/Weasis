@@ -55,7 +55,7 @@ public class CalibrationView extends JPanel {
   public CalibrationView(LineGraphic line, ViewCanvas<?> view2d, boolean selectSeries) {
     this.line = line;
     this.view2d = view2d;
-    List<Unit> units = Unit.getUnitExceptPixel();
+    List<Unit> units = Unit.getPhysicalUnits();
     this.jComboBoxUnit = new JComboBox<>(units.toArray(new Unit[0]));
     try {
       jbInit();

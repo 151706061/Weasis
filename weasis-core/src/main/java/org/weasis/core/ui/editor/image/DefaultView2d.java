@@ -211,7 +211,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
     disOp.setParamValue(
         AffineTransformOp.OP_NAME,
         AffineTransformOp.P_INTERPOLATION,
-        Interpolation.getInterpolation(eventManager.getZoomSetting().getInterpolation()));
+        Interpolation.fromPosition(eventManager.getZoomSetting().getInterpolation()));
     disOp.setParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_AFFINE_MATRIX, null);
     disOp.setParamValue(FilterOp.OP_NAME, FilterOp.P_KERNEL_DATA, KernelData.NONE);
     disOp.setParamValue(PseudoColorOp.OP_NAME, PseudoColorOp.P_LUT, ColorLut.IMAGE.getByteLut());
@@ -619,7 +619,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
           if (realFactor > 0.0) {
             Unit imgUnit = img.getPixelSpacingUnit();
             if (!Unit.PIXEL.equals(imgUnit)) {
-              viewScale = imgUnit.getConvFactor() * img.getPixelSize() / realFactor;
+              viewScale = imgUnit.getFactorToMeters() * img.getPixelSize() / realFactor;
               viewScale = -adjustViewScale(viewScale);
             }
           }
@@ -840,7 +840,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
   @Override
   public void drawLayers(
       Graphics2D g2d, AffineTransform transform, AffineTransform inverseTransform) {
-    if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(ActionW.DRAWINGS.cmd()))) {
+    if (LangUtil.nullToTrue((Boolean) actionsInView.get(ActionW.DRAWINGS.cmd()))) {
       Object[] oldRenderingHints =
           GuiUtils.setRenderingHints(g2d, true, false, requiredTextAntialiasing());
       graphicManager.draw(g2d, transform, inverseTransform, null);
@@ -867,8 +867,8 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
   }
 
   protected void updateAffineTransform() {
-    ImageOpNode node = getDisplayOpManager().getNode(AffineTransformOp.OP_NAME);
-    super.updateAffineTransform(this, node, imageLayer, 0.0);
+    Optional<ImageOpNode> node = getDisplayOpManager().getNode(AffineTransformOp.OP_NAME);
+    super.updateAffineTransform(this, node.orElse(null), imageLayer, 0.0);
   }
 
   @Override
@@ -889,11 +889,11 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
 
   @Override
   public void changeZoomInterpolation(Interpolation interpolation) {
-    Interpolation val =
-        (Interpolation)
-            getDisplayOpManager()
-                .getParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_INTERPOLATION);
-    boolean update = !Objects.equals(val, interpolation);
+    Optional<Interpolation> val =
+        getDisplayOpManager()
+            .getParamValue(
+                AffineTransformOp.OP_NAME, AffineTransformOp.P_INTERPOLATION, Interpolation.class);
+    boolean update = !Objects.equals(val.orElse(null), interpolation);
     if (update) {
       getDisplayOpManager()
           .setParamValue(
@@ -931,7 +931,7 @@ public abstract class DefaultView2d<E extends ImageElement> extends GraphicsPane
     } else if (synch.getLocation() != null) {
       Boolean cutlines = (Boolean) actionsInView.get(ActionW.SYNCH_CROSSLINE.cmd());
       if (cutlines != null && cutlines) {
-        if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
+        if (LangUtil.nullToTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
           // Compute cutlines from the location of selected image
           computeCrosslines(synch.getLocation().doubleValue());
         }

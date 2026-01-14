@@ -35,8 +35,8 @@ import org.weasis.dicom.codec.SpecialElementRegion;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.opencv.data.ImageCV;
+import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
 import org.weasis.opencv.seg.Region;
 import org.weasis.opencv.seg.RegionAttributes;
 import org.weasis.opencv.seg.Segment;
@@ -296,11 +296,11 @@ public class StructureSet extends RtSpecialElement implements SpecialElementRegi
       }
 
       Mat binary = Mat.zeros(img.getImage().size(), CvType.CV_8UC1);
-      List<MatOfPoint> pts = ImageProcessor.transformShapeToContour(path, true);
+      List<MatOfPoint> pts = ImageAnalyzer.transformShapeToContour(path, true);
       Imgproc.fillPoly(binary, pts, new Scalar(255));
-      List<Segment> segmentList = Region.buildSegmentList(ImageCV.toImageCV(binary));
+      List<Segment> segmentList = Region.buildSegmentList(ImageCV.fromMat(binary));
       int nbPixels = Core.countNonZero(binary);
-      ImageConversion.releasePlanarImage(ImageCV.toImageCV(binary));
+      ImageConversion.releasePlanarImage(ImageCV.fromMat(binary));
 
       StructContour segContour = new StructContour(String.valueOf(id), segmentList, nbPixels);
       segContour.setPositionZ(z);

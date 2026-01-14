@@ -49,7 +49,7 @@ import org.weasis.core.ui.util.DefaultAction;
 import org.weasis.dicom.codec.DicomCodec;
 import org.weasis.dicom.codec.DicomMediaIO;
 import org.weasis.dicom.codec.TagD;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 @org.osgi.service.component.annotations.Component(service = SeriesViewerFactory.class)
 public class View2dFactory implements SeriesViewerFactory {
@@ -100,7 +100,7 @@ public class View2dFactory implements SeriesViewerFactory {
       Iterator<LayoutConstraints> enumVal = layout.getConstraints().keySet().iterator();
       while (enumVal.hasNext()) {
         try {
-          Class<?> clazz = Class.forName(enumVal.next().getType());
+          Class<?> clazz = Class.forName(enumVal.next().type());
           if (defaultClass.isAssignableFrom(clazz)) {
             val++;
           }

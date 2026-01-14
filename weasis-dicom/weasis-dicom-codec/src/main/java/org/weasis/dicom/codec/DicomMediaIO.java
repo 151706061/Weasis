@@ -13,7 +13,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.lang.ref.Reference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -73,11 +72,10 @@ public class DicomMediaIO implements DcmMediaReader {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(DicomMediaIO.class);
 
-  public static final File DICOM_EXPORT_DIR =
+  public static final Path DICOM_EXPORT_DIR =
       AppProperties.buildAccessibleTempDirectory("dicom"); // NON-NLS
-  public static final File CACHE_UNCOMPRESSED_DIR =
-      AppProperties.buildAccessibleTempDirectory(
-          AppProperties.FILE_CACHE_DIR.getName(), "dcm-rawcv"); // NON-NLS
+  public static final Path CACHE_UNCOMPRESSED_DIR =
+      AppProperties.buildAccessibleTempDirectory(AppProperties.CACHE_NAME, "dcm-rawcv"); // NON-NLS
 
   public static final String DICOM_MIMETYPE = "application/dicom"; // NON-NLS
   public static final String IMAGE_MIMETYPE = "image/dicom"; // NON-NLS
@@ -277,17 +275,7 @@ public class DicomMediaIO implements DcmMediaReader {
         });
   }
 
-  private static final SoftHashMap<DicomMediaIO, DicomMetaData> HEADER_CACHE =
-      new SoftHashMap<>() {
-
-        @Override
-        public void removeElement(Reference<? extends DicomMetaData> soft) {
-          DicomMediaIO key = reverseLookup.remove(soft);
-          if (key != null) {
-            hash.remove(key);
-          }
-        }
-      };
+  private static final SoftHashMap<DicomMediaIO, DicomMetaData> HEADER_CACHE = new SoftHashMap<>();
 
   // The above softReference HEADER_CACHE shall be used instead of the following dcmMetadata
   // variable to get access to
@@ -655,14 +643,14 @@ public class DicomMediaIO implements DcmMediaReader {
       throws Exception {
     if (isReadableDicom() && frame >= 0 && frame < numberOfFrame && hasPixel) {
       FileCache cache = media.getFileCache();
-      Optional<File> original = cache.getOriginalFile();
+      Optional<Path> original = cache.getOriginalFile();
       if (original.isPresent()) {
         LOGGER.debug(
             "Start reading dicom image frame: {} sopUID: {}",
             frame,
             TagD.getTagValue(this, Tag.SOPInstanceUID));
         DicomImageReader reader = new DicomImageReader(Transcoder.dicomImageReaderSpi);
-        try (DicomFileInputStream inputStream = new DicomFileInputStream(original.get().toPath())) {
+        try (DicomFileInputStream inputStream = new DicomFileInputStream(original.get())) {
           reader.setInput(inputStream);
           ImageDescriptor desc = reader.getImageDescriptor();
           DicomImageReadParam param = new DicomImageReadParam();
@@ -932,11 +920,11 @@ public class DicomMediaIO implements DcmMediaReader {
       return dcmMetadata;
     }
 
-    Optional<File> file = fileCache.getOriginalFile();
+    Optional<Path> file = fileCache.getOriginalFile();
     if (file.isEmpty()) {
       throw new IllegalArgumentException("No file found!");
     }
-    Path path = file.get().toPath();
+    Path path = file.get();
 
     DicomImageReader reader = new DicomImageReader(Transcoder.dicomImageReaderSpi);
     try (DicomFileInputStream inputStream = new DicomFileInputStream(path)) {

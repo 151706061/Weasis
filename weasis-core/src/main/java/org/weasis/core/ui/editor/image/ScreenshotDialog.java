@@ -20,6 +20,7 @@ import java.awt.Window;
 import java.awt.image.RenderedImage;
 import java.io.File;
 import java.util.Objects;
+import java.util.Optional;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -47,7 +48,7 @@ import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.util.StringUtil;
 import org.weasis.opencv.data.PlanarImage;
 import org.weasis.opencv.op.ImageConversion;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageIOHandler;
 
 public class ScreenshotDialog<I extends ImageElement> extends JDialog {
   public static final String P_LAST_DIR = "screenshot.last.dir";
@@ -201,14 +202,14 @@ public class ScreenshotDialog<I extends ImageElement> extends JDialog {
                       shutterCheckBox.isSelected(),
                       overlayCheckBox.isSelected(),
                       ratio);
-              PlanarImage inputImage = manager.getFirstNodeInputImage();
-              if (inputImage != null) {
-                PlanarImage rimage = manager.process();
-                if (rimage == null) {
+              Optional<PlanarImage> inputImage = manager.getFirstNodeInputImage();
+              if (inputImage.isPresent()) {
+                Optional<PlanarImage> rimage = manager.process();
+                if (rimage.isEmpty()) {
                   rimage = inputImage;
                 }
                 mustBeReleased = !Objects.equals(rimage, inputImage);
-                result = rimage;
+                result = rimage.orElse(null);
               }
             }
           }
@@ -255,7 +256,7 @@ public class ScreenshotDialog<I extends ImageElement> extends JDialog {
 
         File destinationFile = new File(filename);
         if (Format.PNG.extension.equals(extension)) {
-          ImageProcessor.writePNG(image.toMat(), destinationFile);
+          ImageIOHandler.writePNG(image.toMat(), destinationFile.toPath());
         } else {
           MatOfInt map = new MatOfInt();
           if (Format.JPEG.extension.equals(extension)) {
@@ -264,7 +265,7 @@ public class ScreenshotDialog<I extends ImageElement> extends JDialog {
             int quality = preservePixelCheckBox.isSelected() ? 100 : 90;
             map.fromArray(Imgcodecs.IMWRITE_JPEGXL_QUALITY, quality);
           }
-          ImageProcessor.writeImage(image.toMat(), destinationFile, map);
+          ImageIOHandler.writeImage(image.toMat(), destinationFile.toPath(), map);
         }
         if (mustBeReleased) {
           ImageConversion.releasePlanarImage(image);

@@ -113,9 +113,8 @@ public class DicomVolTextureFactory {
     LutParameters params =
         media.getModalityLutParameters(
             true, mLUTSeq, media.isPhotometricInterpretationInverse(null), null);
-    int bitsOutput = params == null ? media.getBitsStored() : params.getBitsOutput();
-    boolean isSigned =
-        params == null ? media.isPixelRepresentationSigned() : params.isOutputSigned();
+    int bitsOutput = params == null ? media.getBitsStored() : params.bitsOutput();
+    boolean isSigned = params == null ? media.isPixelRepresentationSigned() : params.outputSigned();
 
     if (bitsOutput > 8 && bitsOutput <= 16) {
       return isSigned ? PixelFormat.SIGNED_SHORT : PixelFormat.UNSIGNED_SHORT;

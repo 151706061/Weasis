@@ -34,6 +34,7 @@ import org.weasis.dicom.codec.DicomSpecialElementFactory;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.TagD.Level;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
+import org.weasis.dicom.explorer.exp.ExplorerTask;
 
 public abstract class LoadDicom extends ExplorerTask<Boolean, String> {
 

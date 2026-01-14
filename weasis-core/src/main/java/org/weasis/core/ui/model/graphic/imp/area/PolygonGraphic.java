@@ -209,8 +209,8 @@ public class PolygonGraphic extends AbstractDragGraphicArea {
       if (adapter != null) {
         ArrayList<MeasureItem> measVal = new ArrayList<>(12);
 
-        double ratio = adapter.getCalibRatio();
-        String unitStr = adapter.getUnit();
+        double ratio = adapter.calibrationRatio();
+        String unitStr = adapter.unit();
 
         Area pathArea = getPathArea();
         List<Line2D.Double> lineSegmentList = null;

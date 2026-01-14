@@ -24,7 +24,7 @@ import java.util.Set;
 import javax.swing.JProgressBar;
 import jogamp.opengl.glu.error.Error;
 import org.dcm4che3.data.Tag;
-import org.dcm4che3.img.DicomImageUtils;
+import org.dcm4che3.img.util.PixelDataUtils;
 import org.joml.Vector3d;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
@@ -45,7 +45,7 @@ import org.weasis.dicom.viewer3d.geometry.GeometryUtils;
 import org.weasis.dicom.viewer3d.geometry.VolumeGeometry;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageProcessor;
+import org.weasis.opencv.op.ImageAnalyzer;
 
 public final class VolumeBuilder {
   private static final Logger LOGGER = LoggerFactory.getLogger(VolumeBuilder.class);
@@ -65,7 +65,7 @@ public final class VolumeBuilder {
     int type = CvType.depth(img.type());
     PlanarImage unsignedImage;
     if (type == CvType.CV_8U && channels > 1) {
-      unsignedImage = DicomImageUtils.bgr2rgb(img);
+      unsignedImage = PixelDataUtils.bgr2rgb(img);
     } else if (type == CvType.CV_16S) {
       ImageCV dstImg = new ImageCV();
       // Fix issue: glTexSubImage3D doesn't support signed short.
@@ -288,7 +288,7 @@ public final class VolumeBuilder {
                     SegGraphic graphic = c.getSegGraphic();
                     if (graphic != null) {
                       List<MatOfPoint> pts =
-                          ImageProcessor.transformShapeToContour(graphic.getShape(), true);
+                          ImageAnalyzer.transformShapeToContour(graphic.getShape(), true);
                       // TODO check the limit value
                       int density = c.getAttributes().getId();
                       Imgproc.fillPoly(mask, pts, new Scalar(density));
@@ -299,7 +299,7 @@ public final class VolumeBuilder {
             }
           }
           int nbPixels = Core.countNonZero(mask);
-          imageMLUT = ImageCV.toImageCV(mask);
+          imageMLUT = ImageCV.fromMat(mask);
           //          PlanarImage src = volTexture.getModalityLutImage(imageElement);
           //          imageMLUT = new ImageCV();
           //          Core.bitwise_and(src.toImageCV(), mask, imageMLUT.toImageCV());

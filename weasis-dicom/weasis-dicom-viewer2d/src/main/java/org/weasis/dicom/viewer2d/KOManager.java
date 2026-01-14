@@ -327,7 +327,7 @@ public final class KOManager {
         }
 
         boolean filter =
-            LangUtil.getNULLtoFalse((Boolean) view2d.getActionValue(ActionW.KO_FILTER.cmd()));
+            LangUtil.nullToFalse((Boolean) view2d.getActionValue(ActionW.KO_FILTER.cmd()));
         if (filter && (view2d.getEventManager().getSelectedViewPane() == view2d)) {
           // When unchecking an image, force to call the filter action to resize the views
           view2d
@@ -436,9 +436,7 @@ public final class KOManager {
       koFilter =
           Objects.requireNonNullElseGet(
               enableFilter,
-              () ->
-                  LangUtil.getNULLtoFalse(
-                      (Boolean) view2D.getActionValue(ActionW.KO_FILTER.cmd())));
+              () -> LangUtil.nullToFalse((Boolean) view2D.getActionValue(ActionW.KO_FILTER.cmd())));
 
       if (tiledMode && selectedKO == null) {
         // Unselect the filter with the None KO selection

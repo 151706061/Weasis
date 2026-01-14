@@ -22,7 +22,7 @@ import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.image.ImageViewerPlugin;
 import org.weasis.core.ui.editor.image.ImageViewerPlugin.LayoutModel;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 @org.osgi.service.component.annotations.Component(service = SeriesViewerFactory.class)
 public class AuFactory implements SeriesViewerFactory {

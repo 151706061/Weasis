@@ -94,7 +94,7 @@ public class ViewerFactory implements SeriesViewerFactory {
       Iterator<LayoutConstraints> enumVal = layout.getConstraints().keySet().iterator();
       while (enumVal.hasNext()) {
         try {
-          Class<?> clazz = Class.forName(enumVal.next().getType());
+          Class<?> clazz = Class.forName(enumVal.next().type());
           if (defaultClass.isAssignableFrom(clazz)) {
             val++;
           }
@@ -163,7 +163,7 @@ public class ViewerFactory implements SeriesViewerFactory {
     } else {
       MediaSeries series = null;
       for (File file : selectedFiles) {
-        String mimeType = MimeInspector.getMimeType(file);
+        String mimeType = MimeInspector.getMimeType(file.toPath());
         if (mimeType != null && mimeType.startsWith("image")) {
           Codec<?> codec = BundleTools.getCodec(mimeType, null);
           if (codec != null) {

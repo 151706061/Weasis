@@ -575,8 +575,8 @@ public class Launcher {
   static void saveLaunchers(Type type) {
     List<Launcher> list = getLaunchers(type);
     final BundleContext context = AppProperties.getBundleContext(Launcher.class);
-    File file = new File(BundlePreferences.getDataFolder(context), type.getFilename());
     try {
+      File file = BundlePreferences.getFileInDataFolder(context, type.getFilename()).toFile();
       ObjectMapper mapper = new ObjectMapper();
       mapper.writeValue(file, list);
     } catch (IOException e) {
@@ -672,7 +672,7 @@ public class Launcher {
     AppProperties.getBundleContext(Launcher.class);
     final BundleContext context = AppProperties.getBundleContext(Launcher.class);
     loadLaunchers(
-        list, new File(BundlePreferences.getDataFolder(context), type.getFilename()), true);
+        list, BundlePreferences.getFileInDataFolder(context, type.getFilename()).toFile(), true);
     return list;
   }
 

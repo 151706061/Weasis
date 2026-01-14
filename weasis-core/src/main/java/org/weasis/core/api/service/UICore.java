@@ -29,6 +29,7 @@ import java.lang.management.ManagementFactory;
 import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,18 +53,18 @@ import org.weasis.core.api.gui.util.WinUtil;
 import org.weasis.core.api.media.data.Codec;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeries;
-import org.weasis.core.api.util.ClosableURLConnection;
+import org.weasis.core.api.net.ClosableURLConnection;
+import org.weasis.core.api.net.NetworkUtil;
+import org.weasis.core.api.net.URLParameters;
 import org.weasis.core.api.util.LocalUtil;
-import org.weasis.core.api.util.NetworkUtil;
 import org.weasis.core.api.util.ResourceUtil;
-import org.weasis.core.api.util.URLParameters;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
 import org.weasis.core.ui.launcher.Launcher;
 import org.weasis.core.ui.util.ToolBarContainer;
 import org.weasis.core.ui.util.Toolbar;
-import org.weasis.core.util.FileUtil;
+import org.weasis.core.util.PropertiesUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.pref.ConfigData;
 
@@ -152,8 +153,8 @@ public final class UICore {
     String path = systemPreferences.getProperty("weasis.resources.path");
     ResourceUtil.setResourcePath(path);
 
-    File dataFolder = AppProperties.getBundleDataFolder(context);
-    FileUtil.readProperties(new File(dataFolder, "persistence.properties"), localPersistence);
+    Path dataFolder = AppProperties.getBundleDataFolder(context);
+    PropertiesUtil.loadProperties(dataFolder.resolve("persistence.properties"), localPersistence);
 
     this.dicomLaunchers = Launcher.loadLaunchers(Launcher.Type.DICOM);
     this.otherLaunchers = Launcher.loadLaunchers(Launcher.Type.OTHER);
@@ -216,8 +217,8 @@ public final class UICore {
       try (OutputStream out = http.getOutputStream()) {
         props.store(new DataOutputStream(out), null);
       }
-      if (http.getUrlConnection() instanceof HttpURLConnection httpURLConnection) {
-        NetworkUtil.readResponse(httpURLConnection, urlParameters.getUnmodifiableHeaders());
+      if (http.urlConnection() instanceof HttpURLConnection httpURLConnection) {
+        NetworkUtil.readResponse(httpURLConnection, urlParameters.headers());
       }
     }
   }
@@ -324,7 +325,7 @@ public final class UICore {
     systemPreferences.setProperty(key, System.getProperty(key));
 
     if (!systemPreferences.equals(initialSystemPreferences)) {
-      FileUtil.storeProperties(propsFile, systemPreferences, null);
+      PropertiesUtil.storeProperties(propsFile.toPath(), systemPreferences, null);
       String remotePrefURL = getPrefServiceUrl();
       if (remotePrefURL != null) {
         try {

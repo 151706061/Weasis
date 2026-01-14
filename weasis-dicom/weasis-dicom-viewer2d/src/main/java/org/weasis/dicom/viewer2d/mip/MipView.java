@@ -256,9 +256,7 @@ public class MipView extends View2d {
               try {
                 oldImage.dispose();
                 oldImage.removeImageFromCache();
-                Optional.ofNullable(oldImage.getFile())
-                    .map(java.io.File::toPath)
-                    .ifPresent(this::deleteQuietly);
+                Optional.ofNullable(oldImage.getFilePath()).ifPresent(this::deleteQuietly);
               } catch (Throwable t) {
                 LOGGER.warn("Error during MIP cleanup", t);
               }
@@ -266,8 +264,8 @@ public class MipView extends View2d {
   }
 
   private void clearMipCache() {
-    Path cacheDir = SeriesBuilder.MIP_CACHE_DIR.toPath();
-    try (var paths = Files.list(cacheDir)) {
+    Path cacheDir = SeriesBuilder.MIP_CACHE_DIR;
+    try (var paths = Files.list(SeriesBuilder.MIP_CACHE_DIR)) {
       paths.filter(Files::isRegularFile).forEach(this::deleteQuietly);
     } catch (IOException e) {
       LOGGER.warn("Cannot list MIP cache directory {}", cacheDir, e);

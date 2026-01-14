@@ -144,11 +144,11 @@ public class DicomVolTexture extends VolumeTexture implements MediaSeriesGroup {
       output = image.getModalityLutImage(null, null);
       if (manager != null) {
         manager.setFirstNode(output);
-        output = manager.process();
+        output = manager.process().orElse(null);
         manager.clearNodeIOCache();
       } else {
         if (width != output.width() || height != output.height()) {
-          output = ImageCV.toImageCV(output.toMat().submat(new Rect(0, 0, width, height)));
+          output = ImageCV.fromMat(output.toMat().submat(new Rect(0, 0, width, height)));
         }
       }
     }

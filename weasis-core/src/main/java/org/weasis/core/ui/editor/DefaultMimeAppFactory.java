@@ -40,11 +40,11 @@ public class DefaultMimeAppFactory implements SeriesViewerFactory {
                 // Linux KDE session not supported
                 // https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6486393
                 if (SystemInfo.isLinux) {
-                  startAssociatedProgramFromLinux(m.getFile());
+                  startAssociatedProgramFromLinux(m.getFilePath());
                 } else if (Desktop.isDesktopSupported()) {
                   final Desktop desktop = Desktop.getDesktop();
                   if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    startAssociatedProgramFromDesktop(desktop, m.getFile());
+                    startAssociatedProgramFromDesktop(desktop, m.getFilePath());
                   }
                 }
               }

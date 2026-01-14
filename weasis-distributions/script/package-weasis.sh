@@ -32,7 +32,7 @@ do
 echo "Usage: package-weasis.sh <options>"
 echo "Sample usages:"
 echo "    Build an installer for the current platform with the minimal required parameters"
-echo "        package-weasis.sh --jdk /home/user/jdk-20"
+echo "        package-weasis.sh --jdk /home/user/jdk-25"
 echo ""
 echo "Options:"
 echo " --help -h

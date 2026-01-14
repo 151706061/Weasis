@@ -59,7 +59,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
   private OpManager preprocessing;
   private E sourceImage;
-  private PlanarImage displayImage;
+  private Optional<PlanarImage> displayImage;
   private Boolean visible = true;
   private boolean enableDispOperations = true;
   private Point offset;
@@ -72,6 +72,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
     this.disOpManager = Optional.ofNullable(disOpManager).orElseGet(SimpleOpManager::new);
     this.listenerList = new ArrayList<>();
     this.opListeners = new ArrayList<>();
+    this.displayImage = Optional.empty();
     addEventListener(this.disOpManager);
   }
 
@@ -90,7 +91,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
   @Override
   public PlanarImage getDisplayImage() {
-    return displayImage;
+    return displayImage.orElse(null);
   }
 
   public OpManager getPreprocessing() {
@@ -211,14 +212,15 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
   public void drawImage(Graphics2D g2d) {
     // Get the clipping rectangle
-    if (!visible || displayImage == null) {
+    if (!visible || displayImage.isEmpty()) {
       return;
     }
 
+    PlanarImage currentImage = this.displayImage.get();
     Shape clip = g2d.getClip();
     if (clip instanceof Rectangle2D) {
       Rectangle2D rect =
-          new Rectangle2D.Double(0, 0, displayImage.width() - 1.0, displayImage.height() - 1.0);
+          new Rectangle2D.Double(0, 0, currentImage.width() - 1.0, currentImage.height() - 1.0);
       rect = rect.createIntersection((Rectangle2D) clip);
       if (rect.isEmpty()) {
         return;
@@ -234,7 +236,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
         g2d.setRenderingHint(
             RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
       }
-      g2d.drawImage(ImageConversion.toBufferedImage(displayImage), 0, 0, null);
+      g2d.drawImage(ImageConversion.toBufferedImage(currentImage), 0, 0, null);
     } catch (Exception e) {
       LOGGER.error("Cannot draw the image", e);
       if ("java.io.IOException: closed".equals(e.getMessage())) { // NON-NLS
@@ -256,14 +258,15 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
   public void drawImageForPrinter(Graphics2D g2d, double viewScale, Canvas canvas) {
     // Get the clipping rectangle
-    if (!visible || displayImage == null) {
+    if (!visible || displayImage.isEmpty()) {
       return;
     }
 
+    PlanarImage currentImage = this.displayImage.get();
     Shape clip = g2d.getClip();
     if (clip instanceof Rectangle2D) {
       Rectangle2D rect =
-          new Rectangle2D.Double(0, 0, displayImage.width() - 1.0, displayImage.height() - 1.0);
+          new Rectangle2D.Double(0, 0, currentImage.width() - 1.0, currentImage.height() - 1.0);
       rect = rect.createIntersection((Rectangle2D) clip);
       if (rect.isEmpty()) {
         return;
@@ -344,11 +347,18 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
     List<Double> matrix =
         (List<Double>)
-            disOpManager.getParamValue(
-                AffineTransformOp.OP_NAME, AffineTransformOp.P_AFFINE_MATRIX);
+            disOpManager
+                .getParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_AFFINE_MATRIX)
+                .orElse(null);
     Rectangle2D bound =
-        (Rectangle2D)
-            disOpManager.getParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_DST_BOUNDS);
+        disOpManager
+            .getParamValue(
+                AffineTransformOp.OP_NAME, AffineTransformOp.P_DST_BOUNDS, Rectangle2D.class)
+            .orElse(null);
+    if (matrix == null || bound == null) {
+      return;
+    }
+
     List<Double> m = new ArrayList<>(matrix);
     double ratioX = m.get(0);
     double ratioY = m.get(4);
@@ -373,7 +383,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
     m.set(5, offsetY / ry);
     disOpManager.setParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_AFFINE_MATRIX, m);
     disOpManager.setParamValue(AffineTransformOp.OP_NAME, AffineTransformOp.P_DST_BOUNDS, b);
-    PlanarImage img = bound.equals(b) ? displayImage : disOpManager.process();
+    if (!bound.equals(b)) disOpManager.process();
 
     m.set(0, ratioX);
     m.set(4, ratioY);
@@ -388,7 +398,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
           RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
     }
     g2d.drawImage(
-        ImageConversion.toBufferedImage(displayImage),
+        ImageConversion.toBufferedImage(displayImage.orElse(null)),
         AffineTransform.getScaleInstance(rx, ry),
         null);
 
@@ -397,7 +407,7 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
 
   public void dispose() {
     sourceImage = null;
-    displayImage = null;
+    displayImage = Optional.empty();
     listenerList.clear();
     opListeners.clear();
   }
@@ -416,10 +426,10 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
   }
 
   public void fireImageChanged() {
-    if (displayImage == null) {
-      PlanarImage imgSource = disOpManager.getFirstNodeInputImage();
+    if (displayImage.isEmpty()) {
+      Optional<PlanarImage> imgSource = disOpManager.getFirstNodeInputImage();
       disOpManager.clearNodeIOCache();
-      disOpManager.setFirstNode(imgSource);
+      disOpManager.setFirstNode(imgSource.orElse(null));
     }
     fireLayerChanged();
   }
@@ -451,8 +461,8 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
   @Override
   public void updateDisplayOperations() {
     if (isEnableDispOperations()) {
-      PlanarImage source = disOpManager.getFirstNodeInputImage();
-      if (source != null && source.width() < 1) {
+      Optional<PlanarImage> source = disOpManager.getFirstNodeInputImage();
+      if (source.isPresent() && source.get().toMat().empty()) {
         disOpManager.setFirstNode(getSourceRenderedImage());
       }
       displayImage = disOpManager.process();
@@ -497,9 +507,9 @@ public class RenderedImageLayer<E extends ImageElement> extends DefaultUUID
     E imageElement = getSourceImage();
     if (imageElement != null) {
       WlPresentation wlp = null;
-      WindowOp wlOp = (WindowOp) disOpManager.getNode(WindowOp.OP_NAME);
-      if (wlOp != null) {
-        wlp = wlOp.getWlPresentation();
+      Optional<ImageOpNode> wlOp = disOpManager.getNode(WindowOp.OP_NAME);
+      if (wlOp.isPresent() && wlOp.get() instanceof WindowOp windowOp) {
+        wlp = windowOp.getWlPresentation();
       }
       val = imageElement.pixelToRealValue(pixelValue, wlp);
     }

@@ -10,8 +10,9 @@
 package org.weasis.core.ui.editor;
 
 import java.awt.Desktop;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import javax.swing.JMenu;
@@ -36,23 +37,23 @@ public abstract class MimeSystemAppViewer implements SeriesViewer<MediaElement> 
     return Collections.emptyList();
   }
 
-  public static void startAssociatedProgramFromLinux(File file) {
-    if (file != null && file.canRead()) {
+  public static void startAssociatedProgramFromLinux(Path path) {
+    if (path != null && Files.isReadable(path)) {
       try {
-        String[] cmd = new String[] {"xdg-open", file.getCanonicalPath()}; // NON-NLS
+        String[] cmd = new String[] {"xdg-open", path.toString()}; // NON-NLS
         Runtime.getRuntime().exec(cmd);
       } catch (IOException e) {
-        LOGGER.error(ERROR_MSG, file, e);
+        LOGGER.error(ERROR_MSG, path, e);
       }
     }
   }
 
-  public static void startAssociatedProgramFromDesktop(final Desktop desktop, File file) {
-    if (file != null && file.canRead()) {
+  public static void startAssociatedProgramFromDesktop(final Desktop desktop, Path path) {
+    if (path != null && Files.isReadable(path)) {
       try {
-        desktop.open(file);
+        desktop.open(path.toFile());
       } catch (IOException e) {
-        LOGGER.error(ERROR_MSG, file, e);
+        LOGGER.error(ERROR_MSG, path, e);
       }
     }
   }

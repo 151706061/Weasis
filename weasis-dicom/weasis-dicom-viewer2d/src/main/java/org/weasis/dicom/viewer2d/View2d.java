@@ -258,12 +258,13 @@ public class View2d extends DefaultView2d<DicomImageElement> {
 
           if (val instanceof PresetWindowLevel preset) {
             DicomImageElement img = getImage();
-            ImageOpNode node = disOp.getNode(WindowOp.OP_NAME);
+            Optional<ImageOpNode> node = disOp.getNode(WindowOp.OP_NAME);
 
-            if (node != null) {
-              node.setParam(ActionW.WINDOW.cmd(), preset.getWindow());
-              node.setParam(ActionW.LEVEL.cmd(), preset.getLevel());
-              node.setParam(ActionW.LUT_SHAPE.cmd(), preset.getLutShape());
+            if (node.isPresent()) {
+              ImageOpNode n = node.get();
+              n.setParam(ActionW.WINDOW.cmd(), preset.getWindow());
+              n.setParam(ActionW.LEVEL.cmd(), preset.getLevel());
+              n.setParam(ActionW.LUT_SHAPE.cmd(), preset.getLutShape());
               // When series synchronization, do not synch preset from other series
               if (img == null || !img.containsPreset(preset)) {
                 List<PresetWindowLevel> presets =
@@ -272,17 +273,15 @@ public class View2d extends DefaultView2d<DicomImageElement> {
                   preset = null;
                 }
               }
-              node.setParam(ActionW.PRESET.cmd(), preset);
+              n.setParam(ActionW.PRESET.cmd(), preset);
             }
             imageLayer.updateDisplayOperations();
           }
         } else if (command.equals(ActionW.DEFAULT_PRESET.cmd())) {
           disOp.setParamValue(WindowOp.OP_NAME, ActionW.DEFAULT_PRESET.cmd(), val);
         } else if (command.equals(ActionW.LUT_SHAPE.cmd())) {
-          ImageOpNode node = disOp.getNode(WindowOp.OP_NAME);
-          if (node != null) {
-            node.setParam(ActionW.LUT_SHAPE.cmd(), val);
-          }
+          Optional<ImageOpNode> node = disOp.getNode(WindowOp.OP_NAME);
+          node.ifPresent(imageOpNode -> imageOpNode.setParam(ActionW.LUT_SHAPE.cmd(), val));
           imageLayer.updateDisplayOperations();
         } else if (command.equals(ActionW.SORT_STACK.cmd())) {
           actionsInView.put(ActionW.SORT_STACK.cmd(), val);
@@ -293,7 +292,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         } else if (command.equals(ActionW.KO_SELECTION.cmd())) {
           int frameIndex =
               tile
-                  ? LangUtil.getNULLtoFalse(
+                  ? LangUtil.nullToFalse(
                           (Boolean) synch.getView().getActionValue(ActionW.KO_FILTER.cmd()))
                       ? 0
                       : synch.getView().getFrameIndex() - synch.getView().getTileOffset()
@@ -306,7 +305,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
         } else if (command.equals(ActionW.KO_FILTER.cmd())) {
           int frameIndex =
               tile
-                  ? LangUtil.getNULLtoFalse((Boolean) val)
+                  ? LangUtil.nullToFalse((Boolean) val)
                       ? 0
                       : synch.getView().getFrameIndex() - synch.getView().getTileOffset()
                   : -1;
@@ -395,7 +394,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
           }
           if (v instanceof View2d view2d
               && fruid.equals(TagD.getTagValue(s, Tag.FrameOfReferenceUID))
-              && LangUtil.getNULLtoTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
+              && LangUtil.nullToTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
             view2d.computeCrosshair(p3, p);
             view2d.repaint();
           }
@@ -426,7 +425,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     imageLayer.fireOpEvent(new ImageOpEvent(ImageOpEvent.OpEvent.RESET_DISPLAY, series, m, null));
 
     boolean changePixConfig =
-        LangUtil.getNULLtoFalse((Boolean) actionsInView.get(PRManager.TAG_CHANGE_PIX_CONFIG));
+        LangUtil.nullToFalse((Boolean) actionsInView.get(PRManager.TAG_CHANGE_PIX_CONFIG));
     if (m != null) {
       // Restore the original image pixel size
       if (changePixConfig) {
@@ -1017,9 +1016,9 @@ public class View2d extends DefaultView2d<DicomImageElement> {
       final PixelInfo pixelInfo, final DicomImageElement imageElement, final double[] c) {
     if (c != null && c.length >= 1) {
       WlPresentation wlp = null;
-      WindowOp wlOp = (WindowOp) getDisplayOpManager().getNode(WindowOp.OP_NAME);
-      if (wlOp != null) {
-        wlp = wlOp.getWlPresentation();
+      Optional<ImageOpNode> wlOp = getDisplayOpManager().getNode(WindowOp.OP_NAME);
+      if (wlOp.isPresent() && wlOp.get() instanceof WindowOp windowOp) {
+        wlp = windowOp.getWlPresentation();
       }
       for (int i = 0; i < c.length; i++) {
         c[i] = imageElement.pixelToRealValue(c[i], wlp).doubleValue();
@@ -1235,7 +1234,7 @@ public class View2d extends DefaultView2d<DicomImageElement> {
     }
 
     String pClose = "weasis.contextmenu.close";
-    if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(pClose))
+    if (LangUtil.nullToTrue((Boolean) actionsInView.get(pClose))
         && GuiUtils.getUICore().getSystemPreferences().getBooleanProperty(pClose, true)) {
       JMenuItem close = new JMenuItem(Messages.getString("View2d.close"));
       close.addActionListener(e -> View2d.this.setSeries(null, null));

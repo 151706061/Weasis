@@ -159,8 +159,8 @@ public class EllipseGraphic extends ObliqueRectangleGraphic {
 
         ArrayList<MeasureItem> measVal = new ArrayList<>();
 
-        double ratio = adapter.getCalibRatio();
-        String unitStr = adapter.getUnit();
+        double ratio = adapter.calibrationRatio();
+        String unitStr = adapter.unit();
 
         if (CENTER_X.getComputed()) {
           measVal.add(
@@ -213,6 +213,10 @@ public class EllipseGraphic extends ObliqueRectangleGraphic {
     return MEASUREMENT_LIST;
   }
 
+  /**
+   * Returns the 4 points defining the rectangle enclosing the ellipse. The first two points are the
+   * extremities of the major axis followed by the extremities of the minor axis.
+   */
   @Override
   public List<Point2D> getRectanglePointList() {
     updateTool();

@@ -299,7 +299,7 @@ public class MprView extends View2d implements SliceCanvas {
     if (command.equals(ActionW.SYNCH.cmd())) {
       SynchEvent synch = (SynchEvent) evt.getNewValue();
       if (synch.getView() == this && synch instanceof SynchCineEvent cineEvent) {
-        if (LangUtil.getNULLtoTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
+        if (LangUtil.nullToTrue((Boolean) actionsInView.get(LayerType.CROSSLINES.name()))) {
           // Compute crossline from the location of selected image
           Number location = cineEvent.getLocation();
           if (location != null) {
@@ -339,7 +339,7 @@ public class MprView extends View2d implements SliceCanvas {
   @Override
   protected void drawOnTop(Graphics2D g2d) {
     MprAxis axis = getMprAxis();
-    if (axis != null && infoLayer != null && LangUtil.getNULLtoFalse(infoLayer.getVisible())) {
+    if (axis != null && infoLayer != null && LangUtil.nullToFalse(infoLayer.getVisible())) {
       axis.getAxisDirection().drawAxes(g2d, this);
     }
 
@@ -372,7 +372,7 @@ public class MprView extends View2d implements SliceCanvas {
       getGraphicManager().deleteByLayer(layer);
       layer.setVisible(!getViewProperty(this, HIDE_CROSSLINES));
       int centerGap = getCenterGap();
-      if (LangUtil.getNULLtoFalse((Boolean) actionsInView.get(SHOW_CROSS_CENTER))) {
+      if (LangUtil.nullToFalse((Boolean) actionsInView.get(SHOW_CROSS_CENTER))) {
         centerGap = 0;
       }
       Vector3d center = mprController.getCrossHairPosition(axis);
@@ -707,7 +707,7 @@ public class MprView extends View2d implements SliceCanvas {
 
   public static boolean getViewProperty(MprView view, String key) {
     if (view != null) {
-      return LangUtil.getNULLtoFalse((Boolean) view.actionsInView.get(key));
+      return LangUtil.nullToFalse((Boolean) view.actionsInView.get(key));
     }
     return false;
   }

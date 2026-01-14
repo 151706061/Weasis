@@ -16,8 +16,10 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -334,15 +336,15 @@ public class AcquirePublishDialog extends JDialog {
       }
     }
 
-    SwingWorker<File, AcquireMediaInfo> dicomizeTask = setupPublishingTask(toPublish, exportDir);
+    SwingWorker<Path, AcquireMediaInfo> dicomizeTask = setupPublishingTask(toPublish, exportDir);
     try (var executor = ThreadUtil.newSingleThreadExecutor("AcquireDicomize")) {
       executor.execute(dicomizeTask);
     }
   }
 
-  private SwingWorker<File, AcquireMediaInfo> setupPublishingTask(
+  private SwingWorker<Path, AcquireMediaInfo> setupPublishingTask(
       List<AcquireMediaInfo> toPublish, File exportDir) {
-    SwingWorker<File, AcquireMediaInfo> dicomizeTask = new DicomizeTask(toPublish);
+    SwingWorker<Path, AcquireMediaInfo> dicomizeTask = new DicomizeTask(toPublish);
     ActionListener taskCancelActionListener = _ -> dicomizeTask.cancel(true);
 
     dicomizeTask.addPropertyChangeListener(
@@ -361,7 +363,7 @@ public class AcquirePublishDialog extends JDialog {
               cancelButton.addActionListener(taskCancelActionListener);
 
             } else if (StateValue.DONE == evt.getNewValue()) {
-              File tempDirDicom = null;
+              Path tempDirDicom = null;
 
               if (!dicomizeTask.isCancelled()) {
                 try {
@@ -374,7 +376,7 @@ public class AcquirePublishDialog extends JDialog {
                 }
 
                 if (tempDirDicom != null) {
-                  exportProcess(toPublish, exportDir, tempDirDicom);
+                  exportProcess(toPublish, exportDir, tempDirDicom.toFile());
                 } else {
                   JOptionPane.showMessageDialog(
                       WinUtil.getValidComponent(this),
@@ -418,11 +420,12 @@ public class AcquirePublishDialog extends JDialog {
 
   private static void setZoomRatio(AcquireImageInfo imgInfo, Double ratio) {
     imgInfo.getCurrentValues().setRatio(ratio);
-    ImageOpNode node = imgInfo.getPostProcessOpManager().getNode(ZoomOp.OP_NAME);
-    if (node != null) {
-      node.clearIOCache();
-      node.setParam(ZoomOp.P_RATIO_X, ratio);
-      node.setParam(ZoomOp.P_RATIO_Y, ratio);
+    Optional<ImageOpNode> node = imgInfo.getPostProcessOpManager().getNode(ZoomOp.OP_NAME);
+    if (node.isPresent()) {
+      ImageOpNode n = node.get();
+      n.clearIOCache();
+      n.setParam(ZoomOp.P_RATIO_X, ratio);
+      n.setParam(ZoomOp.P_RATIO_Y, ratio);
     }
   }
 

@@ -14,11 +14,11 @@
   <properties>
     <!-- force command line arguments settings to set version -->
     <!-- $ mvn clean install -Drevision=4.2.2 -Dchangelist=-SNAPSHOT -->
-    <revision>4.6.7</revision>
+    <revision>4.7.0</revision>
     <changelist>-SNAPSHOT</changelist>  <!-- Remove "-SNAPSHOT" for release -->
 
-    <java-version>24</java-version>
-    <jdk-version>24</jdk-version>
+    <java-version>25</java-version>
+    <jdk-version>25</jdk-version>
     <enforcer.jdk-version>[${jdk-version},)</enforcer.jdk-version>
     <enforcer.maven-version>[3.8.1,)</enforcer.maven-version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -50,10 +50,10 @@
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.23</logback.version>
     <dockingframes.version>1.1.7</dockingframes.version>
-    <weasis-dicom-tools.version>5.34.1.2</weasis-dicom-tools.version>
-    <weasis.core.img.version>4.12.2</weasis.core.img.version>
-    <weasis.opencv.native.version>4.12.2-dcm</weasis.opencv.native.version>
-    <weasis.opencv.pkg.version>4.12.2-dcm</weasis.opencv.pkg.version>
+    <weasis-dicom-tools.version>5.34.2-SNAPSHOT</weasis-dicom-tools.version>
+    <weasis.core.img.version>4.13.0</weasis.core.img.version>
+    <weasis.opencv.native.version>4.13.0-dcm</weasis.opencv.native.version>
+    <weasis.opencv.pkg.version>4.13.0-dcm</weasis.opencv.pkg.version>
     <osgi.resource.locator.version>3.0.0</osgi.resource.locator.version>
     <jaxb.osgi.version>4.0.3</jaxb.osgi.version>
     <xml.bind-api.version>4.0.4</xml.bind-api.version>
@@ -103,21 +103,21 @@
     </repository>
   </repositories>
 
-  <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.14.1</version>
-          <configuration>
-            <release>${java-version}</release>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>biz.aQute.bnd</groupId>
-          <artifactId>bnd-maven-plugin</artifactId>
-          <version>7.1.0</version>
+ <build>
+   <pluginManagement>
+     <plugins>
+       <plugin>
+         <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-compiler-plugin</artifactId>
+         <version>3.14.1</version>
+         <configuration>
+           <release>${java-version}</release>
+         </configuration>
+       </plugin>
+       <plugin>
+         <groupId>biz.aQute.bnd</groupId>
+         <artifactId>bnd-maven-plugin</artifactId>
+          <version>7.2.0</version>
           <executions>
             <execution>
               <goals>
@@ -296,7 +296,9 @@
         <artifactId>spotless-maven-plugin</artifactId>
         <configuration>
           <java>
-            <googleJavaFormat/>
+            <googleJavaFormat>
+              <version>1.33.0</version>
+            </googleJavaFormat>
             <toggleOffOn>
               <off>@formatter:off</off>
               <on>@formatter:on</on>

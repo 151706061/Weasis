@@ -20,19 +20,19 @@ import java.util.UUID;
 import javax.swing.JOptionPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.weasis.core.api.auth.AuthMethod;
-import org.weasis.core.api.auth.AuthProvider;
-import org.weasis.core.api.auth.AuthRegistration;
-import org.weasis.core.api.auth.DefaultAuthMethod;
 import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.net.auth.AuthMethod;
+import org.weasis.core.api.net.auth.AuthProvider;
+import org.weasis.core.api.net.auth.AuthRegistration;
+import org.weasis.core.api.net.auth.DefaultAuthMethod;
 import org.weasis.core.util.LangUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.StringUtil.Suffix;
 import org.weasis.dicom.explorer.DicomModel;
-import org.weasis.dicom.explorer.ExplorerTask;
 import org.weasis.dicom.explorer.Messages;
 import org.weasis.dicom.explorer.PluginOpeningStrategy;
+import org.weasis.dicom.explorer.exp.ExplorerTask;
 import org.weasis.dicom.explorer.pref.node.AuthenticationPersistence;
 import org.weasis.dicom.explorer.wado.DownloadManager;
 import org.weasis.dicom.explorer.wado.DownloadManager.PriorityTaskComparator;
@@ -103,8 +103,9 @@ public class RsQueryParams extends ExplorerTask<Boolean, String> {
                 issuer + "/protocol/openid-connect/token", // NON-NLS
                 issuer + "/protocol/openid-connect/revoke", // NON-NLS
                 true);
-        AuthRegistration r = new AuthRegistration(null, null, "openid", null); // NON-NLS
-        r.setUser(properties.getProperty(RsQueryParams.P_OIDC_USER));
+
+        String user = properties.getProperty(RsQueryParams.P_OIDC_USER);
+        AuthRegistration r = new AuthRegistration(null, null, "openid", null, user); // NON-NLS
         method = new DefaultAuthMethod(UUID.randomUUID().toString(), p, r);
       }
     }
@@ -250,7 +251,7 @@ public class RsQueryParams extends ExplorerTask<Boolean, String> {
   }
 
   public boolean isAcceptNoImage() {
-    return LangUtil.getEmptytoFalse(properties.getProperty("accept.noimage"));
+    return LangUtil.emptyToFalse(properties.getProperty("accept.noimage"));
   }
 
   public DicomModel getDicomModel() {

@@ -111,9 +111,9 @@ public class SegSpecialElement extends HiddenSpecialElement
         if (layer != null) {
           MeasurementsAdapter adapter =
               layer.getMeasurementAdapter(layer.getSourceImage().getPixelSpacingUnit());
-          buf.append("Volume (%s3)".formatted(adapter.getUnit()));
+          buf.append("Volume (%s3)".formatted(adapter.unit()));
           buf.append(StringUtil.COLON_AND_SPACE);
-          double ratio = adapter.getCalibRatio();
+          double ratio = adapter.calibrationRatio();
           buf.append(
               DecFormatter.twoDecimal(
                   seg.getNumberOfPixels() * ratio * ratio * layer.getThickness()));

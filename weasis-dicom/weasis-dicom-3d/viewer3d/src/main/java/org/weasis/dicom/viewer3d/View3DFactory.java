@@ -51,7 +51,7 @@ import org.weasis.core.ui.pref.PreferenceDialog;
 import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.codec.DicomMediaIO;
-import org.weasis.dicom.explorer.DicomExplorer;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.viewer2d.EventManager;
 import org.weasis.dicom.viewer3d.vr.OpenglUtils;
 
@@ -120,7 +120,7 @@ public class View3DFactory implements SeriesViewerFactory {
       Iterator<LayoutConstraints> enumVal = layout.getConstraints().keySet().iterator();
       while (enumVal.hasNext()) {
         try {
-          Class<?> clazz = Class.forName(enumVal.next().getType());
+          Class<?> clazz = Class.forName(enumVal.next().type());
           if (defaultClass.isAssignableFrom(clazz)) {
             val++;
           }

@@ -11,7 +11,6 @@ package org.weasis.dicom.viewer2d.mpr;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.lang.ref.Reference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -67,17 +66,7 @@ public class VolImageIO implements DcmMediaReader {
   private static final Logger LOGGER = LoggerFactory.getLogger(VolImageIO.class);
 
   private static final String MIME_TYPE = "image/vol"; // NON-NLS
-  private static final SoftHashMap<VolImageIO, DicomMetaData> HEADER_CACHE =
-      new SoftHashMap<>() {
-
-        @Override
-        public void removeElement(Reference<? extends DicomMetaData> soft) {
-          VolImageIO key = reverseLookup.remove(soft);
-          if (key != null) {
-            hash.remove(key);
-          }
-        }
-      };
+  private static final SoftHashMap<VolImageIO, DicomMetaData> HEADER_CACHE = new SoftHashMap<>();
   private final FileCache fileCache;
 
   private final HashMap<TagW, Object> tags;
@@ -415,7 +404,7 @@ public class VolImageIO implements DcmMediaReader {
       try (DicomOutputStream dos = new DicomOutputStream(new FileOutputStream(output), dstTsuid)) {
         dos.writeFileMetaInformation(dataSet.createFileMetaInformation(dstTsuid));
         if (DicomOutputData.isNativeSyntax(dstTsuid)) {
-          imgData.writRawImageData(dos, dataSet);
+          imgData.writeRawImageData(dos, dataSet);
         } else {
           int[] jpegWriteParams =
               imgData.adaptTagsToCompressedImage(

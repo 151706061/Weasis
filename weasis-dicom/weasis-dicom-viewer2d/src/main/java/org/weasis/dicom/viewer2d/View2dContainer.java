@@ -90,11 +90,11 @@ import org.weasis.dicom.codec.PresentationStateReader;
 import org.weasis.dicom.codec.SpecialElementRegion;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.TagD.Level;
-import org.weasis.dicom.explorer.DicomExplorer;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.DicomViewerPlugin;
-import org.weasis.dicom.explorer.ExportToolBar;
-import org.weasis.dicom.explorer.ImportToolBar;
+import org.weasis.dicom.explorer.exp.ExportToolBar;
+import org.weasis.dicom.explorer.imp.ImportToolBar;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.explorer.print.DicomPrintDialog;
 import org.weasis.dicom.viewer2d.dockable.DisplayTool;
 import org.weasis.dicom.viewer2d.dockable.ImageTool;
@@ -680,7 +680,7 @@ public class View2dContainer extends DicomViewerPlugin implements PropertyChange
           if (koFilterAction != null) {
             if (enableFilter == null) {
               enableFilter =
-                  LangUtil.getNULLtoFalse(
+                  LangUtil.nullToFalse(
                       (Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
             }
             koFilterAction.setSelected(enableFilter);
@@ -688,7 +688,7 @@ public class View2dContainer extends DicomViewerPlugin implements PropertyChange
         }
 
         boolean koFilterActive =
-            LangUtil.getNULLtoFalse((Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
+            LangUtil.nullToFalse((Boolean) selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
         if (updateAll && koFilterActive) {
           List<ViewCanvas<DicomImageElement>> viewList = getImagePanels(true);
           for (ViewCanvas<DicomImageElement> view : viewList) {
