@@ -50,10 +50,10 @@
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.23</logback.version>
     <dockingframes.version>1.1.7</dockingframes.version>
-    <weasis-dicom-tools.version>5.34.1.7-SNAPSHOT</weasis-dicom-tools.version>
-    <weasis.core.img.version>4.12.2.7</weasis.core.img.version>
-    <weasis.opencv.native.version>4.12.2-dcm</weasis.opencv.native.version>
-    <weasis.opencv.pkg.version>4.12.2-dcm</weasis.opencv.pkg.version>
+    <weasis-dicom-tools.version>5.34.2-SNAPSHOT</weasis-dicom-tools.version>
+    <weasis.core.img.version>4.13.0</weasis.core.img.version>
+    <weasis.opencv.native.version>4.13.0-dcm</weasis.opencv.native.version>
+    <weasis.opencv.pkg.version>4.13.0-dcm</weasis.opencv.pkg.version>
     <osgi.resource.locator.version>3.0.0</osgi.resource.locator.version>
     <jaxb.osgi.version>4.0.3</jaxb.osgi.version>
     <xml.bind-api.version>4.0.4</xml.bind-api.version>
@@ -103,21 +103,6 @@
     </repository>
   </repositories>
 
-  <!-- Temporal repository to get the latest bnd-maven-plugin -->
- <pluginRepositories>
-   <pluginRepository>
-     <id>bndtools-snapshots</id>
-     <name>BND Tools Snapshots</name>
-     <url>https://bndtools.jfrog.io/bndtools/update-rc</url>
-     <snapshots>
-       <enabled>true</enabled>
-     </snapshots>
-     <releases>
-       <enabled>false</enabled>
-     </releases>
-   </pluginRepository>
- </pluginRepositories>
-
  <build>
    <pluginManagement>
      <plugins>
@@ -132,8 +117,7 @@
        <plugin>
          <groupId>biz.aQute.bnd</groupId>
          <artifactId>bnd-maven-plugin</artifactId>
-         <!-- Use the latest snapshot version for Java 25 compatibility, waiting for the next release -->
-          <version>7.2.0-SNAPSHOT</version>
+          <version>7.2.0</version>
           <executions>
             <execution>
               <goals>
