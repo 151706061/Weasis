@@ -154,11 +154,16 @@ public class DicomPrSerializer {
    * @param attributes DICOM attributes to modify
    */
   private static void writeCalibration(DicomImageElement img, Attributes attributes) {
-    if (img != null && Unit.PIXEL != img.getPixelSpacingUnit() && attributes != null) {
+    if (img != null
+        && Unit.PIXEL != img.getPixelSpacingUnit()
+        && attributes != null
+        && img.isPixelSizeModifiedByUser()) {
       double unitRatio =
           img.getPixelSize()
               * Unit.MILLIMETER.getConversionRatio(img.getPixelSpacingUnit().getConvFactor());
       attributes.setDouble(Tag.PresentationPixelSpacing, VR.DS, unitRatio, unitRatio);
+    } else if (attributes != null && attributes.containsValue(Tag.PresentationPixelSpacing)) {
+      attributes.remove(Tag.PresentationPixelSpacing);
     }
   }
 
@@ -340,16 +345,14 @@ public class DicomPrSerializer {
     displayedAreaItem.setInt(Tag.DisplayedAreaTopLeftHandCorner, VR.SL, 1, 1);
     displayedAreaItem.setString(Tag.PresentationSizeMode, VR.CS, "SCALE TO FIT"); // NON-NLS
 
-    // use case with already loaded calibrated PR that has a pixelSpacing defined
     double[] pixelSpacing =
         DicomUtils.getDoubleArrayFromDicomElement(
             sourceAttributes, Tag.PresentationPixelSpacing, null);
-    if (pixelSpacing == null)
-      // use case with calibrated image to propagate its pixelSpacing in the PR to be serialized
-      pixelSpacing =
-          DicomUtils.getDoubleArrayFromDicomElement(sourceAttributes, Tag.PixelSpacing, null);
-    if (pixelSpacing != null)
+    if (pixelSpacing == null) {
+      displayedAreaItem.setInt(Tag.PresentationPixelAspectRatio, VR.IS, new int[] {1, 1});
+    } else {
       displayedAreaItem.setDouble(Tag.PresentationPixelSpacing, VR.DS, pixelSpacing);
+    }
 
     displayedAreaSeq.add(displayedAreaItem);
   }
