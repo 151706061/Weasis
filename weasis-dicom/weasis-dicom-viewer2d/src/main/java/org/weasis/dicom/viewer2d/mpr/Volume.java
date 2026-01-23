@@ -131,7 +131,7 @@ public abstract class Volume<T extends Number> {
         copyFromCoronalToAxial();
         break;
       case SAGITTAL:
-        copyFromSagittalTaAxial();
+        copyFromSagittalToAxial();
         break;
     }
   }
@@ -187,10 +187,10 @@ public abstract class Volume<T extends Number> {
     this.size.y = stack.getHeight();
     this.size.z = medias.size();
     pixelRatio.set(img.getPixelSize(), img.getPixelSize(), stack.getSliceSpace());
-    coyImageToVolume(medias);
+    copyImageToVolume(medias);
   }
 
-  private void coyImageToVolume(List<DicomImageElement> dicomImages) {
+  private void copyImageToVolume(List<DicomImageElement> dicomImages) {
     createData(size.x, size.y, size.z);
     adaptPlaneOrientation();
 
@@ -361,17 +361,17 @@ public abstract class Volume<T extends Number> {
     this.size.y = coronalStack.size();
     this.size.z = this.stack.getHeight();
     pixelRatio.set(img.getPixelSize(), stack.getSliceSpace(), img.getPixelSize());
-    coyImageToVolume(coronalStack);
+    copyImageToVolume(coronalStack);
   }
 
-  protected void copyFromSagittalTaAxial() {
+  protected void copyFromSagittalToAxial() {
     List<DicomImageElement> sagittalStack = stack.getSourceStack();
     DicomImageElement img = sagittalStack.getFirst();
     this.size.x = sagittalStack.size();
     this.size.y = stack.getWidth();
     this.size.z = this.stack.getHeight();
     pixelRatio.set(stack.getSliceSpace(), img.getPixelSize(), img.getPixelSize());
-    coyImageToVolume(sagittalStack);
+    copyImageToVolume(sagittalStack);
   }
 
   protected abstract void copyFrom(PlanarImage image, int z, Matrix4d transform);
@@ -647,10 +647,11 @@ public abstract class Volume<T extends Number> {
   // transformation is needed
   private boolean needsTransformation(double value) {
     double EPSILON = 1e-2; // Tolerance value
-    if (Math.abs(value) > 0.5) {
-      return (1 - Math.abs(value)) > EPSILON;
+    double val = Math.abs(value);
+    if (val > 0.5) {
+      return (1.0 - val) > EPSILON;
     } else {
-      return Math.abs(value) > EPSILON;
+      return val > EPSILON;
     }
   }
 
