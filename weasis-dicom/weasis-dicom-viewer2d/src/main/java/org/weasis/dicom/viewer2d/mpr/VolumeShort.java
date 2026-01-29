@@ -83,7 +83,7 @@ public class VolumeShort extends Volume<Short> {
   @Override
   protected void setValue(int x, int y, int z, Short value, Matrix4d transform) {
     if (transform != null) {
-      Vector3i sliceCoord = transformPoint(x, y, z, transform);
+      Vector3i sliceCoord = mapSliceToVolumeCoordinates(x, y, z, transform);
       x = sliceCoord.x;
       y = sliceCoord.y;
       z = sliceCoord.z;

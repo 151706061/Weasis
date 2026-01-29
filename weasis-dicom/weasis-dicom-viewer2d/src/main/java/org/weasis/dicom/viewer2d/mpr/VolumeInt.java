@@ -67,7 +67,7 @@ public class VolumeInt extends Volume<Integer> {
   @Override
   protected void setValue(int x, int y, int z, Integer value, Matrix4d transform) {
     if (transform != null) {
-      Vector3i sliceCoord = transformPoint(x, y, z, transform);
+      Vector3i sliceCoord = mapSliceToVolumeCoordinates(x, y, z, transform);
       x = sliceCoord.x;
       y = sliceCoord.y;
       z = sliceCoord.z;

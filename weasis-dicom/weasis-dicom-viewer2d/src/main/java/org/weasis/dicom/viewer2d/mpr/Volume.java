@@ -46,7 +46,6 @@ import org.weasis.core.ui.editor.image.ViewerPlugin;
 import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.Pair;
 import org.weasis.dicom.codec.DicomImageElement;
-import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.opencv.data.PlanarImage;
 import org.weasis.opencv.op.ImageTransformer;
 
@@ -59,9 +58,9 @@ public abstract class Volume<T extends Number> {
   protected final Vector3d translation;
   protected final Quaterniond rotation;
   protected final Vector3i size;
-  protected Vector3d pixelRatio;
-  protected boolean negativeDirRow;
-  protected boolean negativeDirCol;
+  protected final Vector3d pixelRatio;
+  protected boolean needsRowFlip;
+  protected boolean needsColFlip;
   protected double minValue;
   protected double maxValue;
   protected OriginalStack stack;
@@ -78,9 +77,9 @@ public abstract class Volume<T extends Number> {
     this.translation = new Vector3d(0, 0, 0);
     this.rotation = new Quaterniond();
     this.size = new Vector3i(sizeX, sizeY, sizeZ);
-    this.pixelRatio = originalPixelRatio;
-    this.negativeDirRow = volume.negativeDirRow;
-    this.negativeDirCol = volume.negativeDirCol;
+    this.pixelRatio = new Vector3d(originalPixelRatio);
+    this.needsRowFlip = volume.needsRowFlip;
+    this.needsColFlip = volume.needsColFlip;
     this.minValue = volume.minValue;
     this.maxValue = volume.maxValue;
     this.stack = volume.stack;
@@ -100,8 +99,8 @@ public abstract class Volume<T extends Number> {
     this.rotation = new Quaterniond();
     this.size = new Vector3i(sizeX, sizeY, sizeZ);
     this.pixelRatio = new Vector3d(1.0, 1.0, 1.0);
-    this.negativeDirRow = false;
-    this.negativeDirCol = false;
+    this.needsRowFlip = false;
+    this.needsColFlip = false;
     this.minValue = -Double.MAX_VALUE;
     this.maxValue = Double.MAX_VALUE;
     this.stack = null;
@@ -116,24 +115,14 @@ public abstract class Volume<T extends Number> {
     this.rotation = new Quaterniond();
     this.size = new Vector3i(0, 0, 0);
     this.pixelRatio = new Vector3d(1.0, 1.0, 1.0);
-    this.negativeDirRow = false;
-    this.negativeDirCol = false;
+    this.needsRowFlip = false;
+    this.needsColFlip = false;
     this.stack = stack;
     int depth = stack.getFirstImage().getImage().depth();
     this.isSigned = depth == CvType.CV_8S || depth == CvType.CV_16S || depth == CvType.CV_32S;
     this.cvType = initCVType(isSigned);
     this.byteDepth = CvType.ELEM_SIZE(cvType); // FIXME: color image
-    switch (stack.getPlane()) {
-      case AXIAL:
-        copyFromAxial();
-        break;
-      case CORONAL:
-        copyFromCoronalToAxial();
-        break;
-      case SAGITTAL:
-        copyFromSagittalToAxial();
-        break;
-    }
+    copyFromAnyOrientation();
   }
 
   private int initCVType(boolean isSigned) {
@@ -179,24 +168,37 @@ public abstract class Volume<T extends Number> {
     }
   }
 
-  protected void copyFromAxial() {
+  /**
+   * Unified method to copy pixels from any orientation directly into the volume. Uses DICOM
+   * geometry (Image Position Patient and Image Orientation Patient) to place voxels in the correct
+   * 3D position.
+   */
+  protected void copyFromAnyOrientation() {
+    VolumeBounds bounds = stack.computeVolumeBounds();
+    if (bounds == null) {
+      return;
+    }
+
+    this.size.set(bounds.size());
+    this.pixelRatio.set(bounds.spacing());
+
     List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
-    Collections.reverse(medias);
-    DicomImageElement img = medias.getFirst();
-    this.size.x = stack.getWidth();
-    this.size.y = stack.getHeight();
-    this.size.z = medias.size();
-    pixelRatio.set(img.getPixelSize(), img.getPixelSize(), stack.getSliceSpace());
-    copyImageToVolume(medias);
+    // For axial, we need to reverse to go from inferior to superior
+    if (stack.getPlane() == MprView.Plane.AXIAL) {
+      Collections.reverse(medias);
+    }
+
+    copyImageToVolume(medias, bounds);
   }
 
-  private void copyImageToVolume(List<DicomImageElement> dicomImages) {
+  private void copyImageToVolume(List<DicomImageElement> dicomImages, VolumeBounds bounds) {
     createData(size.x, size.y, size.z);
-    adaptPlaneOrientation();
+    computeFlipRequirements(bounds);
 
     final int n = dicomImages.size();
-    final boolean flipRow = negativeDirRow;
-    final boolean flipCol = negativeDirCol;
+    final boolean flipRow = needsRowFlip;
+    final boolean flipCol = needsColFlip;
+    Matrix4d sliceToVolumeTransform = computeSliceToVolumeTransform();
 
     // Submit per-slice tasks with bounded concurrency
     CompletionService<Pair<Double, Double>> ecs =
@@ -210,7 +212,7 @@ public abstract class Volume<T extends Number> {
       ecs.submit(
           () -> {
             DicomImageElement dcm = dicomImages.get(zi);
-            Matrix4d transform = getAffineTransform(dcm);
+
             // Load source image (IO and decode may run concurrently with other slices)
             PlanarImage src = dcm.getImage();
             // Get min max after loading the image
@@ -223,7 +225,7 @@ public abstract class Volume<T extends Number> {
             }
 
             if (src != null) {
-              copyFrom(src, zi, transform);
+              copyFrom(src, zi, sliceToVolumeTransform);
             }
             int done = completed.incrementAndGet();
             updateProgressBar(done - 1);
@@ -247,52 +249,35 @@ public abstract class Volume<T extends Number> {
     }
   }
 
-  protected void adaptPlaneOrientation() {
-    Matrix4d m = getAffineTransform(stack.getFirstImage());
-    Vector3d row = new Vector3d(stack.getFistSliceGeometry().getRow());
-    Vector3d col = new Vector3d(stack.getFistSliceGeometry().getColumn());
-    negativeDirRow = adaptNegativeVector(row);
-    negativeDirCol = adaptNegativeVector(col);
-    Vector4d oldRow = new Vector4d(row, 0.0);
-    Vector4d oldCol = new Vector4d(col, 0.0);
-    oldRow.sub(m.transform(new Vector4d(m.m00(), m.m10(), m.m20(), 0.0)));
-    oldCol.sub(m.transform(new Vector4d(m.m01(), m.m11(), m.m21(), 0.0)));
-
-    switch (stack.getPlane()) {
-      case AXIAL -> {
-        double x = Math.max(Math.abs(oldRow.x), Math.abs(oldCol.x));
-        double y = Math.max(Math.abs(oldRow.y), Math.abs(oldCol.y));
-        if (x < 0.5) {
-          pixelRatio.x += pixelRatio.x * x;
-        }
-        if (y < 0.5) {
-          pixelRatio.y += pixelRatio.y * y;
-        }
-      }
-      case CORONAL -> {
-        double x = Math.max(Math.abs(oldRow.x), Math.abs(oldCol.x));
-        double z = Math.max(Math.abs(oldRow.z), Math.abs(oldCol.z));
-        if (x < 0.5) {
-          pixelRatio.x += pixelRatio.x * x;
-        }
-        if (z < 0.5) {
-          pixelRatio.z += pixelRatio.z * z;
-        }
-      }
-      case SAGITTAL -> {
-        double y = Math.max(Math.abs(oldRow.y), Math.abs(oldCol.y));
-        double z = Math.max(Math.abs(oldRow.z), Math.abs(oldCol.z));
-        if (y < 0.5) {
-          pixelRatio.y += pixelRatio.y * y;
-        }
-        if (z < 0.5) {
-          pixelRatio.z += pixelRatio.z * z;
-        }
-      }
-    }
+  private Matrix4d computeSliceToVolumeTransform() {
+    // Build transformation based on orientation
+    return switch (stack.getPlane()) {
+      case AXIAL -> new Matrix4d();
+      case CORONAL ->
+          new Matrix4d(
+              1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+      case SAGITTAL ->
+          new Matrix4d(
+              0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+    };
   }
 
-  private boolean adaptNegativeVector(Vector3d vector) {
+  /** Determines if row/column flipping is needed based on the volume bounds orientation. */
+  private void computeFlipRequirements(VolumeBounds bounds) {
+    Vector3d row = new Vector3d(bounds.rowDir());
+    Vector3d col = new Vector3d(bounds.colDir());
+    needsRowFlip = normalizeNegativeDirection(row);
+    needsColFlip = normalizeNegativeDirection(col);
+  }
+
+  /**
+   * Negates the vector if its primary components are negative (pointing in negative direction).
+   * This ensures consistent orientation when building the volume.
+   *
+   * @param vector the direction vector to normalize
+   * @return true if the vector was negated
+   */
+  private boolean normalizeNegativeDirection(Vector3d vector) {
     if (vector.x < -0.5 || vector.y < -0.5) {
       vector.negate();
       return true;
@@ -300,49 +285,26 @@ public abstract class Volume<T extends Number> {
     return false;
   }
 
-  private Matrix4d getAffineTransform(DicomImageElement dcm) {
-    GeometryOfSlice geometry = dcm.getSliceGeometry();
-    Vector3d row = new Vector3d(geometry.getRow());
-    Vector3d col = new Vector3d(geometry.getColumn());
-    adaptNegativeVector(row);
-    adaptNegativeVector(col);
-    Vector3d normal = geometry.getNormal();
+  /**
+   * Maps 2D slice pixel coordinates to 3D volume voxel coordinates. Applies the plane-specific
+   * transformation and remaps axes based on acquisition plane.
+   *
+   * @param sliceX x coordinate in the slice (pixel column)
+   * @param sliceY y coordinate in the slice (pixel row)
+   * @param sliceIndex the slice index in the stack
+   * @param sliceToVolumeTransform the transformation matrix
+   * @return the corresponding 3D volume coordinates
+   */
+  protected Vector3i mapSliceToVolumeCoordinates(
+      int sliceX, int sliceY, int sliceIndex, Matrix4d sliceToVolumeTransform) {
+    Vector4d p = new Vector4d(sliceX, sliceY, sliceIndex, 1.0);
+    sliceToVolumeTransform.transform(p);
 
     return switch (stack.getPlane()) {
-      case AXIAL -> new Matrix4d();
-      // Return identity matrix because transformation matrix will be computed if needed later to
-      // rectify patient position
-      case CORONAL ->
-          new Matrix4d(
-              row.x, col.x, normal.x, 0.0, row.z, col.z, normal.z, 0.0, row.y, col.y, normal.y, 0.0,
-              0.0, 0.0, 0.0, 1.0);
-      case SAGITTAL ->
-          new Matrix4d(
-              row.z, col.z, normal.z, 0.0, row.x, col.x, normal.x, 0.0, row.y, col.y, normal.y, 0.0,
-              0.0, 0.0, 0.0, 1.0);
+      case AXIAL -> new Vector3i((int) Math.round(p.x), (int) Math.round(p.y), sliceIndex);
+      case CORONAL -> new Vector3i((int) Math.round(p.x), sliceIndex, -(int) Math.round(p.y));
+      case SAGITTAL -> new Vector3i(sliceIndex, -(int) Math.round(p.y), -(int) Math.round(p.z));
     };
-  }
-
-  protected Vector3i transformPoint(int x, int y, int z, Matrix4d transform) {
-    Vector4d p = new Vector4d(x, y, z, 1.0);
-    transform.transform(p);
-    switch (stack.getPlane()) {
-      case AXIAL -> {
-        x = (int) Math.round(p.x);
-        y = (int) Math.round(p.y);
-      }
-      case CORONAL -> {
-        x = (int) Math.round(p.x);
-        y = z;
-        z = -(int) Math.round(p.y);
-      }
-      case SAGITTAL -> {
-        x = z;
-        y = -(int) Math.round(p.y);
-        z = -(int) Math.round(p.z);
-      }
-    }
-    return new Vector3i(x, y, z);
   }
 
   public void removeData() {
@@ -352,26 +314,6 @@ public abstract class Volume<T extends Number> {
     if (dataFile != null) {
       FileUtil.delete(dataFile.toPath());
     }
-  }
-
-  protected void copyFromCoronalToAxial() {
-    List<DicomImageElement> coronalStack = stack.getSourceStack();
-    DicomImageElement img = coronalStack.getFirst();
-    this.size.x = stack.getWidth();
-    this.size.y = coronalStack.size();
-    this.size.z = this.stack.getHeight();
-    pixelRatio.set(img.getPixelSize(), stack.getSliceSpace(), img.getPixelSize());
-    copyImageToVolume(coronalStack);
-  }
-
-  protected void copyFromSagittalToAxial() {
-    List<DicomImageElement> sagittalStack = stack.getSourceStack();
-    DicomImageElement img = sagittalStack.getFirst();
-    this.size.x = sagittalStack.size();
-    this.size.y = stack.getWidth();
-    this.size.z = this.stack.getHeight();
-    pixelRatio.set(stack.getSliceSpace(), img.getPixelSize(), img.getPixelSize());
-    copyImageToVolume(sagittalStack);
   }
 
   protected abstract void copyFrom(PlanarImage image, int z, Matrix4d transform);
@@ -643,27 +585,6 @@ public abstract class Volume<T extends Number> {
         + (v1 == null ? 0 : v1.doubleValue()) * factor;
   }
 
-  // value is supposed to be a cosine value, if the difference is greater than 10e-2 from 1 or 0,
-  // transformation is needed
-  private boolean needsTransformation(double value) {
-    double EPSILON = 1e-2; // Tolerance value
-    double val = Math.abs(value);
-    if (val > 0.5) {
-      return (1.0 - val) > EPSILON;
-    } else {
-      return val > EPSILON;
-    }
-  }
-
-  public boolean needsTransformation() {
-    Vector3d col = new Vector3d(stack.getFistSliceGeometry().getColumn());
-    Vector3d row = new Vector3d(stack.getFistSliceGeometry().getRow());
-
-    return needsTransformation(row.y())
-        || needsTransformation(col.z())
-        || needsTransformation(row.z());
-  }
-
   public void setTransformed(boolean transformed) {
     this.isTransformed = transformed;
   }
@@ -672,22 +593,112 @@ public abstract class Volume<T extends Number> {
     return this.isTransformed;
   }
 
-  public Matrix4d calculateRotation() {
-    // Calculate from geometry vectors
-    Vector3d row = new Vector3d(stack.getFistSliceGeometry().getRow());
+  public Matrix4d calculateRotation(double planRotation) {
+    double angle = Math.PI / 2.0 - Math.acos(planRotation);
     Matrix4d matrix = new Matrix4d();
-    matrix.rotateZ((Math.PI / 2.0 - Math.acos(row.y())));
-    return matrix;
+    return switch (stack.getPlane()) {
+      case AXIAL -> {
+        matrix.rotateZ(angle);
+        yield matrix;
+      }
+      case CORONAL -> {
+        matrix.rotateY(angle);
+        yield matrix;
+      }
+      case SAGITTAL -> {
+        matrix.rotateX(-angle);
+        yield matrix;
+      }
+    };
   }
 
-  public double calculateCorrectShearFactorZ(Vector3d originalPixelRatio) {
-    Vector3d normal = stack.getFistSliceGeometry().getNormal();
-    return normal.y / normal.z;
+  /**
+   * Safely calculates a shear factor with edge case handling.
+   *
+   * @param numerator the deviation component
+   * @param denominator the primary axis component
+   * @return bounded shear factor, or 0.0 if invalid
+   */
+  private double calculateSafeShearFactor(double numerator, double denominator) {
+    // Threshold below which denominator is considered degenerate (nearly 90° tilt)
+    final double MIN_DENOMINATOR = 1e-6;
+    // Maximum reasonable shear factor (~80° tilt = tan(80°) ≈ 5.67)
+    final double MAX_SHEAR = 5.0;
+    // Minimum shear worth applying (avoid unnecessary transformation)
+    final double MIN_SHEAR = 1e-4;
+
+    if (Math.abs(denominator) < MIN_DENOMINATOR) {
+      LOGGER.warn("Degenerate geometry: normal primary component near zero");
+      return 0.0;
+    }
+
+    double shear = numerator / denominator;
+
+    if (!Double.isFinite(shear)) {
+      LOGGER.warn("Invalid shear factor computed: {}", shear);
+      return 0.0;
+    }
+
+    // Clamp to reasonable range
+    if (Math.abs(shear) > MAX_SHEAR) {
+      LOGGER.warn(
+          "Shear factor {} exceeds maximum, clamping to {}", shear, Math.signum(shear) * MAX_SHEAR);
+      return Math.signum(shear) * MAX_SHEAR;
+    }
+
+    // Skip negligible shear
+    if (Math.abs(shear) < MIN_SHEAR) {
+      return 0.0;
+    }
+
+    return shear;
   }
 
-  public double calculateCorrectShearFactorX(Vector3d originalPixelRatio) {
-    Vector3d normal = stack.getFistSliceGeometry().getNormal();
-    return normal.x / normal.z;
+  /**
+   * Calculates the column shear factor (gantry tilt correction). Uses the column direction vector's
+   * deviation from the ideal orientation.
+   *
+   * <p>For gantry tilt, the column vector deviates from being perpendicular to the slice plane. The
+   * shear factor is the tangent of the tilt angle, computed from the column vector components.
+   *
+   * @return the shear factor for column correction
+   */
+  public double calculateCorrectShearFactorZ() {
+    Vector3d col = stack.getFistSliceGeometry().getColumn();
+    return switch (stack.getPlane()) {
+      // For AXIAL: ideal column is (0,1,0), deviation is in Z
+      // shear = col.z / col.y (how much Z per unit Y)
+      case AXIAL -> calculateSafeShearFactor(col.z, col.y);
+      // For CORONAL: ideal column is (0,0,-1), deviation is in Y
+      // shear = col.y / col.z (how much Y per unit Z)
+      case CORONAL -> calculateSafeShearFactor(col.y, col.z);
+      // For SAGITTAL: ideal column is (0,0,-1), deviation is in X
+      // shear = col.x / col.z (how much X per unit Z)
+      case SAGITTAL -> calculateSafeShearFactor(col.x, col.z);
+    };
+  }
+
+  /**
+   * Calculates the row shear factor (in-plane rotation correction). Uses the row direction vector's
+   * deviation from the ideal orientation.
+   *
+   * <p>Row shear corrects for deviation perpendicular to the column shear direction.
+   *
+   * @return the shear factor for row correction
+   */
+  public double calculateCorrectShearFactorX() {
+    Vector3d row = stack.getFistSliceGeometry().getRow();
+    return switch (stack.getPlane()) {
+      // For AXIAL: ideal row is (1,0,0), deviation is in Z
+      // shear = row.z / row.x (how much Z per unit X)
+      case AXIAL -> calculateSafeShearFactor(row.z, row.x);
+      // For CORONAL: ideal row is (1,0,0), deviation is in Y
+      // shear = row.y / row.x (how much Y per unit X)
+      case CORONAL -> calculateSafeShearFactor(row.y, row.x);
+      // For SAGITTAL: ideal row is (0,1,0), deviation is in X
+      // shear = row.x / row.y (how much X per unit Y)
+      case SAGITTAL -> calculateSafeShearFactor(row.x, row.y);
+    };
   }
 
   private Vector3i[] calculateTransformedBounds(Matrix4d transform) {
@@ -781,94 +792,48 @@ public abstract class Volume<T extends Number> {
 
   public Volume<?> transformVolume() {
 
-    if (this.isTransformed() || !this.stack.plane.equals(MprView.Plane.AXIAL)) {
+    if (isTransformed()) {
       // Volume already transformed, return itself
-      // The geometric rectification is applied only if the images are in the axial orientation
+      updateProgressBar(this.progressBar.getMaximum());
+      return this;
+    }
+
+    VolumeBounds volBounds = stack.computeVolumeBounds();
+    if (volBounds == null || !volBounds.needsRectification()) {
       updateProgressBar(this.progressBar.getMaximum());
       return this;
     }
 
     boolean isModified = false;
 
-    Vector3d col = new Vector3d(stack.getFistSliceGeometry().getColumn());
-    Vector3d row = new Vector3d(stack.getFistSliceGeometry().getRow());
+    Vector3d originalPixelRatio = volBounds.spacing();
+    Matrix4d transformMatrix = new Matrix4d();
 
-    Matrix4d identity = new Matrix4d();
-
-    DicomImageElement img = stack.getFirstImage();
-    Vector3d originalPixelRatio =
-        new Vector3d(img.getPixelSize(), img.getPixelSize(), stack.getSliceSpace());
-
-    // Rotate image
-    if (needsTransformation(row.y())) {
-      Matrix4d rotation = calculateRotation();
-      identity.mul(rotation);
+    // Rotation - check plan rotation
+    if (volBounds.planNeedsRectification()) {
+      Matrix4d rotation = calculateRotation(volBounds.planRotation());
+      transformMatrix.mul(rotation);
       isModified = true;
     }
 
-    // Gantry tilt
-    if (needsTransformation(col.z())) {
-      // Force pixelRatio to not be modified by adaptPlaneOrientation method
-      List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
-      Collections.reverse(medias);
-
-      double shearFactorZ = calculateCorrectShearFactorZ(originalPixelRatio);
-      // Scale by pixel spacing ratio to account for anisotropic voxels
-      double pixelSpacingRatioZ = originalPixelRatio.y / originalPixelRatio.z;
-      double pixelSpacingRatioY = originalPixelRatio.z / originalPixelRatio.y;
-      Matrix4d shear =
-          new Matrix4d(
-              1.0,
-              0.0,
-              0.0,
-              0.0,
-              0.0,
-              1.0,
-              shearFactorZ * pixelSpacingRatioZ,
-              0.0,
-              0.0,
-              -shearFactorZ * pixelSpacingRatioY,
-              1.0,
-              0.0,
-              0.0,
-              0.0,
-              0.0,
-              1.0);
-
-      identity.mul(shear);
-      isModified = true;
+    // Gantry tilt - check column shear (apply centered shear)
+    if (volBounds.columnNeedsRectification()) {
+      double shearFactorZ = calculateCorrectShearFactorZ();
+      if (shearFactorZ != 0.0) {
+        Matrix4d shear = createColumnShearMatrix(shearFactorZ, originalPixelRatio);
+        transformMatrix.mul(shear);
+        isModified = true;
+      }
     }
 
-    if (needsTransformation(row.z())) {
-      // Force pixelRatio to not be modified by adaptPlaneOrientation method
-      List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
-      Collections.reverse(medias);
-
-      double shearFactorX = calculateCorrectShearFactorX(originalPixelRatio);
-      // Scale by pixel spacing ratio to account for anisotropic voxels
-      double pixelSpacingRatioX = originalPixelRatio.x / originalPixelRatio.z;
-      double pixelSpacingRatioZ = originalPixelRatio.z / originalPixelRatio.x;
-      Matrix4d shear =
-          new Matrix4d(
-              1.0,
-              0.0,
-              shearFactorX * pixelSpacingRatioX,
-              0.0,
-              0.0,
-              1.0,
-              0.0,
-              0.0,
-              -shearFactorX * pixelSpacingRatioZ,
-              0.0,
-              1.0,
-              0.0,
-              0.0,
-              0.0,
-              0.0,
-              1.0);
-
-      identity.mul(shear);
-      isModified = true;
+    // Row tilt - check row shear (apply centered shear)
+    if (volBounds.rowNeedsRectification()) {
+      double shearFactorX = calculateCorrectShearFactorX();
+      if (shearFactorX != 0.0) {
+        Matrix4d shear = createRowShearMatrix(shearFactorX, originalPixelRatio);
+        transformMatrix.mul(shear);
+        isModified = true;
+      }
     }
 
     if (!isModified) {
@@ -877,7 +842,7 @@ public abstract class Volume<T extends Number> {
     }
 
     // Calculate transformed volume bounds
-    Vector3i[] bounds = calculateTransformedBounds(identity);
+    Vector3i[] bounds = calculateTransformedBounds(transformMatrix);
     Vector3i min = bounds[0];
     Vector3i max = bounds[1];
 
@@ -899,12 +864,12 @@ public abstract class Volume<T extends Number> {
       max.z += translateZ;
     }
 
-    // Create transformed volume
+    // Create transformed volume with the same pixel ratio as the source
     Volume<T> transformedVolume = this.cloneVolume(max.x, max.y, max.z, originalPixelRatio);
     transformedVolume.setTransformed(true);
 
-    identity.translate(translateX, translateY, translateZ);
-    Matrix4d inv = identity.invert();
+    transformMatrix.translate(translateX, translateY, translateZ);
+    Matrix4d inv = transformMatrix.invert();
 
     double progressBarStep =
         (this.stack.getSourceStack().size() * 0.2) / transformedVolume.getSizeX();
@@ -927,6 +892,158 @@ public abstract class Volume<T extends Number> {
     }
 
     return transformedVolume;
+  }
+
+  /**
+   * Creates a column shear matrix with correct ratio compensation for anisotropic voxels. Column
+   * shear corrects for gantry tilt (deviation in the slice stacking direction).
+   *
+   * <p>The ratio correction formula is: source_axis_spacing / affected_axis_spacing This ensures
+   * the shear operates correctly in voxel space while preserving physical angles.
+   *
+   * @param shearFactor the raw shear factor (tangent of tilt angle)
+   * @param originRatio the pixel spacing vector (x, y, z spacings)
+   * @return the shear transformation matrix
+   */
+  private Matrix4d createColumnShearMatrix(double shearFactor, Vector3d originRatio) {
+    return switch (stack.getPlane()) {
+      case AXIAL -> {
+        double ratioZ = originRatio.y / originRatio.z;
+        yield new Matrix4d(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            -shearFactor * ratioZ,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+      case CORONAL -> {
+        double ratioY = originRatio.z / originRatio.y;
+        yield new Matrix4d(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            shearFactor * ratioY,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+      case SAGITTAL -> {
+        double ratioX = originRatio.z / originRatio.x;
+        yield new Matrix4d(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            shearFactor * ratioX,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+    };
+  }
+
+  /**
+   * Creates a row shear matrix with correct ratio compensation for anisotropic voxels. Row shear
+   * corrects for in-plane rotation deviation perpendicular to column shear.
+   *
+   * <p>The ratio correction formula is: source_axis_spacing / affected_axis_spacing This ensures
+   * the shear operates correctly in voxel space while preserving physical angles.
+   *
+   * @param shearFactor the raw shear factor (tangent of tilt angle)
+   * @param originRatio the pixel spacing vector (x, y, z spacings)
+   * @return the shear transformation matrix
+   */
+  private Matrix4d createRowShearMatrix(double shearFactor, Vector3d originRatio) {
+    return switch (stack.getPlane()) {
+      case AXIAL -> {
+        double ratioX = originRatio.x / originRatio.z;
+        yield new Matrix4d(
+            1.0,
+            0.0,
+            -shearFactor * ratioX,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+      case CORONAL -> {
+        double ratioY = originRatio.x / originRatio.y;
+        yield new Matrix4d(
+            1.0,
+            shearFactor * ratioY,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+      case SAGITTAL -> {
+        double ratioX = originRatio.y / originRatio.x;
+        yield new Matrix4d(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            shearFactor * ratioX,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0);
+      }
+    };
   }
 
   private void transformVolumeParallel(

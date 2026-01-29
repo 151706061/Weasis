@@ -10,6 +10,8 @@
 package org.weasis.dicom.viewer2d.mpr;
 
 import static org.weasis.dicom.viewer2d.mpr.MprView.Plane.AXIAL;
+import static org.weasis.dicom.viewer2d.mpr.VolumeBounds.EPSILON;
+import static org.weasis.dicom.viewer2d.mpr.VolumeBounds.needsRectification;
 
 import java.util.Arrays;
 import java.util.List;
@@ -18,6 +20,7 @@ import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.weasis.core.api.gui.util.Filter;
 import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.TagW;
@@ -27,8 +30,53 @@ import org.weasis.dicom.codec.SortSeriesStack;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.dicom.viewer2d.mpr.MprView.Plane;
 
+/**
+ * Helper record to hold computed volume bounds from DICOM geometry. Includes shear factors for
+ * volume rectification.
+ */
+record VolumeBounds(
+    Vector3i size,
+    Vector3d spacing,
+    Vector3d origin,
+    Vector3d rowDir,
+    Vector3d colDir,
+    Vector3d normalDir,
+    double columnShear,
+    double rowShear,
+    double planRotation) {
+
+  public static final double EPSILON = 1e-2;
+
+  /**
+   * @return true if the volume needs rectification due to non-orthogonal orientation
+   */
+  public boolean needsRectification() {
+    return planNeedsRectification() || columnNeedsRectification() || rowNeedsRectification();
+  }
+
+  public boolean planNeedsRectification() {
+    return needsRectification(planRotation);
+  }
+
+  public boolean columnNeedsRectification() {
+    return needsRectification(columnShear);
+  }
+
+  public boolean rowNeedsRectification() {
+    return needsRectification(rowShear);
+  }
+
+  static boolean needsRectification(double shearValue) {
+    double absVal = Math.abs(shearValue);
+    // Check if deviation from 0 or 1 is significant
+    if (absVal > 0.5) {
+      return (1.0 - absVal) > EPSILON;
+    }
+    return absVal > EPSILON;
+  }
+}
+
 public abstract class OriginalStack extends AbstractStack {
-  protected static final double EPSILON = 1e-3;
   static TagW seriesReferences = new TagW("series.builder.refs", TagType.STRING, 2, 2);
   static final int[] COPIED_ATTRS = {
     Tag.SpecificCharacterSet,
@@ -87,13 +135,14 @@ public abstract class OriginalStack extends AbstractStack {
   private final GeometryOfSlice fistSliceGeometry;
   protected double sliceSpace;
   protected boolean variableSliceSpacing;
+  protected boolean nonParallelSlices;
 
   public OriginalStack(
       Plane plane, MediaSeries<DicomImageElement> series, Filter<DicomImageElement> filter) {
     super(plane, series);
     this.sourceStack = series.copyOfMedias(filter, SortSeriesStack.slicePosition);
-    this.sliceSpace = initSliceSpace();
     this.fistSliceGeometry = new GeometryOfSlice(getStartingImage().getSliceGeometry());
+    this.sliceSpace = initSliceSpace();
   }
 
   public DicomImageElement getMiddleImage() {
@@ -129,19 +178,28 @@ public abstract class OriginalStack extends AbstractStack {
     return cpTags;
   }
 
+  /**
+   * Initializes the slice spacing by measuring distances between consecutive slices. Applies
+   * correction for non-orthogonal orientations (column/row shear).
+   */
   protected double initSliceSpace() {
-    if (sourceStack == null || sourceStack.isEmpty()) {
+    if (sourceStack == null || sourceStack.size() < 2) {
       return 0.0;
     }
 
-    double totalSpace = 0.0;
-    double lastSpace = 0.0;
     double[] firstPos = (double[]) sourceStack.getFirst().getTagValue(TagW.SlicePosition);
     if (firstPos == null || firstPos.length != 3) {
       return 0.0;
     }
 
-    double gantryTilt = getGantryTilt();
+    // Compute shear factors from geometry for spacing correction
+    double spacingCorrection = computeSpacingCorrectionFromGeometry();
+
+    // Check for slice parallelism
+    checkSliceParallelism();
+
+    double totalSpace = 0.0;
+    double lastSpace = 0.0;
     Vector3d lastPosVector = new Vector3d(firstPos[0], firstPos[1], firstPos[2]);
     for (int i = 1; i < sourceStack.size(); i++) {
       double[] sp = (double[]) sourceStack.get(i).getTagValue(TagW.SlicePosition);
@@ -151,8 +209,8 @@ public abstract class OriginalStack extends AbstractStack {
 
       Vector3d currentPosVector = new Vector3d(sp[0], sp[1], sp[2]);
       double space = lastPosVector.distance(currentPosVector);
-      if (gantryTilt != 0) {
-        space = correctSpaceForGantryTilt(space, gantryTilt);
+      if (spacingCorrection != 1.0) {
+        space *= spacingCorrection;
       }
       if (i > 1 && Math.abs(lastSpace - space) > EPSILON) {
         this.variableSliceSpacing = true;
@@ -165,28 +223,102 @@ public abstract class OriginalStack extends AbstractStack {
     return totalSpace / (sourceStack.size() - 1);
   }
 
-  private double correctSpaceForGantryTilt(double measuredSpace, double gantryTilt) {
-    // The corrected spacing is the measured spacing divided by the cosine of the tilt angle
-    // This accounts for the fact that the actual slice thickness is larger when tilted
-    return measuredSpace / Math.cos(gantryTilt);
+  /**
+   * Checks if slices are parallel within tolerance. Compares normal vectors of consecutive slices.
+   */
+  private void checkSliceParallelism() {
+    if (sourceStack.size() < 2) {
+      return;
+    }
+
+    Vector3d firstNormal = sourceStack.getFirst().getSliceGeometry().getNormal();
+    if (firstNormal == null) {
+      return;
+    }
+
+    for (int i = 1; i < sourceStack.size(); i++) {
+      GeometryOfSlice geom = sourceStack.get(i).getSliceGeometry();
+      if (geom == null) {
+        continue;
+      }
+
+      Vector3d currentNormal = geom.getNormal();
+      if (currentNormal == null) {
+        continue;
+      }
+
+      // Calculate the angle between normals using dot product
+      // For parallel slices, |dot product| should be very close to 1
+      double dotProduct = firstNormal.dot(currentNormal);
+
+      // Allow small deviation from perfect parallelism (EPSILON tolerance)
+      if (Math.abs(Math.abs(dotProduct) - 1.0) > EPSILON) {
+        this.nonParallelSlices = true;
+        break;
+      }
+    }
   }
 
-  private double getGantryTilt() {
-    Vector3d col = new Vector3d(getStartingImage().getSliceGeometry().getColumn());
-    Vector3d row = new Vector3d(getStartingImage().getSliceGeometry().getRow());
-
-    // The tilt angle is the deviation from vertical in patient's Z axis
-    double tilt =
-        switch (plane) {
-          case AXIAL -> col.z();
-          case CORONAL -> col.y();
-          case SAGITTAL -> row.z();
-        };
-    if (Math.abs(tilt) <= EPSILON) {
-      return 0.0;
+  /**
+   * Computes the spacing correction factor from the image orientation geometry. This generalizes
+   * the gantry tilt correction to handle both column and row shear.
+   *
+   * @return correction factor to apply to measured slice spacing
+   */
+  private double computeSpacingCorrectionFromGeometry() {
+    GeometryOfSlice geometry = fistSliceGeometry;
+    if (geometry == null) {
+      return 1.0;
     }
-    // Subtract the angle from pi/2 to get the angle with the vertical axis
-    return (Math.PI / 2.0) - Math.acos(tilt);
+
+    // Get shear components based on plane orientation
+    double colShear = getColumnShearComponent(geometry.getColumn());
+    double rowShear = getRowShearComponent(geometry.getRow());
+
+    // If no significant shear, no correction needed
+    if (!needsRectification(colShear) && !needsRectification(rowShear)) {
+      return 1.0;
+    }
+
+    // Combined shear magnitude
+    double combinedShear = Math.sqrt(colShear * colShear + rowShear * rowShear);
+
+    // The correction factor compensates for the apparent shortening of spacing
+    // when slices are acquired at an angle
+    double shearAngle = Math.atan(combinedShear);
+    return 1.0 / Math.cos(shearAngle);
+  }
+
+  /**
+   * Gets the column shear component based on the acquisition plane. Column shear represents
+   * deviation in the slice normal direction.
+   */
+  private double getColumnShearComponent(Vector3d col) {
+    return switch (plane) {
+      case AXIAL -> col.z;
+      case CORONAL -> col.y;
+      case SAGITTAL -> col.x;
+    };
+  }
+
+  /**
+   * Gets the row shear component based on the acquisition plane. Row shear represents deviation
+   * perpendicular to column shear.
+   */
+  private double getRowShearComponent(Vector3d row) {
+    return switch (plane) {
+      case AXIAL -> row.z;
+      case CORONAL -> row.y;
+      case SAGITTAL -> row.x;
+    };
+  }
+
+  private double getPlanRotationComponent(Vector3d row) {
+    return switch (plane) {
+      case AXIAL -> row.y();
+      case CORONAL -> row.z();
+      case SAGITTAL -> -row.z();
+    };
   }
 
   public double getSliceSpace() {
@@ -195,6 +327,10 @@ public abstract class OriginalStack extends AbstractStack {
 
   public boolean isVariableSliceSpacing() {
     return variableSliceSpacing;
+  }
+
+  public boolean isNonParallelSlices() {
+    return nonParallelSlices;
   }
 
   public abstract void generate(BuildContext context);
@@ -215,5 +351,94 @@ public abstract class OriginalStack extends AbstractStack {
   public int hashCode() {
     return Objects.hash(
         getSourceStack(), getFistSliceGeometry(), getSliceSpace(), isVariableSliceSpacing());
+  }
+
+  /**
+   * Computes the volume bounds from all slice geometries. This method calculates the bounding box
+   * in patient coordinate space and determines the optimal voxel spacing, including shear factors
+   * for rectification.
+   *
+   * @return VolumeBounds containing size, spacing, orientation, and shear information
+   */
+  VolumeBounds computeVolumeBounds() {
+    if (sourceStack == null || sourceStack.isEmpty()) {
+      return null;
+    }
+
+    DicomImageElement firstImg = getStartingImage();
+    GeometryOfSlice firstGeom = firstImg.getSliceGeometry();
+
+    Vector3d row = new Vector3d(firstGeom.getRow());
+    Vector3d col = new Vector3d(firstGeom.getColumn());
+    Vector3d normal = firstGeom.getNormal();
+
+    // Normalize directions to ensure consistent orientation
+    normalizeToPositiveDirection(row);
+    normalizeToPositiveDirection(col);
+
+    // Compute shear factors for potential rectification
+    double columnShear = getColumnShearComponent(firstGeom.getColumn());
+    double rowShear = getRowShearComponent(firstGeom.getRow());
+    double planRotation = getPlanRotationComponent(firstGeom.getRow());
+
+    // Get pixel spacing from first image
+    double pixelSpacing = firstImg.getPixelSize();
+    double sliceSpacing = getSliceSpace();
+
+    // Get the origin (TLHC of first slice)
+    Vector3d origin = new Vector3d(firstGeom.getTLHC());
+    int numSlices = sourceStack.size();
+
+    return switch (plane) {
+      case AXIAL ->
+          new VolumeBounds(
+              new Vector3i(getWidth(), getHeight(), numSlices),
+              new Vector3d(pixelSpacing, pixelSpacing, sliceSpacing),
+              origin,
+              row,
+              col,
+              normal,
+              columnShear,
+              rowShear,
+              planRotation);
+      case CORONAL ->
+          new VolumeBounds(
+              new Vector3i(getWidth(), numSlices, getHeight()),
+              new Vector3d(pixelSpacing, sliceSpacing, pixelSpacing),
+              origin,
+              row,
+              col,
+              normal,
+              columnShear,
+              rowShear,
+              planRotation);
+      case SAGITTAL ->
+          new VolumeBounds(
+              new Vector3i(numSlices, getWidth(), getHeight()),
+              new Vector3d(sliceSpacing, pixelSpacing, pixelSpacing),
+              origin,
+              row,
+              col,
+              normal,
+              columnShear,
+              rowShear,
+              planRotation);
+    };
+  }
+
+  /** Normalizes a direction vector to point in the positive direction for the dominant axis. */
+  private void normalizeToPositiveDirection(Vector3d v) {
+    // Find dominant axis and ensure it's positive
+    double absX = Math.abs(v.x);
+    double absY = Math.abs(v.y);
+    double absZ = Math.abs(v.z);
+
+    if (absX >= absY && absX >= absZ) {
+      if (v.x < 0) v.negate();
+    } else if (absY >= absX && absY >= absZ) {
+      if (v.y < 0) v.negate();
+    } else {
+      if (v.z < 0) v.negate();
+    }
   }
 }

@@ -71,7 +71,7 @@ public class VolumeByte extends Volume<Byte> {
   @Override
   protected void setValue(int x, int y, int z, Byte value, Matrix4d transform) {
     if (transform != null) {
-      Vector3i sliceCoord = transformPoint(x, y, z, transform);
+      Vector3i sliceCoord = mapSliceToVolumeCoordinates(x, y, z, transform);
       x = sliceCoord.x;
       y = sliceCoord.y;
       z = sliceCoord.z;
