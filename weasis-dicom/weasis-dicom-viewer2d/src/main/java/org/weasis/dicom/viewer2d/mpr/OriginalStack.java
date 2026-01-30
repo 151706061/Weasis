@@ -30,52 +30,6 @@ import org.weasis.dicom.codec.SortSeriesStack;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.dicom.viewer2d.mpr.MprView.Plane;
 
-/**
- * Helper record to hold computed volume bounds from DICOM geometry. Includes shear factors for
- * volume rectification.
- */
-record VolumeBounds(
-    Vector3i size,
-    Vector3d spacing,
-    Vector3d origin,
-    Vector3d rowDir,
-    Vector3d colDir,
-    Vector3d normalDir,
-    double columnShear,
-    double rowShear,
-    double planRotation) {
-
-  public static final double EPSILON = 1e-2;
-
-  /**
-   * @return true if the volume needs rectification due to non-orthogonal orientation
-   */
-  public boolean needsRectification() {
-    return planNeedsRectification() || columnNeedsRectification() || rowNeedsRectification();
-  }
-
-  public boolean planNeedsRectification() {
-    return needsRectification(planRotation);
-  }
-
-  public boolean columnNeedsRectification() {
-    return needsRectification(columnShear);
-  }
-
-  public boolean rowNeedsRectification() {
-    return needsRectification(rowShear);
-  }
-
-  static boolean needsRectification(double shearValue) {
-    double absVal = Math.abs(shearValue);
-    // Check if deviation from 0 or 1 is significant
-    if (absVal > 0.5) {
-      return (1.0 - absVal) > EPSILON;
-    }
-    return absVal > EPSILON;
-  }
-}
-
 public abstract class OriginalStack extends AbstractStack {
   static TagW seriesReferences = new TagW("series.builder.refs", TagType.STRING, 2, 2);
   static final int[] COPIED_ATTRS = {
@@ -360,7 +314,7 @@ public abstract class OriginalStack extends AbstractStack {
    *
    * @return VolumeBounds containing size, spacing, orientation, and shear information
    */
-  VolumeBounds computeVolumeBounds() {
+  public VolumeBounds computeVolumeBounds() {
     if (sourceStack == null || sourceStack.isEmpty()) {
       return null;
     }
