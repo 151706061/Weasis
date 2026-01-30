@@ -160,7 +160,7 @@ public class DicomPrSerializer {
         && img.isPixelSizeModifiedByUser()) {
       double unitRatio =
           img.getPixelSize()
-              * Unit.MILLIMETER.getConversionRatio(img.getPixelSpacingUnit().getConvFactor());
+              * Unit.MILLIMETER.getConversionRatio(img.getPixelSpacingUnit().getFactorToMeters());
       attributes.setDouble(Tag.PresentationPixelSpacing, VR.DS, unitRatio, unitRatio);
     } else if (attributes != null && attributes.containsValue(Tag.PresentationPixelSpacing)) {
       attributes.remove(Tag.PresentationPixelSpacing);

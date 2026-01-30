@@ -17,11 +17,11 @@ import org.weasis.core.api.util.ResourceUtil.ActionIcon;
 import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.ui.util.DefaultAction;
 import org.weasis.core.ui.util.WtoolBar;
-import org.weasis.dicom.explorer.pr.DicomExportPR;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.explorer.Messages;
 import org.weasis.dicom.explorer.imp.ImportToolBar;
 import org.weasis.dicom.explorer.main.DicomExplorer;
+import org.weasis.dicom.explorer.pr.DicomExportPR;
 
 public class ExportToolBar extends WtoolBar {
 

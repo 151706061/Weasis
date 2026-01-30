@@ -28,17 +28,16 @@ import org.weasis.core.api.gui.InsertableUtil;
 import org.weasis.core.api.gui.util.AbstractItemDialogPage;
 import org.weasis.core.api.gui.util.AppProperties;
 import org.weasis.core.api.gui.util.GuiUtils;
-import org.weasis.core.api.media.data.Series;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.codec.display.Modality;
-import org.weasis.dicom.explorer.CheckTreeModel;
-import org.weasis.dicom.explorer.DicomExplorer;
-import org.weasis.dicom.explorer.DicomExport;
-import org.weasis.dicom.explorer.DicomExportFactory;
 import org.weasis.dicom.explorer.DicomModel;
-import org.weasis.dicom.explorer.ExportDicom;
+import org.weasis.dicom.explorer.exp.CheckTreeModel;
+import org.weasis.dicom.explorer.exp.DicomExport;
+import org.weasis.dicom.explorer.exp.DicomExportFactory;
+import org.weasis.dicom.explorer.exp.ExportDicom;
+import org.weasis.dicom.explorer.main.DicomExplorer;
 
 public class DicomExportPR extends DicomExport {
 
@@ -94,7 +93,7 @@ public class DicomExportPR extends DicomExport {
     if (GuiUtils.getUICore().getExplorerPlugin(DicomExplorer.NAME)
         instanceof DicomExplorer explorer) {
 
-      Set<Series<?>> openSeriesSet = explorer.getSelectedPatientOpenSeries();
+      Set<DicomSeries> openSeriesSet = explorer.getSelectedPatientOpenSeries();
       Object rootNode = getTreeModel().getModel().getRoot();
 
       if (!openSeriesSet.isEmpty() && rootNode instanceof DefaultMutableTreeNode mutableTreeNode) {
