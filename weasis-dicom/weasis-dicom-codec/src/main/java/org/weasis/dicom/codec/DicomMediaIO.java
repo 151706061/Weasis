@@ -650,9 +650,14 @@ public class DicomMediaIO implements DcmMediaReader {
             frame,
             TagD.getTagValue(this, Tag.SOPInstanceUID));
         DicomImageReader reader = new DicomImageReader(Transcoder.dicomImageReaderSpi);
-        try (DicomFileInputStream inputStream = new DicomFileInputStream(original.get())) {
+        DicomMetaData metaData = HEADER_CACHE.get(this);
+        try (var inputStream = new DicomFileInputStream(original.get(), metaData)) {
           reader.setInput(inputStream);
-          ImageDescriptor desc = reader.getImageDescriptor();
+          if (metaData == null) {
+            metaData = reader.getStreamMetadata();
+            HEADER_CACHE.put(this, metaData);
+          }
+          ImageDescriptor desc = metaData.getImageDescriptor();
           DicomImageReadParam param = new DicomImageReadParam();
           param.setAllowFloatImageConversion(true);
           PlanarImage img = reader.getPlanarImage(frame, param);
