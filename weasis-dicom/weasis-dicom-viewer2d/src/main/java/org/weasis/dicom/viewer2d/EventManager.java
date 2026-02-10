@@ -359,9 +359,9 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
             && levelAction.isPresent()) {
           Optional<? extends ComboItemListener<?>> presetAction = getAction(ActionW.PRESET);
           PresetWindowLevel oldPreset =
-              presetAction.isPresent()
-                  ? (PresetWindowLevel) presetAction.get().getSelectedItem()
-                  : null;
+              presetAction
+                  .map(comboItemListener -> (PresetWindowLevel) comboItemListener.getSelectedItem())
+                  .orElse(null);
           PresetWindowLevel newPreset = null;
           boolean pixelPadding =
               view2d
@@ -1077,7 +1077,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
     if (isMprOrOblique && view2d instanceof MprView mprView) {
       MprContainer mprContainer = (MprContainer) selectedView2dContainer;
       MprController controller = mprContainer.getMprController();
-      Volume<?> volume = controller.getVolume();
+      Volume<?, ?> volume = controller.getVolume();
       maxSlice = volume.getSliceSize();
       MprAxis axis = controller.getMprAxis(mprView.getPlane());
       currentSlice = axis.getSliceIndex();

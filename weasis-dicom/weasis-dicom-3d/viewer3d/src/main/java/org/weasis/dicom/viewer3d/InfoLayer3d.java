@@ -26,6 +26,7 @@ import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.TagView;
 import org.weasis.core.api.media.data.TagW;
+import org.weasis.core.api.util.FontItem;
 import org.weasis.core.api.util.FontTools;
 import org.weasis.core.ui.editor.image.ViewCanvas;
 import org.weasis.core.ui.model.layer.AbstractInfoLayer;
@@ -83,7 +84,8 @@ public class InfoLayer3d extends AbstractInfoLayer<DicomImageElement> {
 
   @Override
   public void paint(Graphics2D g2d) {
-    FontMetrics fontMetrics = g2d.getFontMetrics();
+    FontMetrics fontMetrics =
+        view2DPane.getJComponent().getFontMetrics(FontItem.MICRO_SEMIBOLD.getFont());
     final Rectangle bound = view2DPane.getJComponent().getBounds();
     int minSize =
         fontMetrics.stringWidth(
@@ -134,10 +136,11 @@ public class InfoLayer3d extends AbstractInfoLayer<DicomImageElement> {
       }
     }
     drawY -= fontHeight;
-    // TODO checkif transformed to display message
-    drawY = InfoLayer.drawGeometricTransformationMessage(g2d, drawY, fontHeight, border);
+    if (imSeries.getVolume().isTransformed()) {
+      drawY = InfoLayer.drawGeometricTransformationMessage(g2d, drawY, fontHeight, border);
+    }
 
-    if (imSeries.getVolumeGeometry().isVariablePixelSpacing()) {
+    if (imSeries.getVolume().isVariableSliceSpacing()) {
       String message = Messages.getString("non.regular.volume.msg");
       FontTools.paintColorFontOutline(
           g2d, message, border, drawY, IconColor.ACTIONS_RED.getColor());
