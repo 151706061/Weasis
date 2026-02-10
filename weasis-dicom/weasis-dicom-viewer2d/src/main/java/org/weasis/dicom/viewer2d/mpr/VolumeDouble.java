@@ -16,10 +16,11 @@ import java.io.IOException;
 import javax.swing.JProgressBar;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
-public final class VolumeDouble extends Volume<Double> {
+public final class VolumeDouble extends Volume<Double, double[]> {
 
   public VolumeDouble(int sizeX, int sizeY, int sizeZ, int channels, JProgressBar progressBar) {
     super(sizeX, sizeY, sizeZ, CvType.CV_64FC(channels), progressBar);
@@ -40,25 +41,38 @@ public final class VolumeDouble extends Volume<Double> {
   }
 
   public VolumeDouble(
-      Volume<? extends Number> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
+      Volume<Double, double[]> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
     super(volume, sizeX, sizeY, sizeZ, voxelRatio);
   }
 
+  @Override
   protected int initCVType(boolean isSigned, int channels) {
     checkSingleChannel(channels);
     return CvType.CV_64F;
   }
 
   @Override
-  protected double[][][] createDataArray(int sizeX, int sizeY, int sizeZ, int channels) {
+  protected ChunkedArray<double[]> createChunkedArray(long totalElements) {
     checkSingleChannel(channels);
-    return new double[sizeX][sizeY][sizeZ];
+    return ChunkedArray.ofDouble(totalElements);
   }
 
   @Override
-  protected double[] createRasterArray(int totalPixels, int channels) {
-    checkSingleChannel(channels);
-    return new double[totalPixels];
+  protected void setElementInData(long index, Double value) {
+    data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)] = value;
+  }
+
+  @Override
+  protected Double getElementFromData(long index) {
+    return data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)];
+  }
+
+  @Override
+  protected void setChannelValues(long baseIndex, Voxel<Double> voxel) {
+    Double val = voxel.getValue(0);
+    if (val != null) {
+      setElementInData(baseIndex, val);
+    }
   }
 
   @Override
@@ -66,7 +80,32 @@ public final class VolumeDouble extends Volume<Double> {
     double[] pixelData = new double[dim.width * dim.height];
     image.get(0, 0, pixelData);
 
-    copyPixels(dim, (x, y) -> setValue(x, y, sliceIndex, pixelData[y * dim.width + x], transform));
+    if (isIdentityTransform(transform)) {
+      long destOffset = (long) sliceIndex * size.y * size.x;
+      if (data != null) {
+        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
+      } else {
+        long byteOffset = destOffset * byteDepth;
+        for (int i = 0; i < pixelData.length; i++) {
+          mappedBuffer.putDouble(byteOffset + (long) i * byteDepth, pixelData[i]);
+        }
+      }
+    } else {
+      copyPixels(
+          dim,
+          (x, y) -> {
+            double val = pixelData[y * dim.width + x];
+            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
+            if (!isOutside(coord.x, coord.y, coord.z)) {
+              long index = (long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x;
+              if (data != null) {
+                setElementInData(index, val);
+              } else {
+                mappedBuffer.putDouble(index * byteDepth, val);
+              }
+            }
+          });
+    }
   }
 
   public void readVolume(DataInputStream stream, int x, int y, int z) throws IOException {

@@ -16,10 +16,11 @@ import java.io.IOException;
 import javax.swing.JProgressBar;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
-public final class VolumeByte extends Volume<Byte> {
+public final class VolumeByte extends Volume<Byte, byte[]> {
 
   public VolumeByte(
       int sizeX, int sizeY, int sizeZ, boolean signed, int channels, JProgressBar progressBar) {
@@ -36,56 +37,119 @@ public final class VolumeByte extends Volume<Byte> {
   }
 
   public VolumeByte(
-      Volume<? extends Number> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
+      Volume<Byte, byte[]> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
     super(volume, sizeX, sizeY, sizeZ, voxelRatio);
   }
 
   @Override
   protected Byte initMinValue() {
-    return Byte.MIN_VALUE;
+    return isSigned ? Byte.MIN_VALUE : 0;
   }
 
   @Override
   protected Byte initMaxValue() {
-    return Byte.MAX_VALUE;
+    return isSigned ? Byte.MAX_VALUE : (byte) 0xFF;
   }
 
   @Override
   protected int initCVType(boolean isSigned, int channels) {
-    checkSingleChannel(channels);
-    return isSigned ? CvType.CV_8S : CvType.CV_8U;
+    return isSigned ? CvType.CV_8SC(channels) : CvType.CV_8UC(channels);
   }
 
   @Override
-  protected byte[][][] createDataArray(int sizeX, int sizeY, int sizeZ, int channels) {
-    checkSingleChannel(channels);
-    return new byte[sizeX][sizeY][sizeZ];
+  protected ChunkedArray<byte[]> createChunkedArray(long totalElements) {
+    return ChunkedArray.ofByte(totalElements);
   }
 
   @Override
-  protected byte[] createRasterArray(int totalPixels, int channels) {
-    checkSingleChannel(channels);
-    return new byte[totalPixels];
+  protected void setElementInData(long index, Byte value) {
+    data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)] = value;
+  }
+
+  @Override
+  protected Byte getElementFromData(long index) {
+    return data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)];
   }
 
   @Override
   protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    byte[] pixelData = new byte[dim.width * dim.height];
+    int pixelCount = dim.width * dim.height;
+    byte[] pixelData = new byte[pixelCount * channels];
     image.get(0, 0, pixelData);
 
-    copyPixels(dim, (x, y) -> setValue(x, y, sliceIndex, pixelData[y * dim.width + x], transform));
-  }
-
-  public void readVolume(DataInputStream stream, int x, int y, int z) throws IOException {
-    Byte val = stream.readByte();
-    setValue(x, y, z, val, null);
-  }
-
-  public void writeVolume(DataOutputStream stream, int x, int y, int z) throws IOException {
-    Byte val = getValue(x, y, z, 0);
-    if (val == null) {
-      throw new IOException("Null voxel value at (" + x + "," + y + "," + z + ")");
+    if (isIdentityTransform(transform)) {
+      long destOffset = (long) sliceIndex * size.y * size.x * channels;
+      if (data != null) {
+        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
+      } else {
+        long byteOffset = destOffset * byteDepth;
+        for (int i = 0; i < pixelData.length; i++) {
+          mappedBuffer.put(byteOffset + i, pixelData[i]);
+        }
+      }
+    } else {
+      // Slow path: per-pixel coordinate remapping
+      copyPixels(
+          dim,
+          (x, y) -> {
+            int pixelIndex = (y * dim.width + x) * channels;
+            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
+            if (isOutside(coord.x, coord.y, coord.z)) {
+              return;
+            }
+            long baseIndex =
+                ((long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x) * channels;
+            if (data != null) {
+              for (int c = 0; c < channels; c++) {
+                long idx = baseIndex + c;
+                setElementInData(idx, pixelData[pixelIndex + c]);
+              }
+            } else {
+              for (int c = 0; c < channels; c++) {
+                mappedBuffer.put((baseIndex + c) * byteDepth, pixelData[pixelIndex + c]);
+              }
+            }
+          });
     }
-    stream.writeByte(val);
+  }
+
+  @Override
+  protected void setChannelValues(long baseIndex, Voxel<Byte> voxel) {
+    if (data != null) {
+      for (int c = 0; c < channels; c++) {
+        Byte val = voxel.getValue(c);
+        if (val != null) {
+          long idx = baseIndex + c;
+          data.getChunk(data.chunkIndex(idx))[data.chunkOffset(idx)] = val;
+        }
+      }
+    } else {
+      for (int c = 0; c < channels; c++) {
+        Byte val = voxel.getValue(c);
+        if (val != null) {
+          mappedBuffer.put((baseIndex + c) * byteDepth, val);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void writeVolume(DataOutputStream dos, int x, int y, int z) throws IOException {
+    for (int c = 0; c < channels; c++) {
+      Byte channelValue = getValue(x, y, z, c);
+      if (channelValue == null) {
+        throw new IOException(
+            "Null voxel channel value at (" + x + "," + y + "," + z + "), channel " + c);
+      }
+      dos.writeByte(channelValue);
+    }
+  }
+
+  @Override
+  public void readVolume(DataInputStream dis, int x, int y, int z) throws IOException {
+    for (int c = 0; c < channels; c++) {
+      Byte channelValue = dis.readByte();
+      setChannelValue(x, y, z, c, channelValue);
+    }
   }
 }

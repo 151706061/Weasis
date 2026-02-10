@@ -16,10 +16,11 @@ import java.io.IOException;
 import javax.swing.JProgressBar;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
-public final class VolumeFloat extends Volume<Float> {
+public final class VolumeFloat extends Volume<Float, float[]> {
 
   public VolumeFloat(int sizeX, int sizeY, int sizeZ, int channels, JProgressBar progressBar) {
     super(sizeX, sizeY, sizeZ, CvType.CV_32FC(channels), progressBar);
@@ -40,25 +41,38 @@ public final class VolumeFloat extends Volume<Float> {
   }
 
   public VolumeFloat(
-      Volume<? extends Number> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
+      Volume<Float, float[]> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
     super(volume, sizeX, sizeY, sizeZ, voxelRatio);
   }
 
+  @Override
   protected int initCVType(boolean isSigned, int channels) {
     checkSingleChannel(channels);
     return CvType.CV_32F;
   }
 
   @Override
-  protected float[][][] createDataArray(int sizeX, int sizeY, int sizeZ, int channels) {
+  protected ChunkedArray<float[]> createChunkedArray(long totalElements) {
     checkSingleChannel(channels);
-    return new float[sizeX][sizeY][sizeZ];
+    return ChunkedArray.ofFloat(totalElements);
   }
 
   @Override
-  protected float[] createRasterArray(int totalPixels, int channels) {
-    checkSingleChannel(channels);
-    return new float[totalPixels];
+  protected void setElementInData(long index, Float value) {
+    data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)] = value;
+  }
+
+  @Override
+  protected Float getElementFromData(long index) {
+    return data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)];
+  }
+
+  @Override
+  protected void setChannelValues(long baseIndex, Voxel<Float> voxel) {
+    Float val = voxel.getValue(0);
+    if (val != null) {
+      setElementInData(baseIndex, val);
+    }
   }
 
   @Override
@@ -66,7 +80,32 @@ public final class VolumeFloat extends Volume<Float> {
     float[] pixelData = new float[dim.width * dim.height];
     image.get(0, 0, pixelData);
 
-    copyPixels(dim, (x, y) -> setValue(x, y, sliceIndex, pixelData[y * dim.width + x], transform));
+    if (isIdentityTransform(transform)) {
+      long destOffset = (long) sliceIndex * size.y * size.x;
+      if (data != null) {
+        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
+      } else {
+        long byteOffset = destOffset * byteDepth;
+        for (int i = 0; i < pixelData.length; i++) {
+          mappedBuffer.putFloat(byteOffset + (long) i * byteDepth, pixelData[i]);
+        }
+      }
+    } else {
+      copyPixels(
+          dim,
+          (x, y) -> {
+            float val = pixelData[y * dim.width + x];
+            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
+            if (!isOutside(coord.x, coord.y, coord.z)) {
+              long index = (long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x;
+              if (data != null) {
+                setElementInData(index, val);
+              } else {
+                mappedBuffer.putFloat(index * byteDepth, val);
+              }
+            }
+          });
+    }
   }
 
   public void readVolume(DataInputStream stream, int x, int y, int z) throws IOException {

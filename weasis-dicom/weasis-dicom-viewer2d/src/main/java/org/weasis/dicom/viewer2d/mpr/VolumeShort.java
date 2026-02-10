@@ -16,10 +16,11 @@ import java.io.IOException;
 import javax.swing.JProgressBar;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
-public final class VolumeShort extends Volume<Short> {
+public final class VolumeShort extends Volume<Short, short[]> {
 
   public VolumeShort(
       int sizeX, int sizeY, int sizeZ, boolean signed, int channels, JProgressBar progressBar) {
@@ -36,56 +37,118 @@ public final class VolumeShort extends Volume<Short> {
   }
 
   public VolumeShort(
-      Volume<? extends Number> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
+      Volume<Short, short[]> volume, int sizeX, int sizeY, int sizeZ, Vector3d voxelRatio) {
     super(volume, sizeX, sizeY, sizeZ, voxelRatio);
   }
 
   @Override
   protected Short initMinValue() {
-    return Short.MIN_VALUE;
+    return isSigned ? Short.MIN_VALUE : 0;
   }
 
   @Override
   protected Short initMaxValue() {
-    return Short.MAX_VALUE;
+    return isSigned ? Short.MAX_VALUE : (short) 0xFFFF;
   }
 
   @Override
   protected int initCVType(boolean isSigned, int channels) {
-    checkSingleChannel(channels);
-    return isSigned ? CvType.CV_16S : CvType.CV_16U;
+    return isSigned ? CvType.CV_16SC(channels) : CvType.CV_16UC(channels);
   }
 
   @Override
-  protected short[][][] createDataArray(int sizeX, int sizeY, int sizeZ, int channels) {
-    checkSingleChannel(channels);
-    return new short[sizeX][sizeY][sizeZ];
+  protected ChunkedArray<short[]> createChunkedArray(long totalElements) {
+    return ChunkedArray.ofShort(totalElements);
   }
 
   @Override
-  protected short[] createRasterArray(int totalPixels, int channels) {
-    checkSingleChannel(channels);
-    return new short[totalPixels];
+  protected void setElementInData(long index, Short value) {
+    data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)] = value;
+  }
+
+  @Override
+  protected Short getElementFromData(long index) {
+    return data.getChunk(data.chunkIndex(index))[data.chunkOffset(index)];
   }
 
   @Override
   protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    short[] pixelData = new short[dim.width * dim.height];
+    int pixelCount = dim.width * dim.height;
+    short[] pixelData = new short[pixelCount * channels];
     image.get(0, 0, pixelData);
 
-    copyPixels(dim, (x, y) -> setValue(x, y, sliceIndex, pixelData[y * dim.width + x], transform));
-  }
-
-  public void readVolume(DataInputStream stream, int x, int y, int z) throws IOException {
-    Short val = stream.readShort();
-    setValue(x, y, z, val, null);
-  }
-
-  public void writeVolume(DataOutputStream stream, int x, int y, int z) throws IOException {
-    Short val = getValue(x, y, z, 0);
-    if (val == null) {
-      throw new IOException("Null voxel value at (" + x + "," + y + "," + z + ")");
+    if (isIdentityTransform(transform)) {
+      long destOffset = (long) sliceIndex * size.y * size.x * channels;
+      if (data != null) {
+        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
+      } else {
+        long byteOffset = destOffset * byteDepth;
+        for (int i = 0; i < pixelData.length; i++) {
+          mappedBuffer.putShort(byteOffset + (long) i * byteDepth, pixelData[i]);
+        }
+      }
+    } else {
+      copyPixels(
+          dim,
+          (x, y) -> {
+            int pixelIndex = (y * dim.width + x) * channels;
+            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
+            if (isOutside(coord.x, coord.y, coord.z)) {
+              return;
+            }
+            long baseIndex =
+                ((long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x) * channels;
+            if (data != null) {
+              for (int c = 0; c < channels; c++) {
+                long idx = baseIndex + c;
+                setElementInData(idx, pixelData[pixelIndex + c]);
+              }
+            } else {
+              for (int c = 0; c < channels; c++) {
+                mappedBuffer.putShort((baseIndex + c) * byteDepth, pixelData[pixelIndex + c]);
+              }
+            }
+          });
     }
-    stream.writeShort(val);
+  }
+
+  @Override
+  protected void setChannelValues(long baseIndex, Voxel<Short> voxel) {
+    if (data != null) {
+      for (int c = 0; c < channels; c++) {
+        Short val = voxel.getValue(c);
+        if (val != null) {
+          long idx = baseIndex + c;
+          data.getChunk(data.chunkIndex(idx))[data.chunkOffset(idx)] = val;
+        }
+      }
+    } else {
+      for (int c = 0; c < channels; c++) {
+        Short val = voxel.getValue(c);
+        if (val != null) {
+          mappedBuffer.putShort((baseIndex + c) * byteDepth, val);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void writeVolume(DataOutputStream dos, int x, int y, int z) throws IOException {
+    for (int c = 0; c < channels; c++) {
+      Short channelValue = getValue(x, y, z, c);
+      if (channelValue == null) {
+        throw new IOException(
+            "Null voxel channel value at (" + x + "," + y + "," + z + "), channel " + c);
+      }
+      dos.writeShort(channelValue);
+    }
+  }
+
+  @Override
+  public void readVolume(DataInputStream dis, int x, int y, int z) throws IOException {
+    for (int c = 0; c < channels; c++) {
+      Short channelValue = dis.readShort();
+      setChannelValue(x, y, z, c, channelValue);
+    }
   }
 }

@@ -14,11 +14,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionService;
@@ -48,23 +45,23 @@ import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.image.cv.CvUtil;
 import org.weasis.core.api.util.ThreadUtil;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
-import org.weasis.core.util.FileUtil;
 import org.weasis.core.util.MathUtil;
 import org.weasis.dicom.codec.DicomImageElement;
+import org.weasis.dicom.viewer2d.mpr.MprView.Plane;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.PlanarImage;
 import org.weasis.opencv.op.ImageAnalyzer;
 import org.weasis.opencv.op.ImageTransformer;
 
-public abstract sealed class Volume<T extends Number>
-    permits VolumeByte, VolumeDouble, VolumeFloat, VolumeInt, VolumeMultiChannel, VolumeShort {
+public abstract sealed class Volume<T extends Number, A>
+    permits VolumeByte, VolumeDouble, VolumeFloat, VolumeInt, VolumeShort {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Volume.class);
   private static final ExecutorService VOLUME_BUILD_POOL =
       ThreadUtil.newManagedImageProcessingThreadPool("mpr-volume-build");
 
-  // Unified data storage
-  protected Object data;
+  // Unified data storage — chunked 1D array for long-indexable volumes
+  protected ChunkedArray<A> data;
 
   protected final Vector3d translation;
   protected final Quaterniond rotation;
@@ -78,14 +75,13 @@ public abstract sealed class Volume<T extends Number>
   protected int cvType;
   protected int byteDepth = 1;
   protected int channels;
-  protected MappedByteBuffer mappedBuffer;
-  protected File dataFile;
+  protected ChunkedMappedBuffer mappedBuffer;
   protected final JProgressBar progressBar;
   protected final boolean isSigned;
   protected boolean isTransformed = false;
 
   @SuppressWarnings("unchecked")
-  Volume(Volume<?> volume, int sizeX, int sizeY, int sizeZ, Vector3d originalPixelRatio) {
+  Volume(Volume<?, ?> volume, int sizeX, int sizeY, int sizeZ, Vector3d originalPixelRatio) {
     this.progressBar = volume.progressBar;
     this.translation = new Vector3d(0, 0, 0);
     this.rotation = new Quaterniond();
@@ -157,12 +153,13 @@ public abstract sealed class Volume<T extends Number>
   protected abstract int initCVType(boolean isSigned, int channels);
 
   private void createData(int sizeX, int sizeY, int sizeZ) {
+    long totalElements = (long) sizeX * sizeY * sizeZ * channels;
     try {
-      this.data = createDataArray(sizeX, sizeY, sizeZ, channels);
+      this.data = createChunkedArray(totalElements);
     } catch (OutOfMemoryError e) {
       CvUtil.runGarbageCollectorAndWait(100);
       try {
-        this.data = createDataArray(sizeX, sizeY, sizeZ, channels);
+        this.data = createChunkedArray(totalElements);
       } catch (OutOfMemoryError ex) {
         createDataFile(sizeX, sizeY, sizeZ);
       }
@@ -178,12 +175,10 @@ public abstract sealed class Volume<T extends Number>
   private void createDataFile(int sizeX, int sizeY, int sizeZ) {
     try {
       removeData();
-      dataFile = File.createTempFile("volume_data", ".tmp", AppProperties.FILE_CACHE_DIR.toFile());
-      try (RandomAccessFile raf = new RandomAccessFile(dataFile, "rw")) {
-        long totalBytes = (long) sizeX * sizeY * sizeZ * byteDepth * channels;
-        raf.setLength(totalBytes);
-        this.mappedBuffer = raf.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, totalBytes);
-      }
+      File dataFile =
+          File.createTempFile("volume_data", ".tmp", AppProperties.FILE_CACHE_DIR.toFile());
+      long totalBytes = (long) sizeX * sizeY * sizeZ * byteDepth * channels;
+      this.mappedBuffer = new ChunkedMappedBuffer(dataFile, totalBytes);
     } catch (IOException ioException) {
       throw new RuntimeException("Failed to create a 3D volume file!", ioException);
     }
@@ -205,7 +200,7 @@ public abstract sealed class Volume<T extends Number>
 
     List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
     // For axial, we need to reverse to go from inferior to superior
-    if (stack.getPlane() == MprView.Plane.AXIAL) {
+    if (stack.getPlane() == Plane.AXIAL) {
       Collections.reverse(medias);
     }
 
@@ -237,9 +232,6 @@ public abstract sealed class Volume<T extends Number>
             PlanarImage src = dcm.getModalityLutImage(null, null);
             // Get min max after loading the image
             MinMaxLocResult minMaxLoc = ImageAnalyzer.findRawMinMaxValues(src, true);
-            if (minMaxLoc.minVal < 0) {
-              System.out.println("Negative min value detected: " + minMaxLoc.minVal);
-            }
 
             // Flip only if needed
             if (flipRow || flipCol) {
@@ -275,76 +267,7 @@ public abstract sealed class Volume<T extends Number>
 
   protected void initValue(T value) {
     if (MathUtil.isDifferentFromZero(value.doubleValue())) {
-      switch (data) {
-        case byte[][][] arr -> fill3DArray(arr, value.byteValue());
-        case short[][][] arr -> fill3DArray(arr, value.shortValue());
-        case int[][][] arr -> fill3DArray(arr, value.intValue());
-        case float[][][] arr -> fill3DArray(arr, value.floatValue());
-        case double[][][] arr -> fill3DArray(arr, value.doubleValue());
-        case byte[][][][] arr -> fill4DArray(arr, value.byteValue());
-        case short[][][][] arr -> fill4DArray(arr, value.shortValue());
-        default -> throw new IllegalStateException("Type mismatch");
-      }
-    }
-  }
-
-  private void fill3DArray(byte[][][] array, byte value) {
-    for (byte[][] row : array) {
-      for (byte[] slice : row) {
-        Arrays.fill(slice, value);
-      }
-    }
-  }
-
-  private void fill3DArray(short[][][] array, short value) {
-    for (short[][] row : array) {
-      for (short[] slice : row) {
-        Arrays.fill(slice, value);
-      }
-    }
-  }
-
-  private void fill3DArray(int[][][] array, int value) {
-    for (int[][] row : array) {
-      for (int[] slice : row) {
-        Arrays.fill(slice, value);
-      }
-    }
-  }
-
-  private void fill3DArray(float[][][] array, float value) {
-    for (float[][] row : array) {
-      for (float[] slice : row) {
-        Arrays.fill(slice, value);
-      }
-    }
-  }
-
-  private void fill3DArray(double[][][] array, double value) {
-    for (double[][] row : array) {
-      for (double[] slice : row) {
-        Arrays.fill(slice, value);
-      }
-    }
-  }
-
-  private void fill4DArray(byte[][][][] array, byte value) {
-    for (byte[][][] row : array) {
-      for (byte[][] slice : row) {
-        for (byte[] channel : slice) {
-          Arrays.fill(channel, value);
-        }
-      }
-    }
-  }
-
-  private void fill4DArray(short[][][][] array, short value) {
-    for (short[][][] row : array) {
-      for (short[][] slice : row) {
-        for (short[] channel : slice) {
-          Arrays.fill(channel, value);
-        }
-      }
+      data.fill(value);
     }
   }
 
@@ -352,18 +275,18 @@ public abstract sealed class Volume<T extends Number>
     if (MathUtil.isDifferentFromZero(minValue.doubleValue())) {
       long totalElements = (long) size.x * size.y * size.z * channels;
       for (long i = 0; i < totalElements; i++) {
-        int index = (int) (i * byteDepth);
-        setInMappedBuffer(index, minValue);
+        long byteIndex = i * byteDepth;
+        setInMappedBuffer(byteIndex, minValue);
       }
     }
   }
 
   private T compareMin(T a, T b) {
-    return a.doubleValue() < b.doubleValue() ? a : b;
+    return convertToUnsigned(a) < convertToUnsigned(b) ? a : b;
   }
 
   private T compareMax(T a, T b) {
-    return a.doubleValue() > b.doubleValue() ? a : b;
+    return convertToUnsigned(a) > convertToUnsigned(b) ? a : b;
   }
 
   private Matrix4d computeSliceToVolumeTransform() {
@@ -427,15 +350,23 @@ public abstract sealed class Volume<T extends Number>
   public void removeData() {
     this.data = null;
     if (mappedBuffer != null) {
-      mappedBuffer.clear();
+      mappedBuffer.close();
       mappedBuffer = null;
-    }
-    if (dataFile != null) {
-      FileUtil.delete(dataFile.toPath());
-      dataFile = null;
     }
   }
 
+  /**
+   * Copies pixel data from a single image slice into the volume at the given Z index, applying an
+   * optional transformation. Subclasses implement this with typed access to the image pixels and
+   * direct writing into the chunked data array or mapped buffer, avoiding runtime type dispatch.
+   * The transform is used to map slice pixel coordinates to volume voxel coordinates when the image
+   * orientation does not match the volume axes.
+   *
+   * @param image the source image slice to copy from
+   * @param z the Z index in the volume where this slice should be placed
+   * @param transform optional transformation matrix for coordinate mapping
+   * @param dim dimensions of the source image slice
+   */
   protected abstract void copyFrom(PlanarImage image, int z, Matrix4d transform, Dimension dim);
 
   public PlanarImage getVolumeSlice(MprAxis mprAxis, Vector3d volumeCenter) {
@@ -449,16 +380,32 @@ public abstract sealed class Volume<T extends Number>
     mprAxis.getTransformation().set(combinedTransform);
 
     int totalPixels = sliceImageSize * sliceImageSize;
-    Object raster = createRasterArray(totalPixels, channels);
+    long totalElements = (long) totalPixels * channels;
+    ChunkedArray<A> raster = createChunkedArray(totalElements);
     fillRasterWithMinValue(raster);
 
-    try (ForkJoinPool pool = new ForkJoinPool()) {
+    try (ForkJoinPool pool = ForkJoinPool.commonPool()) {
       pool.invoke(
           new VolumeSliceTask(
               0, totalPixels, sliceImageSize, combinedTransform, voxelRatio, raster));
     }
 
     ImageCV imageCV = new ImageCV(sliceImageSize, sliceImageSize, getCvType());
+    putRasterToImage(imageCV, raster);
+    return imageCV;
+  }
+
+  public PlanarImage getAxialSlice(int z) {
+    ImageCV imageCV = new ImageCV(size.y, size.x, cvType);
+    int sliceElements = size.x * size.y * channels;
+    var raster = createChunkedArray(sliceElements);
+    if (data != null) {
+      long sliceOffset = (long) z * sliceElements;
+      copySliceToRaster(sliceOffset, raster, sliceElements);
+    } else {
+      long byteOffset = (long) z * sliceElements * byteDepth;
+      mappedBuffer.readInto(raster, byteOffset, sliceElements, byteDepth);
+    }
     putRasterToImage(imageCV, raster);
     return imageCV;
   }
@@ -476,12 +423,20 @@ public abstract sealed class Volume<T extends Number>
     return translation;
   }
 
+  public OriginalStack getStack() {
+    return stack;
+  }
+
   public void translate(double dx, double dy, double dz) {
     translation.add(dx, dy, dz);
   }
 
   public void resetTranslation() {
     translation.set(0, 0, 0);
+  }
+
+  public boolean isVariableSliceSpacing() {
+    return stack != null && stack.isVariableSliceSpacing();
   }
 
   public void rotate(double angleX, double angleY, double angleZ) {
@@ -498,7 +453,78 @@ public abstract sealed class Volume<T extends Number>
     rotation.identity();
   }
 
-  protected abstract Object createDataArray(int sizeX, int sizeY, int sizeZ, int channels);
+  protected abstract ChunkedArray<A> createChunkedArray(long totalElements);
+
+  /**
+   * Sets a single element in the chunked data array at the given linear index. Subclasses implement
+   * this with the concrete primitive type, avoiding runtime type dispatch.
+   */
+  protected abstract void setElementInData(long index, T value);
+
+  /**
+   * Gets a single element from the chunked data array at the given linear index. Subclasses
+   * implement this with the concrete primitive type, avoiding runtime type dispatch.
+   */
+  protected abstract T getElementFromData(long index);
+
+  /**
+   * Sets all channel values for a single voxel at the specified coordinates. Used for multi-channel
+   * volumes during volume transformation.
+   *
+   * @param x the x coordinate
+   * @param y the y coordinate
+   * @param z the z coordinate
+   * @param voxel the voxel containing all channel values
+   * @param transform optional coordinate transformation
+   */
+  public void setVoxel(int x, int y, int z, Voxel<T> voxel, Matrix4d transform) {
+    if (transform != null) {
+      Vector3i coord = mapSliceToVolumeCoordinates(x, y, z, transform);
+      x = coord.x;
+      y = coord.y;
+      z = coord.z;
+    }
+
+    if (isOutside(x, y, z)) {
+      return;
+    }
+
+    long baseIndex = ((long) z * size.y * size.x + (long) y * size.x + x) * channels;
+    setChannelValues(baseIndex, voxel);
+  }
+
+  /**
+   * Writes all channel values from a Voxel at the given pre-computed base index. Subclasses
+   * override for typed access.
+   */
+  protected abstract void setChannelValues(long baseIndex, Voxel<T> voxel);
+
+  /** Sets a single channel value at the specified voxel coordinates. */
+  protected void setChannelValue(int x, int y, int z, int channel, T value) {
+    long index = ((long) z * size.y * size.x + (long) y * size.x + x) * channels + channel;
+    if (data == null) {
+      long byteOffset = index * byteDepth;
+      setInMappedBuffer(byteOffset, value);
+    } else {
+      setElementInData(index, value);
+    }
+  }
+
+  /**
+   * Copies an entire axial slice from the chunked data array into a raster for ImageCV. Subclasses
+   * implement with typed bulk copy (System.arraycopy via ChunkedArray.copyTo).
+   *
+   * @param sliceOffset starting element index in the flat array
+   * @param raster the destination primitive array
+   * @param length number of elements to copy
+   */
+  protected void copySliceToRaster(long sliceOffset, ChunkedArray<A> raster, long length) {
+    if (raster.isSingleChunk()) {
+      data.copyTo(sliceOffset, raster.singleChunk(), 0, length);
+    } else {
+      data.copyTo(sliceOffset, raster, 0, length);
+    }
+  }
 
   protected void checkSingleChannel(int channels) {
     if (channels != 1) {
@@ -522,37 +548,26 @@ public abstract sealed class Volume<T extends Number>
       return;
     }
 
+    long index = (long) z * size.y * size.x + (long) y * size.x + x;
     if (data == null) {
-      int index = (x * size.y * size.z + y * size.z + z) * byteDepth;
-      setInMappedBuffer(index, value);
+      setInMappedBuffer(index * byteDepth, value);
     } else {
-      setInArray(x, y, z, value);
+      setElementInData(index, value);
     }
   }
 
-  private void setInArray(int x, int y, int z, T value) {
-    switch (data) {
-      case byte[][][] arr -> arr[x][y][z] = value.byteValue();
-      case short[][][] arr -> arr[x][y][z] = value.shortValue();
-      case int[][][] arr -> arr[x][y][z] = value.intValue();
-      case float[][][] arr -> arr[x][y][z] = value.floatValue();
-      case double[][][] arr -> arr[x][y][z] = value.doubleValue();
-      default -> throw new IllegalStateException("Type mismatch");
-    }
-  }
-
-  private void setInMappedBuffer(int index, T value) {
+  private void setInMappedBuffer(long byteOffset, T value) {
     switch (byteDepth) {
-      case 1 -> mappedBuffer.put(index, value.byteValue());
-      case 2 -> mappedBuffer.putShort(index, value.shortValue());
+      case 1 -> mappedBuffer.put(byteOffset, value.byteValue());
+      case 2 -> mappedBuffer.putShort(byteOffset, value.shortValue());
       case 4 -> {
         if (this instanceof VolumeInt) {
-          mappedBuffer.putInt(index, value.intValue());
+          mappedBuffer.putInt(byteOffset, value.intValue());
         } else {
-          mappedBuffer.putFloat(index, value.floatValue());
+          mappedBuffer.putFloat(byteOffset, value.floatValue());
         }
       }
-      case 8 -> mappedBuffer.putDouble(index, value.doubleValue());
+      case 8 -> mappedBuffer.putDouble(byteOffset, value.doubleValue());
     }
   }
 
@@ -562,32 +577,44 @@ public abstract sealed class Volume<T extends Number>
     }
   }
 
-  protected abstract Object createRasterArray(int totalPixels, int channels);
+  /**
+   * Checks if a transformation matrix is the identity (or null), meaning no coordinate remapping is
+   * needed and bulk copy can be used.
+   */
+  protected static boolean isIdentityTransform(Matrix4d transform) {
+    if (transform == null) {
+      return true;
+    }
+    return transform.equals(new Matrix4d());
+  }
 
-  private void fillRasterWithMinValue(Object raster) {
+  private void fillRasterWithMinValue(ChunkedArray<A> raster) {
     T value = getPhotometricMinValue();
     if (MathUtil.isEqualToZero(value.doubleValue())) {
       return;
     }
-
-    switch (raster) {
-      case byte[] arr -> Arrays.fill(arr, value.byteValue());
-      case short[] arr -> Arrays.fill(arr, value.shortValue());
-      case int[] arr -> Arrays.fill(arr, value.intValue());
-      case float[] arr -> Arrays.fill(arr, value.floatValue());
-      case double[] arr -> Arrays.fill(arr, value.doubleValue());
-      default -> throw new IllegalStateException("Unsupported raster type");
-    }
+    raster.fill(value);
   }
 
-  private void putRasterToImage(ImageCV image, Object raster) {
-    switch (raster) {
-      case byte[] arr -> image.put(0, 0, arr);
-      case short[] arr -> image.put(0, 0, arr);
-      case int[] arr -> image.put(0, 0, arr);
-      case float[] arr -> image.put(0, 0, arr);
-      case double[] arr -> image.put(0, 0, arr);
-      default -> throw new IllegalStateException("Unsupported raster type");
+  private void putRasterToImage(ImageCV image, ChunkedArray<A> raster) {
+    int cols = image.cols();
+    int chunkChannels = image.channels();
+    long globalIndex = 0;
+    for (int ci = 0; ci < raster.chunkCount(); ci++) {
+      A chunk = raster.getChunk(ci);
+      int chunkLen = Array.getLength(chunk);
+      // Compute the row and column where this chunk starts
+      int startRow = (int) (globalIndex / (cols * chunkChannels));
+      int startCol = (int) ((globalIndex % (cols * chunkChannels)) / chunkChannels);
+      switch (chunk) {
+        case byte[] arr -> image.put(startRow, startCol, arr);
+        case short[] arr -> image.put(startRow, startCol, arr);
+        case int[] arr -> image.put(startRow, startCol, arr);
+        case float[] arr -> image.put(startRow, startCol, arr);
+        case double[] arr -> image.put(startRow, startCol, arr);
+        default -> throw new IllegalStateException("Unsupported raster type");
+      }
+      globalIndex += chunkLen;
     }
   }
 
@@ -642,38 +669,22 @@ public abstract sealed class Volume<T extends Number>
       return null;
     }
 
+    long index = ((long) z * size.y * size.x + (long) y * size.x + x) * channels + channel;
     if (data == null) {
-      int index = ((x * size.y * size.z + y * size.z + z) * channels + channel) * byteDepth;
-      return getFromMappedBuffer(index);
+      return getFromMappedBuffer(index * byteDepth);
     }
-
-    return getFromArray(x, y, z, channel);
+    return getElementFromData(index);
   }
 
   @SuppressWarnings("unchecked")
-  private T getFromArray(int x, int y, int z, int channel) {
-    return (T)
-        switch (data) {
-          case byte[][][] arr -> arr[x][y][z];
-          case short[][][] arr -> arr[x][y][z];
-          case int[][][] arr -> arr[x][y][z];
-          case float[][][] arr -> arr[x][y][z];
-          case double[][][] arr -> arr[x][y][z];
-          case byte[][][][] arr -> arr[x][y][z][channel];
-          case short[][][][] arr -> arr[x][y][z][channel];
-          default -> null;
-        };
-  }
-
-  @SuppressWarnings("unchecked")
-  private T getFromMappedBuffer(int index) {
+  private T getFromMappedBuffer(long byteOffset) {
     return (T)
         switch (CvType.depth(cvType)) {
-          case CvType.CV_8U, CvType.CV_8S -> mappedBuffer.get(index);
-          case CvType.CV_16U, CvType.CV_16S -> mappedBuffer.getShort(index);
-          case CvType.CV_32S -> mappedBuffer.getInt(index);
-          case CvType.CV_32F -> mappedBuffer.getFloat(index);
-          case CvType.CV_64F -> mappedBuffer.getDouble(index);
+          case CvType.CV_8U, CvType.CV_8S -> mappedBuffer.get(byteOffset);
+          case CvType.CV_16U, CvType.CV_16S -> mappedBuffer.getShort(byteOffset);
+          case CvType.CV_32S -> mappedBuffer.getInt(byteOffset);
+          case CvType.CV_32F -> mappedBuffer.getFloat(byteOffset);
+          case CvType.CV_64F -> mappedBuffer.getDouble(byteOffset);
           default -> null;
         };
   }
@@ -705,46 +716,36 @@ public abstract sealed class Volume<T extends Number>
   }
 
   @SuppressWarnings("unchecked")
-  public Volume<T> cloneVolume(int sizeX, int sizeY, int sizeZ, Vector3d originalPixelRatio) {
-    return (Volume<T>)
+  public Volume<T, A> cloneVolume(int sizeX, int sizeY, int sizeZ, Vector3d voxelSpacing) {
+    return (Volume<T, A>)
         switch (CvType.depth(getCvType())) {
           case CvType.CV_8U, CvType.CV_8S ->
-              (channels > 1)
-                  ? new VolumeByteMulti(this, sizeX, sizeY, sizeZ, originalPixelRatio)
-                  : new VolumeByte(this, sizeX, sizeY, sizeZ, originalPixelRatio);
+              new VolumeByte((Volume<Byte, byte[]>) this, sizeX, sizeY, sizeZ, voxelSpacing);
           case CvType.CV_16U, CvType.CV_16S ->
-              (channels > 1)
-                  ? new VolumeShortMulti(this, sizeX, sizeY, sizeZ, originalPixelRatio)
-                  : new VolumeShort(this, sizeX, sizeY, sizeZ, originalPixelRatio);
-          case CvType.CV_32S -> new VolumeInt(this, sizeX, sizeY, sizeZ, originalPixelRatio);
-          case CvType.CV_32F -> new VolumeFloat(this, sizeX, sizeY, sizeZ, originalPixelRatio);
-          case CvType.CV_64F -> new VolumeDouble(this, sizeX, sizeY, sizeZ, originalPixelRatio);
+              new VolumeShort((Volume<Short, short[]>) this, sizeX, sizeY, sizeZ, voxelSpacing);
+          case CvType.CV_32S ->
+              new VolumeInt((Volume<Integer, int[]>) this, sizeX, sizeY, sizeZ, voxelSpacing);
+          case CvType.CV_32F ->
+              new VolumeFloat((Volume<Float, float[]>) this, sizeX, sizeY, sizeZ, voxelSpacing);
+          case CvType.CV_64F ->
+              new VolumeDouble((Volume<Double, double[]>) this, sizeX, sizeY, sizeZ, voxelSpacing);
           default -> null;
         };
   }
 
-  public static Volume<?> createVolume(OriginalStack stack, JProgressBar progressBar) {
+  public static Volume<?, ?> createVolume(OriginalStack stack, JProgressBar progressBar) {
     if (stack == null || stack.getSourceStack().isEmpty()) {
       return null;
     }
 
-    Volume<?> volume = getSharedVolume(stack);
+    Volume<?, ?> volume = getSharedVolume(stack);
     if (volume == null) {
       int type = getCvType(stack);
       int depth = CvType.depth(type);
-      int channels = CvType.channels(type);
       if (depth == CvType.CV_8U || depth == CvType.CV_8S) {
-        if (channels > 1) {
-          volume = new VolumeByteMulti(stack, progressBar);
-        } else {
-          volume = new VolumeByte(stack, progressBar);
-        }
+        volume = new VolumeByte(stack, progressBar);
       } else if (depth == CvType.CV_16U || depth == CvType.CV_16S) {
-        if (channels > 1) {
-          volume = new VolumeShortMulti(stack, progressBar);
-        } else {
-          volume = new VolumeShort(stack, progressBar);
-        }
+        volume = new VolumeShort(stack, progressBar);
       } else if (depth == CvType.CV_32S) {
         volume = new VolumeInt(stack, progressBar);
       } else if (depth == CvType.CV_32F) {
@@ -754,7 +755,7 @@ public abstract sealed class Volume<T extends Number>
       } else {
         throw new IllegalArgumentException("Unsupported data type");
       }
-    } else {
+    } else if (progressBar != null) {
       progressBar.setValue((int) Math.round(volume.size.z * 1.2));
     }
 
@@ -770,7 +771,7 @@ public abstract sealed class Volume<T extends Number>
     return getSharedVolume(stack) != null;
   }
 
-  protected static Volume<?> getSharedVolume(OriginalStack currentStack) {
+  protected static Volume<?, ?> getSharedVolume(OriginalStack currentStack) {
     List<ViewerPlugin<?>> viewerPlugins = GuiUtils.getUICore().getViewerPlugins();
     synchronized (viewerPlugins) {
       for (int i = viewerPlugins.size() - 1; i >= 0; i--) {
@@ -778,7 +779,7 @@ public abstract sealed class Volume<T extends Number>
         if (p instanceof MprContainer mprContainer) {
           MprController controller = mprContainer.getMprController();
           if (controller != null) {
-            Volume<?> volume = controller.getVolume();
+            Volume<?, ?> volume = controller.getVolume();
             if (volume != null && volume.stack.equals(currentStack)) {
               return volume;
             }
@@ -1016,15 +1017,15 @@ public abstract sealed class Volume<T extends Number>
   @SuppressWarnings("unchecked")
   private T convertToGeneric(double value) {
     return switch (this) {
-      case VolumeByte _, VolumeByteMulti _ -> (T) Byte.valueOf((byte) Math.round(value));
-      case VolumeShort _, VolumeShortMulti _ -> (T) Short.valueOf((short) Math.round(value));
+      case VolumeByte _ -> (T) Byte.valueOf((byte) Math.round(value));
+      case VolumeShort _ -> (T) Short.valueOf((short) Math.round(value));
       case VolumeInt _ -> (T) Integer.valueOf((int) Math.round(value));
       case VolumeFloat _ -> (T) Float.valueOf((float) value);
       default -> (T) Double.valueOf(value);
     };
   }
 
-  public Volume<?> transformVolume() {
+  public Volume<?, ?> transformVolume() {
 
     if (isTransformed()) {
       // Volume already transformed, return itself
@@ -1099,7 +1100,7 @@ public abstract sealed class Volume<T extends Number>
     }
 
     // Create transformed volume with the same pixel ratio as the source
-    Volume<T> transformedVolume = this.cloneVolume(max.x, max.y, max.z, originalPixelRatio);
+    Volume<T, A> transformedVolume = this.cloneVolume(max.x, max.y, max.z, originalPixelRatio);
     transformedVolume.setTransformed(true);
 
     transformMatrix.translate(translateX, translateY, translateZ);
@@ -1281,7 +1282,7 @@ public abstract sealed class Volume<T extends Number>
   }
 
   private void transformVolumeParallel(
-      Volume<T> transformedVolume,
+      Volume<T, A> transformedVolume,
       Matrix4d inv,
       ExecutorService executor,
       int stackSize,
@@ -1335,7 +1336,7 @@ public abstract sealed class Volume<T extends Number>
   }
 
   private void processVolumeChunk(
-      Volume<T> transformedVolume, Matrix4d inv, int fromX, int toX, int sizeY, int sizeZ) {
+      Volume<T, A> transformedVolume, Matrix4d inv, int fromX, int toX, int sizeY, int sizeZ) {
     Voxel<T> voxel = new Voxel<>(channels);
     for (int targetX = fromX; targetX < toX; targetX++) {
       for (int targetY = 0; targetY < sizeY; targetY++) {
@@ -1344,9 +1345,8 @@ public abstract sealed class Volume<T extends Number>
           Vector4d sourceCoord = new Vector4d(targetX, targetY, targetZ, 1.0);
           inv.transform(sourceCoord);
 
-          if (channels > 1 && transformedVolume instanceof VolumeMultiChannel<T> multiChannel) {
+          if (channels > 1) {
             boolean hasValue = true;
-            // For multi-channel volumes, process each channel separately
             for (int c = 0; c < channels; c++) {
               T interpolatedValue =
                   getInterpolatedValueFromSource(sourceCoord.x, sourceCoord.y, sourceCoord.z, c);
@@ -1357,7 +1357,7 @@ public abstract sealed class Volume<T extends Number>
               voxel.setValue(c, interpolatedValue);
             }
             if (hasValue) {
-              multiChannel.setVoxel(targetX, targetY, targetZ, voxel, null);
+              transformedVolume.setVoxel(targetX, targetY, targetZ, voxel, null);
             }
           } else {
             // Interpolate from the ORIGINAL volume at these fractional coordinates
@@ -1373,12 +1373,14 @@ public abstract sealed class Volume<T extends Number>
   }
 
   private class VolumeSliceTask extends RecursiveAction {
+    private static final int THRESHOLD = 4096;
+
     private final int start;
     private final int end;
     private final int width;
     private final Matrix4d combinedTransform;
     private final Vector3d voxelRatio;
-    private final Object raster;
+    private final ChunkedArray<A> raster;
 
     VolumeSliceTask(
         int start,
@@ -1386,7 +1388,7 @@ public abstract sealed class Volume<T extends Number>
         int width,
         Matrix4d combinedTransform,
         Vector3d voxelRatio,
-        Object raster) {
+        ChunkedArray<A> raster) {
       this.start = start;
       this.end = end;
       this.width = width;
@@ -1397,18 +1399,19 @@ public abstract sealed class Volume<T extends Number>
 
     @Override
     protected void compute() {
-      if (end - start <= width) {
-        Voxel<T> voxel = new Voxel<>(channels);
+      if (end - start <= THRESHOLD) {
+        Voxel<T> voxel = channels > 1 ? new Voxel<>(channels) : null;
+        int x = start % width;
+        int y = start / width;
+
         for (int i = start; i < end; i++) {
-          int x = i % width;
-          int y = i / width;
           Vector3d sliceCoord = new Vector3d(x, y, 0);
           combinedTransform.transformPosition(sliceCoord);
 
-          if (channels > 1) {
+          if (voxel != null) {
             boolean hasValue = true;
             for (int c = 0; c < channels; c++) {
-              T val = interpolateVolume(sliceCoord, voxelRatio, c);
+              T val = interpolateVolume(sliceCoord, voxelRatio, 0);
               if (val == null) {
                 hasValue = false;
                 break;
@@ -1424,6 +1427,10 @@ public abstract sealed class Volume<T extends Number>
               setRasterValue(x, y, val);
             }
           }
+          if (++x >= width) {
+            x = 0;
+            y++;
+          }
         }
       } else {
         int mid = (start + end) / 2;
@@ -1436,38 +1443,34 @@ public abstract sealed class Volume<T extends Number>
     }
 
     private void setRasterValue(int x, int y, T val) {
-      int index = y * width + x;
-      switch (raster) {
-        case byte[] arr -> {
-          arr[index] = val.byteValue();
-        }
-        case short[] arr -> {
-          arr[index] = val.shortValue();
-        }
-        case int[] arr -> {
-          arr[index] = val.intValue();
-        }
-        case float[] arr -> {
-          arr[index] = val.floatValue();
-        }
-        case double[] arr -> {
-          arr[index] = val.doubleValue();
-        }
+      long index = (long) y * width + x;
+      int ci = raster.chunkIndex(index);
+      int co = raster.chunkOffset(index);
+      A chunk = raster.getChunk(ci);
+      switch (chunk) {
+        case byte[] arr -> arr[co] = val.byteValue();
+        case short[] arr -> arr[co] = val.shortValue();
+        case int[] arr -> arr[co] = val.intValue();
+        case float[] arr -> arr[co] = val.floatValue();
+        case double[] arr -> arr[co] = val.doubleValue();
         default -> throw new IllegalStateException("Unsupported raster type");
       }
     }
 
     private void setRasterValue(int x, int y, Voxel<T> voxel) {
-      int index = (y * width + x) * channels;
-      switch (raster) {
+      long index = ((long) y * width + x) * channels;
+      int ci = raster.chunkIndex(index);
+      int co = raster.chunkOffset(index);
+      A chunk = raster.getChunk(ci);
+      switch (chunk) {
         case byte[] arr -> {
           for (int c = 0; c < channels; c++) {
-            arr[index + c] = voxel.getValue(c).byteValue();
+            arr[co + c] = voxel.getValue(c).byteValue();
           }
         }
         case short[] arr -> {
           for (int c = 0; c < channels; c++) {
-            arr[index + c] = voxel.getValue(c).shortValue();
+            arr[co + c] = voxel.getValue(c).shortValue();
           }
         }
         default -> throw new IllegalStateException("Unsupported raster type");

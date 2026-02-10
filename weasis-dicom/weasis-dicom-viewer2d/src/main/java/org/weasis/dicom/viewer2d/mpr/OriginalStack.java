@@ -239,10 +239,9 @@ public abstract class OriginalStack extends AbstractStack {
 
   @Override
   public boolean equals(Object o) {
-    if (o == null || getClass() != o.getClass()) {
+    if (!(o instanceof OriginalStack that)) {
       return false;
     }
-    OriginalStack that = (OriginalStack) o;
     return Double.compare(getSliceSpace(), that.getSliceSpace()) == 0
         && isVariableSliceSpacing() == that.isVariableSliceSpacing()
         && Objects.equals(getSourceStack(), that.getSourceStack())
