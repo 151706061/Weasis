@@ -82,16 +82,25 @@ public class InfoLayer3d extends AbstractInfoLayer<DicomImageElement> {
     return getView2DPane().isReadyForRendering();
   }
 
+  private boolean shouldPaint(FontMetrics fontMetrics, Rectangle bound) {
+    int minSize =
+        fontMetrics.stringWidth(
+                org.weasis.dicom.viewer2d.Messages.getString("InfoLayer.msg_outside_levels"))
+            * 2;
+    return visible && minSize <= bound.width && minSize / 2 <= bound.height;
+  }
+
   @Override
   public void paint(Graphics2D g2d) {
     FontMetrics fontMetrics =
         view2DPane.getJComponent().getFontMetrics(FontItem.MICRO_SEMIBOLD.getFont());
     final Rectangle bound = view2DPane.getJComponent().getBounds();
-    int minSize =
-        fontMetrics.stringWidth(
-                org.weasis.dicom.viewer2d.Messages.getString("InfoLayer.msg_outside_levels"))
-            * 2;
-    if (!visible || minSize > bound.width || minSize > bound.height || !ownerHasContent()) {
+    if (!shouldPaint(fontMetrics, bound)) {
+      if (visible) {
+        setPosition(Position.BottomLeft, border, (double) bound.height - border);
+        setDefaultCornerPositions(bound);
+        drawExtendedActions(g2d);
+      }
       return;
     }
 

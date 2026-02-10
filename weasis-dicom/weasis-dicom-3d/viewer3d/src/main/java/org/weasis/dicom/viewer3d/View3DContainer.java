@@ -70,7 +70,7 @@ import org.weasis.dicom.explorer.DicomViewerPlugin;
 import org.weasis.dicom.explorer.main.DicomExplorer;
 import org.weasis.dicom.viewer2d.LutToolBar;
 import org.weasis.dicom.viewer2d.View2dContainer;
-import org.weasis.dicom.viewer2d.mpr.MprContainer;
+import org.weasis.dicom.viewer2d.mpr.MprView;
 import org.weasis.dicom.viewer3d.dockable.DisplayTool;
 import org.weasis.dicom.viewer3d.dockable.SegmentationTool;
 import org.weasis.dicom.viewer3d.dockable.VolumeTool;
@@ -127,7 +127,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
     Map<LayoutConstraints, Component> constraints = VIEWS_2x2_mpr.getConstraints();
     constraints.put(
         new LayoutConstraints(
-            View3d.class.getName(),
+            MprView.class.getName(),
             0,
             0,
             0,
@@ -140,7 +140,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
         null);
     constraints.put(
         new LayoutConstraints(
-            View3d.class.getName(),
+            MprView.class.getName(),
             1,
             1,
             0,
@@ -153,7 +153,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
         null);
     constraints.put(
         new LayoutConstraints(
-            View3d.class.getName(),
+            MprView.class.getName(),
             2,
             0,
             1,
@@ -183,7 +183,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
   //      Stream.concat(MprContainer.LAYOUT_LIST.stream(), Stream.of(VIEWS_2x2_mpr,
   // VIEWS_vr)).toList();
   public static final List<GridBagLayoutModel> LAYOUT_LIST =
-      Stream.of(VIEWS_vr, VIEWS_vr_1x2).toList();
+      Stream.of(VIEWS_vr, VIEWS_vr_1x2, VIEWS_2x2_mpr).toList();
 
   public static final SeriesViewerUI UI = new SeriesViewerUI(View3DContainer.class);
 
@@ -195,12 +195,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
   protected final Map<String, List<SegRegion<?>>> regionMap = new HashMap<>();
 
   public View3DContainer() {
-    this(
-        MprContainer.view1,
-        null,
-        View3DFactory.NAME,
-        ResourceUtil.getIcon(ActionIcon.VOLUME),
-        null);
+    this(VIEWS_vr, null, View3DFactory.NAME, ResourceUtil.getIcon(ActionIcon.VOLUME), null);
   }
 
   public View3DContainer(
@@ -393,12 +388,15 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
             volumeBuilder.getVolTexture().destroy(gl4);
           }
         }
+
         if (!series.equals(oldSequence)) {
           GuiUtils.getUICore().closeSeries(oldSequence);
           synchronized (this) {
-            this.volumeBuilder = new VolumeBuilder(factory.createImageSeries(series));
             for (ViewCanvas<DicomImageElement> view : view2ds) {
               if (view instanceof View3d v) {
+                if (volumeBuilder == null) {
+                  this.volumeBuilder = new VolumeBuilder(factory.createImageSeries(series, v));
+                }
                 v.setVolTexture(volumeBuilder.getVolTexture());
               }
             }

@@ -11,20 +11,24 @@ package org.weasis.dicom.viewer3d.vr;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
-import java.util.Comparator;
-import java.util.Objects;
+import javax.swing.JProgressBar;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.img.stream.ImageDescriptor;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.media.data.MediaSeries;
-import org.weasis.core.api.media.data.MediaSeries.MEDIA_POSITION;
 import org.weasis.core.api.service.WProperties;
+import org.weasis.core.ui.editor.image.ViewProgress;
 import org.weasis.dicom.codec.DicomImageElement;
-import org.weasis.dicom.codec.SortSeriesStack;
 import org.weasis.dicom.codec.TagD;
+import org.weasis.dicom.viewer2d.mpr.BuildContext;
+import org.weasis.dicom.viewer2d.mpr.MprView.Plane;
+import org.weasis.dicom.viewer2d.mpr.ObliqueMpr;
+import org.weasis.dicom.viewer2d.mpr.OriginalStack;
+import org.weasis.dicom.viewer2d.mpr.Volume;
 import org.weasis.dicom.viewer3d.View3DFactory;
 import org.weasis.dicom.viewer3d.vr.TextureData.PixelFormat;
 import org.weasis.opencv.data.LookupTableCV;
@@ -43,17 +47,45 @@ public class DicomVolTextureFactory {
     this.changeSupport = new PropertyChangeSupport(this);
   }
 
-  public DicomVolTexture createImageSeries(final MediaSeries<DicomImageElement> series) {
-    return createImageSeries(series, null);
-  }
-
   public DicomVolTexture createImageSeries(
-      final MediaSeries<DicomImageElement> series, Comparator<DicomImageElement> sorter) {
+      final MediaSeries<DicomImageElement> series, ViewProgress progress) {
+    OriginalStack stack =
+        new OriginalStack(Plane.AXIAL, series, null) {
+          @Override
+          public void generate(BuildContext context) {}
+        };
 
-    Comparator<DicomImageElement> comparator =
-        Objects.requireNonNullElse(sorter, SortSeriesStack.slicePosition);
+    DicomImageElement media = stack.getFirstImage();
+    if (stack.getWidth() == 0 || stack.getHeight() == 0)
+      throw new IllegalStateException("No image");
 
-    DicomImageElement media = series.getMedia(MEDIA_POSITION.FIRST, null, null);
+    JProgressBar bar =
+        ObliqueMpr.createProgressBar(
+            progress, (int) Math.ceil(stack.getSourceStack().size() * 1.2));
+    GuiExecutor.invokeAndWait(
+        () -> {
+          bar.setValue(0);
+          progress.repaint();
+        });
+    bar.addChangeListener(
+        e -> {
+          if (bar.getValue() == bar.getMaximum()) {
+            progress.setProgressBar(null);
+          }
+          progress.repaint();
+        });
+    Volume<?, ?> volume;
+    Volume<?, ?> v = Volume.createVolume(stack, null);
+    if (v.isTransformed()) {
+      volume = v;
+    } else {
+      Volume<?, ?> transformVolume = v.transformVolume();
+      if (transformVolume != v) {
+        v.removeData();
+      }
+      volume = transformVolume;
+    }
+
     PlanarImage image = media == null ? null : media.getImage();
     if (image != null) {
       WProperties localPersistence = GuiUtils.getUICore().getLocalPersistence();
@@ -62,7 +94,7 @@ public class DicomVolTextureFactory {
       int maxSizeZ = localPersistence.getIntProperty(RenderingLayer.P_MAX_TEX_Z, maxTexSize);
       int width = image.width();
       int height = image.height();
-      int depth = series.size(null);
+      int depth = stack.getSourceStack().size();
       Vector3d scale = new Vector3d(1.0);
       if (depth > maxSizeZ) {
         depth = maxSizeZ;
@@ -88,8 +120,8 @@ public class DicomVolTextureFactory {
       if (imageDataPixFormat == null) {
         throw new IllegalArgumentException("Pixel format not supported");
       }
-      return new DicomVolTexture(
-          width, height, depth, imageDataPixFormat, series, changeSupport, comparator, scale);
+
+      return new DicomVolTexture(volume, imageDataPixFormat, changeSupport, scale);
     } else {
       throw new IllegalArgumentException("No image found");
     }
