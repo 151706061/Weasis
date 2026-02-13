@@ -208,12 +208,14 @@ public final class VolumeBuilder {
 
       Volume<?, ?> v = volTexture.getVolume();
       Vector3i vSize = v.getSize();
-      for (int i = vSize.z - 1; i >= 0; i--) {
+      double step = (double) vSize.z / volTexture.depth;
+      for (int i = volTexture.depth - 1; i >= 0; i--) {
         if (isInterrupted()) {
           return;
         }
         Instant start = Instant.now();
-        PlanarImage imageMLUT = volTexture.getScaledImage(v.getAxialSlice(i));
+        int index = (int) Math.floor(i * step);
+        PlanarImage imageMLUT = volTexture.getScaledImage(v.getAxialSlice(index));
         LOGGER.debug(
             "Time preparation of {}: {} ms", i, Duration.between(start, Instant.now()).toMillis());
 

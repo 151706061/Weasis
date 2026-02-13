@@ -9,14 +9,11 @@
  */
 package org.weasis.dicom.viewer2d.mpr;
 
-import java.awt.Dimension;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import javax.swing.JProgressBar;
-import org.joml.Matrix4d;
 import org.joml.Vector3d;
-import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
@@ -72,83 +69,39 @@ public final class VolumeShort extends Volume<Short, short[]> {
   }
 
   @Override
-  protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    int pixelCount = dim.width * dim.height;
-    short[] pixelData = new short[pixelCount * channels];
+  protected short[] allocatePixelArray(int pixelCount) {
+    return new short[pixelCount * channels];
+  }
+
+  @Override
+  protected void readImagePixels(PlanarImage image, short[] pixelData) {
     image.get(0, 0, pixelData);
+  }
 
-    if (isIdentityTransform(transform)) {
-      long destOffset = (long) sliceIndex * size.y * size.x * channels;
-      if (data != null) {
-        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
-      } else {
-        long byteOffset = destOffset * byteDepth;
-        for (int i = 0; i < pixelData.length; i++) {
-          mappedBuffer.putShort(byteOffset + (long) i * byteDepth, pixelData[i]);
-        }
-      }
-    } else {
-      copyPixels(
-          dim,
-          (x, y) -> {
-            int pixelIndex = (y * dim.width + x) * channels;
-            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
-            if (isOutside(coord.x, coord.y, coord.z)) {
-              return;
-            }
-            long baseIndex =
-                ((long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x) * channels;
-            if (data != null) {
-              for (int c = 0; c < channels; c++) {
-                long idx = baseIndex + c;
-                setElementInData(idx, pixelData[pixelIndex + c]);
-              }
-            } else {
-              for (int c = 0; c < channels; c++) {
-                mappedBuffer.putShort((baseIndex + c) * byteDepth, pixelData[pixelIndex + c]);
-              }
-            }
-          });
+  @Override
+  protected void writeToMappedBuffer(long byteOffset, short[] pixelData, int length) {
+    for (int i = 0; i < length; i++) {
+      mappedBuffer.putShort(byteOffset + (long) i * byteDepth, pixelData[i]);
     }
   }
 
   @Override
-  protected void setChannelValues(long baseIndex, Voxel<Short> voxel) {
-    if (data != null) {
-      for (int c = 0; c < channels; c++) {
-        Short val = voxel.getValue(c);
-        if (val != null) {
-          long idx = baseIndex + c;
-          data.getChunk(data.chunkIndex(idx))[data.chunkOffset(idx)] = val;
-        }
-      }
-    } else {
-      for (int c = 0; c < channels; c++) {
-        Short val = voxel.getValue(c);
-        if (val != null) {
-          mappedBuffer.putShort((baseIndex + c) * byteDepth, val);
-        }
-      }
-    }
+  protected Short getFromPixelArray(short[] pixelData, int index) {
+    return pixelData[index];
   }
 
   @Override
-  public void writeVolume(DataOutputStream dos, int x, int y, int z) throws IOException {
-    for (int c = 0; c < channels; c++) {
-      Short channelValue = getValue(x, y, z, c);
-      if (channelValue == null) {
-        throw new IOException(
-            "Null voxel channel value at (" + x + "," + y + "," + z + "), channel " + c);
-      }
-      dos.writeShort(channelValue);
-    }
+  protected int pixelArrayLength(short[] pixelData) {
+    return pixelData.length;
   }
 
   @Override
-  public void readVolume(DataInputStream dis, int x, int y, int z) throws IOException {
-    for (int c = 0; c < channels; c++) {
-      Short channelValue = dis.readShort();
-      setChannelValue(x, y, z, c, channelValue);
-    }
+  protected Short readPrimitive(DataInputStream dis) throws IOException {
+    return dis.readShort();
+  }
+
+  @Override
+  protected void writePrimitive(DataOutputStream dos, Short value) throws IOException {
+    dos.writeShort(value);
   }
 }

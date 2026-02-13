@@ -23,6 +23,7 @@ import java.util.Set;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.img.lut.PresetWindowLevel;
 import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
@@ -60,16 +61,8 @@ public class DicomVolTexture extends VolumeTexture implements MediaSeriesGroup {
   private String pixelValueUnit;
 
   public DicomVolTexture(
-      Volume<?, ?> v, PixelFormat pixelFormat, PropertyChangeSupport changeSupport) {
-    this(v, pixelFormat, changeSupport, null);
-  }
-
-  public DicomVolTexture(
-      Volume<?, ?> v,
-      PixelFormat pixelFormat,
-      PropertyChangeSupport changeSupport,
-      Vector3d scale) {
-    super(v.getSizeX(), v.getSizeY(), v.getSizeZ(), pixelFormat);
+      Vector3i size, Volume<?, ?> v, PixelFormat pixelFormat, PropertyChangeSupport changeSupport) {
+    super(size, pixelFormat);
     this.volume = v;
     this.changeSupport = Objects.requireNonNull(changeSupport);
 
@@ -87,11 +80,16 @@ public class DicomVolTexture extends VolumeTexture implements MediaSeriesGroup {
       pixelValueUnit = "HU";
     }
 
+    Vector3i volSize = v.getSize();
+    this.scale =
+        new Vector3d(
+            (double) width / volSize.x, (double) height / volSize.y, (double) depth / volSize.z);
     Vector3d tex = v.getVoxelRatio();
+    tex.x /= scale.x;
+    tex.y /= scale.y;
+    tex.z /= scale.z;
     setTexelSize(tex);
-    this.scale = scale == null ? new Vector3d(1.0) : scale;
-    if (scale != null
-        && (MathUtil.isDifferent(scale.x, 1.0) || MathUtil.isDifferent(scale.y, 1.0))) {
+    if ((MathUtil.isDifferent(scale.x, 1.0) || MathUtil.isDifferent(scale.y, 1.0))) {
       this.manager = new SimpleOpManager();
       ZoomOp node = new ZoomOp();
       node.setParam(ZoomOp.P_RATIO_X, scale.x);
@@ -101,19 +99,6 @@ public class DicomVolTexture extends VolumeTexture implements MediaSeriesGroup {
     } else {
       this.manager = null;
     }
-  }
-
-  protected List<DicomImageElement> adjustSliceList(List<DicomImageElement> inputList) {
-    if (depth == inputList.size()) {
-      return inputList;
-    }
-    double step = (double) inputList.size() / depth;
-    ArrayList<DicomImageElement> outputList = new ArrayList<>(depth);
-    for (int i = 0; i < depth; i++) {
-      int index = (int) Math.floor(i * step);
-      outputList.add(inputList.get(index));
-    }
-    return outputList;
   }
 
   public PlanarImage getScaledImage(PlanarImage image) {
@@ -146,11 +131,11 @@ public class DicomVolTexture extends VolumeTexture implements MediaSeriesGroup {
   }
 
   public double getLevelMin() {
-    return volume.getMinimum().doubleValue();
+    return volume.getMinimumAsDouble();
   }
 
   public double getLevelMax() {
-    return volume.getMaximum().doubleValue();
+    return volume.getMaximumAsDouble();
   }
 
   public Volume<?, ?> getVolume() {

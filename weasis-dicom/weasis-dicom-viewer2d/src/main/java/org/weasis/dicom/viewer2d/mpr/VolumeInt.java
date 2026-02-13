@@ -9,14 +9,11 @@
  */
 package org.weasis.dicom.viewer2d.mpr;
 
-import java.awt.Dimension;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import javax.swing.JProgressBar;
-import org.joml.Matrix4d;
 import org.joml.Vector3d;
-import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
@@ -75,56 +72,39 @@ public final class VolumeInt extends Volume<Integer, int[]> {
   }
 
   @Override
-  protected void setChannelValues(long baseIndex, Voxel<Integer> voxel) {
-    Integer val = voxel.getValue(0);
-    if (val != null) {
-      setElementInData(baseIndex, val);
+  protected int[] allocatePixelArray(int pixelCount) {
+    return new int[pixelCount * channels];
+  }
+
+  @Override
+  protected void readImagePixels(PlanarImage image, int[] pixelData) {
+    image.get(0, 0, pixelData);
+  }
+
+  @Override
+  protected void writeToMappedBuffer(long byteOffset, int[] pixelData, int length) {
+    for (int i = 0; i < length; i++) {
+      mappedBuffer.putInt(byteOffset + (long) i * byteDepth, pixelData[i]);
     }
   }
 
   @Override
-  protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    int[] pixelData = new int[dim.width * dim.height];
-    image.get(0, 0, pixelData);
-
-    if (isIdentityTransform(transform)) {
-      long destOffset = (long) sliceIndex * size.y * size.x;
-      if (data != null) {
-        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
-      } else {
-        long byteOffset = destOffset * byteDepth;
-        for (int i = 0; i < pixelData.length; i++) {
-          mappedBuffer.putInt(byteOffset + (long) i * byteDepth, pixelData[i]);
-        }
-      }
-    } else {
-      copyPixels(
-          dim,
-          (x, y) -> {
-            int val = pixelData[y * dim.width + x];
-            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
-            if (!isOutside(coord.x, coord.y, coord.z)) {
-              long index = (long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x;
-              if (data != null) {
-                setElementInData(index, val);
-              } else {
-                mappedBuffer.putInt(index * byteDepth, val);
-              }
-            }
-          });
-    }
+  protected Integer getFromPixelArray(int[] pixelData, int index) {
+    return pixelData[index];
   }
 
-  public void readVolume(DataInputStream stream, int x, int y, int z) throws IOException {
-    Integer val = stream.readInt();
-    setValue(x, y, z, val, null);
+  @Override
+  protected int pixelArrayLength(int[] pixelData) {
+    return pixelData.length;
   }
 
-  public void writeVolume(DataOutputStream stream, int x, int y, int z) throws IOException {
-    Integer val = getValue(x, y, z, 0);
-    if (val == null) {
-      throw new IOException("Null voxel value at (" + x + "," + y + "," + z + ")");
-    }
-    stream.writeInt(val);
+  @Override
+  protected Integer readPrimitive(DataInputStream dis) throws IOException {
+    return dis.readInt();
+  }
+
+  @Override
+  protected void writePrimitive(DataOutputStream dos, Integer value) throws IOException {
+    dos.writeInt(value);
   }
 }

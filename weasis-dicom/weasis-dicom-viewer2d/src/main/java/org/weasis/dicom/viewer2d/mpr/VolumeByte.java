@@ -9,14 +9,11 @@
  */
 package org.weasis.dicom.viewer2d.mpr;
 
-import java.awt.Dimension;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import javax.swing.JProgressBar;
-import org.joml.Matrix4d;
 import org.joml.Vector3d;
-import org.joml.Vector3i;
 import org.opencv.core.CvType;
 import org.weasis.opencv.data.PlanarImage;
 
@@ -72,84 +69,39 @@ public final class VolumeByte extends Volume<Byte, byte[]> {
   }
 
   @Override
-  protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    int pixelCount = dim.width * dim.height;
-    byte[] pixelData = new byte[pixelCount * channels];
+  protected byte[] allocatePixelArray(int pixelCount) {
+    return new byte[pixelCount * channels];
+  }
+
+  @Override
+  protected void readImagePixels(PlanarImage image, byte[] pixelData) {
     image.get(0, 0, pixelData);
+  }
 
-    if (isIdentityTransform(transform)) {
-      long destOffset = (long) sliceIndex * size.y * size.x * channels;
-      if (data != null) {
-        data.copyFrom(destOffset, pixelData, 0, pixelData.length);
-      } else {
-        long byteOffset = destOffset * byteDepth;
-        for (int i = 0; i < pixelData.length; i++) {
-          mappedBuffer.put(byteOffset + i, pixelData[i]);
-        }
-      }
-    } else {
-      // Slow path: per-pixel coordinate remapping
-      copyPixels(
-          dim,
-          (x, y) -> {
-            int pixelIndex = (y * dim.width + x) * channels;
-            Vector3i coord = mapSliceToVolumeCoordinates(x, y, sliceIndex, transform);
-            if (isOutside(coord.x, coord.y, coord.z)) {
-              return;
-            }
-            long baseIndex =
-                ((long) coord.z * size.y * size.x + (long) coord.y * size.x + coord.x) * channels;
-            if (data != null) {
-              for (int c = 0; c < channels; c++) {
-                long idx = baseIndex + c;
-                setElementInData(idx, pixelData[pixelIndex + c]);
-              }
-            } else {
-              for (int c = 0; c < channels; c++) {
-                mappedBuffer.put((baseIndex + c) * byteDepth, pixelData[pixelIndex + c]);
-              }
-            }
-          });
+  @Override
+  protected void writeToMappedBuffer(long byteOffset, byte[] pixelData, int length) {
+    for (int i = 0; i < length; i++) {
+      mappedBuffer.put(byteOffset + (long) i * byteDepth, pixelData[i]);
     }
   }
 
   @Override
-  protected void setChannelValues(long baseIndex, Voxel<Byte> voxel) {
-    if (data != null) {
-      for (int c = 0; c < channels; c++) {
-        Byte val = voxel.getValue(c);
-        if (val != null) {
-          long idx = baseIndex + c;
-          data.getChunk(data.chunkIndex(idx))[data.chunkOffset(idx)] = val;
-        }
-      }
-    } else {
-      for (int c = 0; c < channels; c++) {
-        Byte val = voxel.getValue(c);
-        if (val != null) {
-          mappedBuffer.put((baseIndex + c) * byteDepth, val);
-        }
-      }
-    }
+  protected Byte getFromPixelArray(byte[] pixelData, int index) {
+    return pixelData[index];
   }
 
   @Override
-  public void writeVolume(DataOutputStream dos, int x, int y, int z) throws IOException {
-    for (int c = 0; c < channels; c++) {
-      Byte channelValue = getValue(x, y, z, c);
-      if (channelValue == null) {
-        throw new IOException(
-            "Null voxel channel value at (" + x + "," + y + "," + z + "), channel " + c);
-      }
-      dos.writeByte(channelValue);
-    }
+  protected int pixelArrayLength(byte[] pixelData) {
+    return pixelData.length;
   }
 
   @Override
-  public void readVolume(DataInputStream dis, int x, int y, int z) throws IOException {
-    for (int c = 0; c < channels; c++) {
-      Byte channelValue = dis.readByte();
-      setChannelValue(x, y, z, c, channelValue);
-    }
+  protected Byte readPrimitive(DataInputStream dis) throws IOException {
+    return dis.readByte();
+  }
+
+  @Override
+  protected void writePrimitive(DataOutputStream dos, Byte value) throws IOException {
+    dos.writeByte(value);
   }
 }

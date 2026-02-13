@@ -446,8 +446,8 @@ public class VolImageIO implements DcmMediaReader {
     Attributes dcm = getDicomObject();
     header = new DicomMetaData(dcm, UID.ImplicitVRLittleEndian);
     MinMaxLocResult minMax = new MinMaxLocResult();
-    minMax.minVal = volume.getMinimum().doubleValue();
-    minMax.maxVal = volume.getMaximum().doubleValue();
+    minMax.minVal = volume.getMinimumAsDouble();
+    minMax.maxVal = volume.getMaximumAsDouble();
     header.getImageDescriptor().setMinMaxPixelValue(0, minMax);
     HEADER_CACHE.put(this, header);
     return header;

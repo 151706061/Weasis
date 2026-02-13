@@ -192,6 +192,8 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
   protected VolumeBuilder volumeBuilder;
   protected SegmentationTool.Type segType;
 
+  private final Object volumeBuilderLock = new Object();
+
   protected final Map<String, List<SegRegion<?>>> regionMap = new HashMap<>();
 
   public View3DContainer() {
@@ -391,7 +393,7 @@ public class View3DContainer extends DicomViewerPlugin implements PropertyChange
 
         if (!series.equals(oldSequence)) {
           GuiUtils.getUICore().closeSeries(oldSequence);
-          synchronized (this) {
+          synchronized (volumeBuilderLock) {
             for (ViewCanvas<DicomImageElement> view : view2ds) {
               if (view instanceof View3d v) {
                 if (volumeBuilder == null) {

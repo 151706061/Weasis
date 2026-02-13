@@ -14,7 +14,7 @@ import java.beans.PropertyChangeSupport;
 import javax.swing.JProgressBar;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.img.stream.ImageDescriptor;
-import org.joml.Vector3d;
+import org.joml.Vector3i;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.gui.util.GuiExecutor;
@@ -59,9 +59,7 @@ public class DicomVolTextureFactory {
     if (stack.getWidth() == 0 || stack.getHeight() == 0)
       throw new IllegalStateException("No image");
 
-    JProgressBar bar =
-        ObliqueMpr.createProgressBar(
-            progress, (int) Math.ceil(stack.getSourceStack().size() * 1.2));
+    JProgressBar bar = ObliqueMpr.createProgressBar(progress, stack.getSourceStack().size());
     GuiExecutor.invokeAndWait(
         () -> {
           bar.setValue(0);
@@ -74,17 +72,7 @@ public class DicomVolTextureFactory {
           }
           progress.repaint();
         });
-    Volume<?, ?> volume;
-    Volume<?, ?> v = Volume.createVolume(stack, null);
-    if (v.isTransformed()) {
-      volume = v;
-    } else {
-      Volume<?, ?> transformVolume = v.transformVolume();
-      if (transformVolume != v) {
-        v.removeData();
-      }
-      volume = transformVolume;
-    }
+    Volume<?, ?> volume = Volume.createVolume(stack, bar);
 
     PlanarImage image = media == null ? null : media.getImage();
     if (image != null) {
@@ -95,23 +83,22 @@ public class DicomVolTextureFactory {
       int width = image.width();
       int height = image.height();
       int depth = stack.getSourceStack().size();
-      Vector3d scale = new Vector3d(1.0);
       if (depth > maxSizeZ) {
         depth = maxSizeZ;
       }
       if (width > maxSizeXY || height > maxSizeXY) {
         double ratio = (double) maxSizeXY / Math.max(width, height);
-        scale.x = Math.abs(media.getRescaleX() * ratio);
-        scale.y = Math.abs(media.getRescaleY() * ratio);
-        width = (int) (scale.x * width);
-        height = (int) (scale.y * height);
-      } else {
-        if (width % 2 != 0) {
-          width -= 1;
-        }
-        if (height % 2 != 0) {
-          height -= 1;
-        }
+        double scaleX = Math.abs(media.getRescaleX() * ratio);
+        double scaleY = Math.abs(media.getRescaleY() * ratio);
+        width = (int) (scaleX * width);
+        height = (int) (scaleY * height);
+      }
+
+      if (width % 2 != 0) {
+        width -= 1;
+      }
+      if (height % 2 != 0) {
+        height -= 1;
       }
 
       LOGGER.info("Build volume {}x{}x{}", width, height, depth);
@@ -121,7 +108,8 @@ public class DicomVolTextureFactory {
         throw new IllegalArgumentException("Pixel format not supported");
       }
 
-      return new DicomVolTexture(volume, imageDataPixFormat, changeSupport, scale);
+      return new DicomVolTexture(
+          new Vector3i(width, height, depth), volume, imageDataPixFormat, changeSupport);
     } else {
       throw new IllegalArgumentException("No image found");
     }

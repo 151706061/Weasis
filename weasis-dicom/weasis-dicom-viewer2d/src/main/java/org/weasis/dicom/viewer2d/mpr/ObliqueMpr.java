@@ -45,7 +45,7 @@ public class ObliqueMpr extends OriginalStack {
       ViewProgress view,
       Filter<DicomImageElement> filter) {
     super(plane, series, filter);
-    JProgressBar bar = createProgressBar(view, (int) Math.ceil(getSourceStack().size() * 1.2));
+    JProgressBar bar = createProgressBar(view, getSourceStack().size());
     GuiExecutor.invokeAndWait(
         () -> {
           bar.setValue(0);
@@ -58,16 +58,7 @@ public class ObliqueMpr extends OriginalStack {
           }
           view.repaint();
         });
-    Volume<?, ?> v = Volume.createVolume(this, bar);
-    if (v.isTransformed()) {
-      volume = v;
-    } else {
-      Volume<?, ?> transformVolume = v.transformVolume();
-      if (transformVolume != v) {
-        v.removeData();
-      }
-      volume = transformVolume;
-    }
+    this.volume = Volume.createVolume(this, bar);
   }
 
   public static JProgressBar createProgressBar(ViewProgress progress, int maxSize) {
