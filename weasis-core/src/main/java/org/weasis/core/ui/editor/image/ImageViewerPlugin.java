@@ -226,6 +226,15 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
     return cellManager.getLayoutModel();
   }
 
+  /**
+   * Get the cell manager holding the mapping between layout cells and their components/views.
+   *
+   * @return the layout cell manager
+   */
+  public LayoutCellManager<E> getCellManager() {
+    return cellManager;
+  }
+
   public MigLayoutModel getOriginalLayoutModel() {
     // Get the non clone layout from the list
     Optional<ComboItemListener<MigLayoutModel>> layout = eventManager.getAction(ActionW.LAYOUT);
@@ -783,10 +792,6 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
     migLayout.setLayoutConstraints(layoutModel.getLayoutConstraints());
     migLayout.setColumnConstraints(layoutModel.getColumnConstraints());
     migLayout.setRowConstraints(layoutModel.getRowConstraints());
-  }
-
-  private Component findComponentForCell(MigCell cell) {
-    return cellManager.getComponent(cell.position());
   }
 
   public static int getViewTypeNumber(MigLayoutModel layout) {

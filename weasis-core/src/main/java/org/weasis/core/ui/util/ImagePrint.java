@@ -187,7 +187,7 @@ public class ImagePrint implements Printable {
         // Calculate effective weights for this cell
         double weightx = calculateCellWeightX(cell, columnWeights);
         double weighty = calculateCellWeightY(cell, rowWeights);
-        formatImage(image, cell, placeholder, pad, weightx, weighty);
+        formatImage(image, placeholder, pad, weightx, weighty);
       }
 
       if (cell.x() == 0) {
@@ -262,7 +262,6 @@ public class ImagePrint implements Printable {
 
   private void formatImage(
       ExportImage<? extends ImageElement> image,
-      MigCell cell,
       Point2D.Double placeholder,
       Point2D.Double pad,
       double weightx,

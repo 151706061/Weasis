@@ -120,7 +120,7 @@ public class PrintDialog<I extends ImageElement> extends javax.swing.JDialog {
     ExportLayout<I> layout;
     if (!selectedViewCheckbox.isSelected()) {
       // Several views
-      layout = new ExportLayout<>(container.getLayoutModel());
+      layout = new ExportLayout<>(container);
     } else {
       // One View
       layout = new ExportLayout<>(eventManager.getSelectedViewPane());

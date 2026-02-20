@@ -117,7 +117,7 @@ public class DicomPrint {
           // Calculate effective weights for this cell
           double weightx = calculateCellWeightX(cell, columnWeights);
           double weighty = calculateCellWeightY(cell, rowWeights);
-          formatImage(image, cell, pad, weightx, weighty);
+          formatImage(image, pad, weightx, weighty);
         }
 
         if (cell.x() == 0) {
@@ -162,6 +162,7 @@ public class DicomPrint {
     return bufferedImage;
   }
 
+  @SuppressWarnings("SuspiciousNameCombination")
   private BufferedImage initialize(ExportLayout<? extends ImageElement> layout) {
     Dimension dimGrid = layout.getLayoutModel().getGridSize();
     FilmSize filmSize = printOptions.getFilmSizeId();
@@ -237,7 +238,6 @@ public class DicomPrint {
 
   private void formatImage(
       ExportImage<? extends ImageElement> image,
-      MigCell cell,
       Point2D.Double pad,
       double weightx,
       double weighty) {
