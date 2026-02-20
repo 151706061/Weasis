@@ -47,8 +47,7 @@ public class PrintDialog<I extends ImageElement> extends javax.swing.JDialog {
   public PrintDialog(Window parent, String title, ImageViewerEventManager<I> eventManager) {
     super(parent, title, ModalityType.APPLICATION_MODAL);
     this.eventManager = eventManager;
-    boolean layout =
-        eventManager.getSelectedView2dContainer().getLayoutModel().getConstraints().size() > 1;
+    boolean layout = eventManager.getSelectedView2dContainer().getLayoutModel().getCellCount() > 1;
     initComponents(layout);
     pack();
   }
