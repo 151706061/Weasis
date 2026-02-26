@@ -197,9 +197,6 @@ public abstract sealed class Volume<T extends Number, A>
       return;
     }
 
-    Vector3i volumeSize = new Vector3i();
-    Vector3d volumeSpacing;
-
     Vector3d firstTlhc = stack.getStartingImage().getSliceGeometry().getTLHC();
     Vector3d lastTlhc = stack.getEndingImage().getSliceGeometry().getTLHC();
 
@@ -211,6 +208,7 @@ public abstract sealed class Volume<T extends Number, A>
     Vector3d translation = new Vector3d();
 
     if (stack.getPlane().equals(MprView.Plane.AXIAL)) {
+      // When the plane is Axial, the stack is reversed
       translation.z = -(max.z() - firstTlhc.z());
     } else {
       translation.z = -(min.z() - firstTlhc.z());
@@ -229,13 +227,15 @@ public abstract sealed class Volume<T extends Number, A>
     Vector3d size = new Vector3d();
     max.sub(min, size);
     size.div(bounds.spacing());
-    volumeSize =
+    Vector3i volumeSize =
         new Vector3i(
             (int) Math.ceil(size.x()), (int) Math.ceil(size.y()), (int) Math.ceil(size.z()));
-    this.isTransformed = true;
     this.size.set(volumeSize);
     this.sliceStride = (long) volumeSize.x * volumeSize.y;
     this.pixelRatio.set(bounds.spacing());
+
+    // Compute the distance in pixels between the size of the images' stack and the transformed size
+    this.isTransformed = volumeSize.distance(bounds.size()) > 2.0;
 
     List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
     // For axial, we need to reverse to go from inferior to superior
@@ -248,6 +248,7 @@ public abstract sealed class Volume<T extends Number, A>
 
   /**
    * Computes the basis matrix using the actual in-plane pixel spacings from the slice geometry.
+   * <a href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.2.html#sect_C.7.6.2.1.1">DICOM slice geometry</a>
    *
    * @return the matrix corresponding to the row and column vectors
    */
@@ -342,8 +343,8 @@ public abstract sealed class Volume<T extends Number, A>
     return new Vector3d[] {min, max};
   }
 
-  private void minMaxCorner(Vector4d[] cornersLastImg, Vector3d min, Vector3d max) {
-    for (Vector4d corner : cornersLastImg) {
+  private void minMaxCorner(Vector4d[] corners, Vector3d min, Vector3d max) {
+    for (Vector4d corner : corners) {
       min.x = Math.min(min.x, corner.x);
       min.y = Math.min(min.y, corner.y);
       min.z = Math.min(min.z, corner.z);
@@ -369,8 +370,6 @@ public abstract sealed class Volume<T extends Number, A>
     final AtomicInteger submitted = new AtomicInteger(0);
     final AtomicInteger completed = new AtomicInteger(0);
 
-    Vector3d initPosition = new Vector3d(dicomImages.getFirst().getSliceGeometry().getTLHC());
-
     for (int z = 0; z < n; z++) {
       final int zi = z;
       ecs.submit(
@@ -388,17 +387,15 @@ public abstract sealed class Volume<T extends Number, A>
               src = ImageTransformer.flip(src.toImageCV(), flipType);
             }
 
-            Vector3d diff = new Vector3d();
             Vector3d position = dcm.getSliceGeometry().getTLHC();
-            position.sub(initPosition, diff);
-            Matrix4d t = getBasisMatrix();
+            Matrix4d transform = getBasisMatrix();
             position.sub(translation);
-            t.set(3, 0, position.x());
-            t.set(3, 1, position.y());
-            t.set(3, 2, position.z());
+            transform.set(3, 0, position.x());
+            transform.set(3, 1, position.y());
+            transform.set(3, 2, position.z());
 
             Dimension dim = new Dimension(src.width(), src.height());
-            copyFrom(src, zi, t, dim);
+            copyFrom(src, zi, transform, dim);
             int done = completed.incrementAndGet();
             updateProgressBar(done - 1);
             return minMaxLoc;
@@ -675,7 +672,6 @@ public abstract sealed class Volume<T extends Number, A>
    * (rectification), uses splatting to avoid gaps.
    */
   protected void setValue(int x, int y, int z, int width, A pixelData, Matrix4d transform) {
-    //
     if (transform != null) {
       Vector4d p = new Vector4d(x, y, 0.0, 1.0);
       // The coordinates of the voxel (i,j) in the frame's image plane in units of mm.
