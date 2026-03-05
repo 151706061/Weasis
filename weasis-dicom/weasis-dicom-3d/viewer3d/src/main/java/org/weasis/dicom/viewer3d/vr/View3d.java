@@ -11,6 +11,8 @@ package org.weasis.dicom.viewer3d.vr;
 
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2ES2;
+import com.jogamp.opengl.GL2ES3;
 import com.jogamp.opengl.GL4;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLEventListener;
@@ -84,6 +86,8 @@ import org.weasis.dicom.viewer2d.mip.MipView;
 import org.weasis.dicom.viewer3d.ActionVol;
 import org.weasis.dicom.viewer3d.EventManager;
 import org.weasis.dicom.viewer3d.InfoLayer3d;
+import org.weasis.dicom.viewer3d.OpenGLInfo;
+import org.weasis.dicom.viewer3d.View3DFactory;
 import org.weasis.dicom.viewer3d.dockable.SegmentationTool;
 import org.weasis.dicom.viewer3d.dockable.SegmentationTool.Type;
 import org.weasis.dicom.viewer3d.geometry.Axis;
@@ -98,6 +102,8 @@ public class View3d extends VolumeCanvas
         RenderingLayerChangeListener<DicomImageElement>,
         GLEventListener,
         ViewProgress {
+
+  private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(View3d.class);
 
   public enum ViewType {
     AXIAL,
@@ -124,9 +130,10 @@ public class View3d extends VolumeCanvas
   private final LayerAnnotation infoLayer;
   protected final ContextMenuHandler<DicomImageElement> contextMenuHandler;
 
-  private final ComputeTexture texture;
+  private final TextureData texture;
   private final Program program;
   private final Program quadProgram;
+  private final boolean useComputeShader;
   protected final RenderingLayer<DicomImageElement> renderingLayer;
 
   private int vertexBuffer;
@@ -137,10 +144,28 @@ public class View3d extends VolumeCanvas
   public View3d(
       ImageViewerEventManager<DicomImageElement> eventManager, DicomVolTexture volTexture) {
     super(eventManager, volTexture, null);
-    this.texture = new ComputeTexture(this, ComputeTexture.COMPUTE_LOCAL_SIZE);
+    // Detect whether compute shaders are available (OpenGL >= 4.3).
+    OpenGLInfo glInfo = View3DFactory.getOpenGLInfo();
+    this.useComputeShader =
+        !View3DFactory.isFboForced() && (glInfo == null || glInfo.isComputeShaderCapable());
+
+    if (useComputeShader) {
+      this.texture = new ComputeTexture(this, ComputeTexture.COMPUTE_LOCAL_SIZE);
+      this.program = new Program("compute", ShaderManager.COMPUTE_SHADER); // NON-NLS
+      LOGGER.info("Volume rendering: using compute shader path (OpenGL >= 4.3)");
+    } else {
+      this.texture = new FboRenderTexture(this);
+      this.program =
+          new Program(
+              "fbo", ShaderManager.FBO_VERTEX_SHADER, ShaderManager.FBO_FRAGMENT_SHADER); // NON-NLS
+      LOGGER.info(
+          "Volume rendering: using FBO fragment-shader path (OpenGL 3.3 fallback{})",
+          View3DFactory.isFboForced()
+              ? ", forced via " + View3DFactory.P_FORCE_FBO
+              : ""); // NON-NLS
+    }
     this.quadProgram =
         new Program("basic", ShaderManager.VERTEX_SHADER, ShaderManager.FRAGMENT_SHADER); // NON-NLS
-    this.program = new Program("compute", ShaderManager.COMPUTE_SHADER); // NON-NLS
     // this.program =new Program("basic", ShaderManager.OLD_VERTEX_SHADER,
     // ShaderManager.OLD_FRAGMENT_SHADER);
     try {
@@ -220,10 +245,12 @@ public class View3d extends VolumeCanvas
     if (volTexture != null) {
       GuiUtils.getUICore().closeSeries(volTexture.getSeries());
     }
-    GL4 gl4 = OpenglUtils.getGL4();
-    program.destroy(gl4);
-    quadProgram.destroy(gl4);
-    texture.destroy(gl4);
+    GL2ES2 gl = OpenglUtils.getGL();
+    if (gl != null) {
+      program.destroy(gl);
+      quadProgram.destroy(gl);
+      texture.destroy(gl);
+    }
     super.disposeView();
   }
 
@@ -338,10 +365,11 @@ public class View3d extends VolumeCanvas
 
   @Override
   public void init(GLAutoDrawable glAutoDrawable) {
-    initShaders(glAutoDrawable.getGL().getGL4());
+    GL2ES2 gl = glAutoDrawable.getGL().getGL2ES2();
+    initShaders(gl);
   }
 
-  public void initShaders(GL4 gl4) {
+  public void initShaders(GL2ES2 gl) {
     WProperties preferences = GuiUtils.getUICore().getSystemPreferences();
     Color lightColor = preferences.getColorProperty(RenderingLayer.P_LIGHT_COLOR, Color.WHITE);
     Vector3f lColor =
@@ -351,147 +379,159 @@ public class View3d extends VolumeCanvas
     Vector3f bColor =
         new Vector3f(
             bckColor.getRed() / 255f, bckColor.getGreen() / 255f, bckColor.getBlue() / 255f);
-    gl4.glClearColor(bColor.x, bColor.y, bColor.z, 1);
-    program.init(gl4);
+    gl.glClearColor(bColor.x, bColor.y, bColor.z, 1);
+    program.init(gl);
     program.allocateUniform(
-        gl4,
+        gl,
         "viewMatrix",
-        (gl, loc) ->
-            gl.glUniformMatrix4fv(
+        (g, loc) ->
+            g.glUniformMatrix4fv(
                 loc,
                 1,
                 false,
                 camera.getViewMatrix().invert().get(Buffers.newDirectFloatBuffer(16))));
     program.allocateUniform(
-        gl4,
+        gl,
         "projectionMatrix",
-        (gl, loc) ->
-            gl.glUniformMatrix4fv(
+        (g, loc) ->
+            g.glUniformMatrix4fv(
                 loc,
                 1,
                 false,
                 camera.getProjectionMatrix().invert().get(Buffers.newDirectFloatBuffer(16))));
     program.allocateUniform(
-        gl4,
+        gl,
         "depthSampleNumber",
-        (gl, loc) -> gl4.glUniform1i(loc, renderingLayer.getDepthSampleNumber()));
+        (g, loc) -> g.glUniform1i(loc, renderingLayer.getDepthSampleNumber()));
     program.allocateUniform(
-        gl4,
+        gl,
         "lutShape",
-        (gl, loc) -> gl4.glUniform1ui(loc, isSegMode() ? 0 : renderingLayer.getLutShapeId()));
+        (g, loc) ->
+            ((GL2ES3) g).glUniform1ui(loc, isSegMode() ? 0 : renderingLayer.getLutShapeId()));
 
     program.allocateUniform(
-        gl4,
+        gl,
         "backgroundColor",
-        (gl, loc) -> gl.glUniform3fv(loc, 1, bColor.get(Buffers.newDirectFloatBuffer(3))));
+        (g, loc) -> g.glUniform3fv(loc, 1, bColor.get(Buffers.newDirectFloatBuffer(3))));
 
     for (int i = 0; i < 4; ++i) {
       int val = i;
       program.allocateUniform(
-          gl4,
+          gl,
           String.format("lights[%d].position", val), // NON-NLS
-          (gl, loc) ->
-              gl.glUniform4fv(
-                  loc, 1, camera.getLightOrigin().get(Buffers.newDirectFloatBuffer(4))));
+          (g, loc) ->
+              g.glUniform4fv(loc, 1, camera.getLightOrigin().get(Buffers.newDirectFloatBuffer(4))));
       program.allocateUniform(
-          gl4,
+          gl,
           String.format("lights[%d].specularPower", val), // NON-NLS
-          (gl, loc) -> gl.glUniform1f(loc, renderingLayer.getShadingOptions().getSpecularPower()));
+          (g, loc) -> g.glUniform1f(loc, renderingLayer.getShadingOptions().getSpecularPower()));
       program.allocateUniform(
-          gl4,
+          gl,
           String.format("lights[%d].enabled", val), // NON-NLS
-          (gl, loc) -> gl.glUniform1i(loc, val < 1 ? 1 : 0));
+          (g, loc) -> g.glUniform1i(loc, val < 1 ? 1 : 0));
     }
     program.allocateUniform(
-        gl4,
+        gl,
         "lightColor",
-        (gl, loc) -> gl.glUniform3fv(loc, 1, lColor.get(Buffers.newDirectFloatBuffer(3))));
+        (g, loc) -> g.glUniform3fv(loc, 1, lColor.get(Buffers.newDirectFloatBuffer(3))));
     program.allocateUniform(
-        gl4, "shading", (gl, loc) -> gl.glUniform1i(loc, renderingLayer.isShading() ? 1 : 0));
+        gl, "shading", (g, loc) -> g.glUniform1i(loc, renderingLayer.isShading() ? 1 : 0));
     program.allocateUniform(
-        gl4,
+        gl,
         "texelSize",
-        (gl, loc) -> {
+        (g, loc) -> {
           DicomVolTexture tex = volTexture;
           Vector3f texelSizeVal =
               tex != null
                   ? tex.getNormalizedTexelSize().get(new Vector3f())
                   : new Vector3f(1f, 1f, 1f);
-          gl.glUniform3fv(loc, 1, texelSizeVal.get(Buffers.newDirectFloatBuffer(3)));
+          g.glUniform3fv(loc, 1, texelSizeVal.get(Buffers.newDirectFloatBuffer(3)));
         });
 
     program.allocateUniform(
-        gl4,
+        gl,
         "renderingType",
-        (gl, loc) -> gl.glUniform1ui(loc, renderingLayer.getRenderingType().getId()));
+        (g, loc) -> ((GL2ES3) g).glUniform1ui(loc, renderingLayer.getRenderingType().getId()));
     program.allocateUniform(
-        gl4, "mipType", (gl, loc) -> gl.glUniform1ui(loc, renderingLayer.getMipType().getId()));
-    program.allocateUniform(gl4, "volTexture", (gl, loc) -> gl.glUniform1i(loc, 0));
-    program.allocateUniform(gl4, "colorMap", (gl, loc) -> gl.glUniform1i(loc, 1));
+        gl,
+        "mipType",
+        (g, loc) -> ((GL2ES3) g).glUniform1ui(loc, renderingLayer.getMipType().getId()));
+    program.allocateUniform(gl, "volTexture", (g, loc) -> g.glUniform1i(loc, 0));
+    program.allocateUniform(gl, "colorMap", (g, loc) -> g.glUniform1i(loc, 1));
     program.allocateUniform(
-        gl4,
+        gl,
         "textureDataType",
-        (gl, loc) -> gl.glUniform1ui(loc, TextureData.getDataType(getPixelFormat())));
+        (g, loc) -> ((GL2ES3) g).glUniform1ui(loc, TextureData.getDataType(getPixelFormat())));
 
     program.allocateUniform(
-        gl4,
-        "opacityFactor",
-        (gl, loc) -> gl.glUniform1f(loc, (float) renderingLayer.getOpacity()));
+        gl, "opacityFactor", (g, loc) -> g.glUniform1f(loc, (float) renderingLayer.getOpacity()));
 
     program.allocateUniform(
-        gl4,
+        gl,
         "inputLevelMin",
-        (gl, loc) -> {
+        (g, loc) -> {
           DicomVolTexture tex = volTexture;
-          gl.glUniform1f(loc, (tex == null || isSegMode()) ? 0 : (float) tex.getLevelMin());
+          g.glUniform1f(loc, (tex == null || isSegMode()) ? 0 : (float) tex.getLevelMin());
         });
     program.allocateUniform(
-        gl4,
+        gl,
         "inputLevelMax",
-        (gl, loc) -> {
+        (g, loc) -> {
           DicomVolTexture tex = volTexture;
-          gl.glUniform1f(
+          g.glUniform1f(
               loc,
               isSegMode()
                   ? volumePreset.getWidth()
                   : (tex != null ? (float) tex.getLevelMax() : 1f));
         });
-    program.allocateUniform(gl4, "outputLevelMin", (gl, loc) -> gl.glUniform1f(loc, 0));
+    program.allocateUniform(gl, "outputLevelMin", (g, loc) -> g.glUniform1f(loc, 0));
     program.allocateUniform(
-        gl4, "outputLevelMax", (gl, loc) -> gl.glUniform1f(loc, volumePreset.getWidth()));
+        gl, "outputLevelMax", (g, loc) -> g.glUniform1f(loc, volumePreset.getWidth()));
     program.allocateUniform(
-        gl4,
+        gl,
         "windowWidth",
-        (gl, loc) ->
-            gl.glUniform1f(
+        (g, loc) ->
+            g.glUniform1f(
                 loc,
                 isSegMode()
                     ? volumePreset.getColorMax() - volumePreset.getColorMin()
                     : renderingLayer.getWindowWidth()));
     program.allocateUniform(
-        gl4,
+        gl,
         "windowCenter",
-        (gl, loc) ->
-            gl.glUniform1f(
+        (g, loc) ->
+            g.glUniform1f(
                 loc,
                 isSegMode()
                     ? (volumePreset.getColorMin() + volumePreset.getColorMax()) / 2f
                     : renderingLayer.getWindowCenter()));
 
-    final IntBuffer intBuffer = IntBuffer.allocate(1);
-    texture.init(gl4);
-    if (volTexture != null) {
-      volTexture.init(gl4);
-    }
-    if (volumePreset != null) {
-      volumePreset.init(gl4, renderingLayer.isInvertLut());
+    if (!useComputeShader) {
+      // The FBO shader uses voxelUniforms410.glsl which has no default for ditherRay
+      // (default uniform initializers require GLSL 4.2+).
+      program.allocateUniform(gl, "ditherRay", (g, loc) -> g.glUniform1i(loc, 1));
+      // Explicitly bind all three samplers to their texture units.
+      // layout(binding=N) on samplers requires GLSL 4.2 and is not available in 4.1,
+      // so we must set the units from Java.
+      program.allocateUniform(gl, "volTexture", (g, loc) -> g.glUniform1i(loc, 0));
+      program.allocateUniform(gl, "colorMap", (g, loc) -> g.glUniform1i(loc, 1));
+      program.allocateUniform(gl, "lightingMap", (g, loc) -> g.glUniform1i(loc, 2));
     }
 
-    quadProgram.init(gl4);
-    gl4.glGenBuffers(1, intBuffer);
+    final IntBuffer intBuffer = IntBuffer.allocate(1);
+    texture.init(gl);
+    if (volTexture != null) {
+      volTexture.init(gl);
+    }
+    if (volumePreset != null) {
+      volumePreset.init(gl, renderingLayer.isInvertLut());
+    }
+
+    quadProgram.init(gl);
+    gl.glGenBuffers(1, intBuffer);
     vertexBuffer = intBuffer.get(0);
-    gl4.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
-    gl4.glBufferData(
+    gl.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
+    gl.glBufferData(
         GL.GL_ARRAY_BUFFER,
         (long) vertexBufferData.length * Float.BYTES,
         Buffers.newDirectFloatBuffer(vertexBufferData),
@@ -517,10 +557,10 @@ public class View3d extends VolumeCanvas
   }
 
   public void display(GLAutoDrawable drawable) {
-    render(drawable.getGL().getGL4());
+    render(drawable.getGL().getGL2ES2());
   }
 
-  private void render(GL4 gl2) {
+  private void render(GL2ES2 gl2) {
     gl2.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
     if (volTexture != null && volTexture.isReadyForDisplay()) {
       int sampleCount = renderingLayer.getQuality();
@@ -535,26 +575,71 @@ public class View3d extends VolumeCanvas
         sampleCount = Math.max(64, (int) Math.round(sampleCount * quality));
       }
       renderingLayer.setDepthSampleNumber(sampleCount);
-      program.use(gl2);
-      program.setUniforms(gl2);
-      volTexture.render(gl2);
-      if (volumePreset != null) {
-        volumePreset.render(gl2, renderingLayer.isInvertLut(), isOriginalLUT());
+
+      if (useComputeShader) {
+        // --- Compute shader path (OpenGL >= 4.3) ---
+        // Cast to GL4 here: compute shaders (glDispatchCompute, glBindImageTexture) are GL4-only.
+        GL4 gl4 = gl2.getGL4();
+        program.use(gl4);
+        program.setUniforms(gl4);
+        volTexture.render(gl4);
+        if (volumePreset != null) {
+          volumePreset.render(gl4, renderingLayer.isInvertLut(), isOriginalLUT());
+        }
+        texture.render(gl4);
+        quadProgram.use(gl4);
+
+        gl4.glEnable(GL.GL_BLEND);
+        gl4.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+        gl4.glEnableVertexAttribArray(0);
+        gl4.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
+        gl4.glVertexAttribPointer(0, 2, GL.GL_FLOAT, false, 0, 0);
+        gl4.glActiveTexture(GL.GL_TEXTURE0);
+        gl4.glBindTexture(GL.GL_TEXTURE_2D, texture.getId());
+        gl4.glDrawArrays(GL.GL_TRIANGLES, 0, vertexBufferData.length / 2);
+        gl4.glDisableVertexAttribArray(0);
+        gl4.glDisable(GL.GL_BLEND);
+      } else {
+        // --- FBO fragment-shader fallback path (OpenGL 3.3+, e.g., macOS GL3) ---
+        program.use(gl2);
+        program.setUniforms(gl2);
+
+        // Bind volume and LUT textures on their expected texture units
+        volTexture.render(gl2);
+        if (volumePreset != null) {
+          volumePreset.render(gl2, renderingLayer.isInvertLut(), isOriginalLUT());
+        }
+
+        // Set up the vertex array so FboRenderTexture.render() can call glDrawArrays
+        gl2.glEnableVertexAttribArray(0);
+        gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
+        gl2.glVertexAttribPointer(0, 2, GL.GL_FLOAT, false, 0, 0);
+
+        // Render into FBO (binds FBO, draws quad, unbinds FBO, restores viewport)
+        texture.render(gl2);
+        gl2.glDisableVertexAttribArray(0);
+
+        // Step 2: Blit the FBO colour-attachment texture to the screen using the quad program.
+        // The FBO output lives on unit 3 (FboRenderTexture.OUTPUT_TEXTURE_UNIT); point the
+        // quad sampler there so we never disturb the 3D volume texture on unit 0.
+        quadProgram.use(gl2);
+        gl2.glUniform1i(
+            gl2.glGetUniformLocation(quadProgram.getProgramId(), "compute"), // NON-NLS
+            FboRenderTexture.OUTPUT_TEXTURE_UNIT);
+
+        gl2.glEnable(GL.GL_BLEND);
+        gl2.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+        gl2.glEnableVertexAttribArray(0);
+        gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
+        gl2.glVertexAttribPointer(0, 2, GL.GL_FLOAT, false, 0, 0);
+        gl2.glActiveTexture(GL.GL_TEXTURE0 + FboRenderTexture.OUTPUT_TEXTURE_UNIT);
+        gl2.glBindTexture(GL.GL_TEXTURE_2D, texture.getId());
+        gl2.glDrawArrays(GL.GL_TRIANGLES, 0, vertexBufferData.length / 2);
+        gl2.glDisableVertexAttribArray(0);
+        gl2.glDisable(GL.GL_BLEND);
       }
-      texture.render(gl2);
-      quadProgram.use(gl2);
-
-      gl2.glEnable(GL.GL_BLEND);
-      gl2.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-
-      gl2.glEnableVertexAttribArray(0);
-      gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
-      gl2.glVertexAttribPointer(0, 2, GL.GL_FLOAT, false, 0, 0);
-      gl2.glActiveTexture(GL.GL_TEXTURE0);
-      gl2.glBindTexture(GL.GL_TEXTURE_2D, texture.getId());
-      gl2.glDrawArrays(GL.GL_TRIANGLES, 0, vertexBufferData.length / 2);
-      gl2.glDisableVertexAttribArray(0);
-      gl2.glDisable(GL.GL_BLEND);
     }
   }
 
@@ -563,7 +648,7 @@ public class View3d extends VolumeCanvas
   }
 
   public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
-    GL4 gl2 = drawable.getGL().getGL4();
+    GL2ES2 gl2 = drawable.getGL().getGL2ES2();
     gl2.glViewport(0, 0, width, height);
     camera.resetTransformation();
   }
