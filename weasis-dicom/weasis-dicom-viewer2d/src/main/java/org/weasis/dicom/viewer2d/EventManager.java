@@ -1106,7 +1106,8 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
             a ->
                 a.setSelectedWithoutTriggerAction(
                     (Boolean) view2d.getActionValue(ActionW.INVERSE_STACK.cmd())));
-    getAction(ActionW.VOLUME).ifPresent(a -> a.enableAction(series.isSuitableFor3d()));
+    getAction(ActionW.VOLUME)
+        .ifPresent(a -> a.enableAction(isMprOrOblique || series.isSuitableFor3d()));
 
     getAction(ActionW.CROSSHAIR).ifPresent(a -> a.enableAction(!isMprOrOblique));
     updateKeyObjectComponentsListener(view2d);
@@ -1541,6 +1542,17 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
       return pane.getSeries();
     }
     return null;
+  }
+
+  public MediaSeries<DicomImageElement> getSelectedOriginalSeries() {
+    ViewCanvas<DicomImageElement> pane = getSelectedViewPane();
+    if (pane instanceof MprView mprView) {
+      return mprView.getMprController().getVolume().getStack().getSeries();
+    }
+    if (pane == null) {
+      return null;
+    }
+    return pane.getSeries();
   }
 
   public JMenu getResetMenu(String prop) {

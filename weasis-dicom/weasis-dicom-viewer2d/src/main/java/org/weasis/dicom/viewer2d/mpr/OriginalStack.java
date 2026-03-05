@@ -38,6 +38,7 @@ public abstract class OriginalStack extends AbstractStack {
   protected double sliceSpace;
   protected boolean variableSliceSpacing;
   protected boolean nonParallelSlices;
+  protected boolean tooFewSlicesForTransformation;
 
   public OriginalStack(
       Plane plane, MediaSeries<DicomImageElement> series, Filter<DicomImageElement> filter) {
@@ -45,6 +46,7 @@ public abstract class OriginalStack extends AbstractStack {
     this.sourceStack = series.copyOfMedias(filter, SortSeriesStack.slicePosition);
     this.fistSliceGeometry = new GeometryOfSlice(getStartingImage().getSliceGeometry());
     this.sliceSpace = initSliceSpace();
+    checkTooFewSlicesForTransformation();
   }
 
   public DicomImageElement getMiddleImage() {
@@ -166,6 +168,23 @@ public abstract class OriginalStack extends AbstractStack {
     }
   }
 
+  private void checkTooFewSlicesForTransformation() {
+    double shearFactor = 0.0;
+    Vector3d col = getFirstSliceGeometry().getColumn();
+    switch (getPlane()) {
+      case AXIAL -> shearFactor = col.z();
+      case CORONAL -> shearFactor = col.y();
+      case SAGITTAL -> shearFactor = col.x();
+    }
+    int maxImageSize = Math.max(getWidth(), getHeight());
+    int numSlices = getSourceStack().size();
+    double volRatio = (double) maxImageSize / numSlices;
+
+    // If there are few slices compared to the image size and the transformation is significant,
+    // allow the user to bypass the transformation
+    this.tooFewSlicesForTransformation = Math.abs(shearFactor) > 0.1 && volRatio > 5.0;
+  }
+
   public double getSliceSpace() {
     return sliceSpace;
   }
@@ -176,6 +195,10 @@ public abstract class OriginalStack extends AbstractStack {
 
   public boolean isNonParallelSlices() {
     return nonParallelSlices;
+  }
+
+  public boolean isTooFewSlicesForTransformation() {
+    return tooFewSlicesForTransformation;
   }
 
   public abstract void generate(BuildContext context);

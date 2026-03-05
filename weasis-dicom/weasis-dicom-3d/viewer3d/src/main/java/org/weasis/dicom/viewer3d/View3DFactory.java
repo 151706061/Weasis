@@ -154,10 +154,7 @@ public class View3DFactory implements SeriesViewerFactory {
 
   @Override
   public boolean isViewerCreatedByThisFactory(SeriesViewer viewer) {
-    if (viewer instanceof View3DContainer) {
-      return true;
-    }
-    return false;
+    return viewer instanceof View3DContainer;
   }
 
   @Override

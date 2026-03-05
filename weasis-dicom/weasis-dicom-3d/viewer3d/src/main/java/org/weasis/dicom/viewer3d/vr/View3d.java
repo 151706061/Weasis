@@ -121,13 +121,13 @@ public class View3d extends VolumeCanvas
   protected final GraphicMouseHandler<DicomImageElement> graphicMouseHandler;
 
   private int pointerType = 0;
-  private LayerAnnotation infoLayer;
-  protected final ContextMenuHandler contextMenuHandler;
+  private final LayerAnnotation infoLayer;
+  protected final ContextMenuHandler<DicomImageElement> contextMenuHandler;
 
   private final ComputeTexture texture;
   private final Program program;
   private final Program quadProgram;
-  protected final RenderingLayer renderingLayer;
+  protected final RenderingLayer<DicomImageElement> renderingLayer;
 
   private int vertexBuffer;
   protected Preset volumePreset;
@@ -150,7 +150,7 @@ public class View3d extends VolumeCanvas
     }
     setLayout(null);
 
-    this.renderingLayer = new RenderingLayer();
+    this.renderingLayer = new RenderingLayer<>();
     this.volumePreset = Preset.getDefaultPreset(null);
     volumePreset.setRequiredBuilding(true);
 
@@ -160,9 +160,9 @@ public class View3d extends VolumeCanvas
 
     initActionWState();
 
-    this.graphicMouseHandler = new GraphicMouseHandler(this);
-    this.contextMenuHandler = new ContextMenuHandler(this);
-    this.focusHandler = new FocusHandler(this);
+    this.graphicMouseHandler = new GraphicMouseHandler<>(this);
+    this.contextMenuHandler = new ContextMenuHandler<>(this);
+    this.focusHandler = new FocusHandler<>(this);
     setFocusable(true);
 
     setBorder(viewBorder);
@@ -232,7 +232,7 @@ public class View3d extends VolumeCanvas
     display();
   }
 
-  public RenderingLayer getRenderingLayer() {
+  public RenderingLayer<DicomImageElement> getRenderingLayer() {
     return renderingLayer;
   }
 
@@ -311,7 +311,7 @@ public class View3d extends VolumeCanvas
 
     drawPointer(g2d, pointerType);
     //   drawAffineInvariant(g2d);
-    if (infoLayer != null) {
+    if (infoLayer != null && volTexture != null) {
       g2d.setFont(getLayerFont());
       infoLayer.paint(g2d);
     }
@@ -411,9 +411,14 @@ public class View3d extends VolumeCanvas
     program.allocateUniform(
         gl4,
         "texelSize",
-        (gl, loc) ->
-            gl.glUniform3fv(
-                loc, 1, volTexture.getNormalizedTexelSize().get(Buffers.newDirectFloatBuffer(3))));
+        (gl, loc) -> {
+          DicomVolTexture tex = volTexture;
+          Vector3f texelSizeVal =
+              tex != null
+                  ? tex.getNormalizedTexelSize().get(new Vector3f())
+                  : new Vector3f(1f, 1f, 1f);
+          gl.glUniform3fv(loc, 1, texelSizeVal.get(Buffers.newDirectFloatBuffer(3)));
+        });
 
     program.allocateUniform(
         gl4,
@@ -436,13 +441,21 @@ public class View3d extends VolumeCanvas
     program.allocateUniform(
         gl4,
         "inputLevelMin",
-        (gl, loc) -> gl.glUniform1f(loc, isSegMode() ? 0 : (float) volTexture.getLevelMin()));
+        (gl, loc) -> {
+          DicomVolTexture tex = volTexture;
+          gl.glUniform1f(loc, (tex == null || isSegMode()) ? 0 : (float) tex.getLevelMin());
+        });
     program.allocateUniform(
         gl4,
         "inputLevelMax",
-        (gl, loc) ->
-            gl.glUniform1f(
-                loc, isSegMode() ? volumePreset.getWidth() : (float) volTexture.getLevelMax()));
+        (gl, loc) -> {
+          DicomVolTexture tex = volTexture;
+          gl.glUniform1f(
+              loc,
+              isSegMode()
+                  ? volumePreset.getWidth()
+                  : (tex != null ? (float) tex.getLevelMax() : 1f));
+        });
     program.allocateUniform(gl4, "outputLevelMin", (gl, loc) -> gl.glUniform1f(loc, 0));
     program.allocateUniform(
         gl4, "outputLevelMax", (gl, loc) -> gl.glUniform1f(loc, volumePreset.getWidth()));
@@ -467,7 +480,9 @@ public class View3d extends VolumeCanvas
 
     final IntBuffer intBuffer = IntBuffer.allocate(1);
     texture.init(gl4);
-    volTexture.init(gl4);
+    if (volTexture != null) {
+      volTexture.init(gl4);
+    }
     if (volumePreset != null) {
       volumePreset.init(gl4, renderingLayer.isInvertLut());
     }
@@ -488,7 +503,11 @@ public class View3d extends VolumeCanvas
   }
 
   private PixelFormat getPixelFormat() {
-    PixelFormat format = volTexture.getPixelFormat();
+    DicomVolTexture tex = volTexture;
+    if (tex == null) {
+      return PixelFormat.UNSIGNED_SHORT;
+    }
+    PixelFormat format = tex.getPixelFormat();
     if (isSegMode()) {
       if (format == PixelFormat.SIGNED_SHORT) {
         return PixelFormat.UNSIGNED_SHORT;
@@ -503,7 +522,7 @@ public class View3d extends VolumeCanvas
 
   private void render(GL4 gl2) {
     gl2.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
-    if (volTexture.isReadyForDisplay()) {
+    if (volTexture != null && volTexture.isReadyForDisplay()) {
       int sampleCount = renderingLayer.getQuality();
       if (camera.isAdjusting()) {
         double quality =
@@ -801,7 +820,7 @@ public class View3d extends VolumeCanvas
 
   @Override
   public void reset() {
-    ImageViewerPlugin pane = eventManager.getSelectedView2dContainer();
+    ImageViewerPlugin<DicomImageElement> pane = eventManager.getSelectedView2dContainer();
     if (pane != null) {
       pane.resetMaximizedSelectedImagePane(this);
     }

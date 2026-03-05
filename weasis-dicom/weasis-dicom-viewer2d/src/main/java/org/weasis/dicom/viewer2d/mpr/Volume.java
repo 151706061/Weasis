@@ -9,6 +9,8 @@
  */
 package org.weasis.dicom.viewer2d.mpr;
 
+import static org.weasis.dicom.viewer2d.mpr.SplatContext.WEIGHT_EPSILON;
+
 import java.awt.Dimension;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -30,6 +32,7 @@ import org.joml.Quaterniond;
 import org.joml.Vector3d;
 import org.joml.Vector3i;
 import org.joml.Vector4d;
+import org.opencv.core.Core;
 import org.opencv.core.Core.MinMaxLocResult;
 import org.opencv.core.CvType;
 import org.slf4j.Logger;
@@ -45,15 +48,12 @@ import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.geometry.GeometryOfSlice;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.data.PlanarImage;
-import org.weasis.opencv.op.ImageAnalyzer;
-import org.weasis.opencv.op.ImageTransformer;
 
 public abstract sealed class Volume<T extends Number, A>
     permits VolumeByte, VolumeDouble, VolumeFloat, VolumeInt, VolumeShort {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Volume.class);
   private static final Matrix4d IDENTITY_MATRIX = new Matrix4d();
-  private static final double SPLAT_THRESHOLD = 0.5;
   private static final ExecutorService VOLUME_BUILD_POOL =
       ThreadUtil.newManagedImageProcessingThreadPool("mpr-volume-build");
 
@@ -64,8 +64,6 @@ public abstract sealed class Volume<T extends Number, A>
   protected final Quaterniond rotation;
   protected final Vector3i size;
   protected final Vector3d pixelRatio;
-  protected boolean needsRowFlip;
-  protected boolean needsColFlip;
   protected T minValue;
   protected T maxValue;
   protected OriginalStack stack;
@@ -76,6 +74,8 @@ public abstract sealed class Volume<T extends Number, A>
   protected final JProgressBar progressBar;
   protected final boolean isSigned;
   protected boolean isTransformed = false;
+  protected boolean isBasic = false;
+  protected boolean skipRectification = false;
   protected long sliceStride;
 
   @SuppressWarnings("unchecked")
@@ -86,8 +86,6 @@ public abstract sealed class Volume<T extends Number, A>
     this.size = new Vector3i(sizeX, sizeY, sizeZ);
     this.sliceStride = (long) size.x * size.y;
     this.pixelRatio = new Vector3d(originalPixelRatio);
-    this.needsRowFlip = volume.needsRowFlip;
-    this.needsColFlip = volume.needsColFlip;
     this.stack = volume.stack;
     this.cvType = volume.cvType;
     this.byteDepth = volume.byteDepth;
@@ -105,8 +103,6 @@ public abstract sealed class Volume<T extends Number, A>
     this.size = new Vector3i(sizeX, sizeY, sizeZ);
     this.sliceStride = (long) size.x * size.y;
     this.pixelRatio = new Vector3d(1.0, 1.0, 1.0);
-    this.needsRowFlip = false;
-    this.needsColFlip = false;
     this.stack = null;
     int depth = CvType.depth(cvType);
     this.isSigned = isSigned(depth);
@@ -118,14 +114,12 @@ public abstract sealed class Volume<T extends Number, A>
     createData(size.x, size.y, size.z);
   }
 
-  Volume(OriginalStack stack, JProgressBar progressBar) {
+  Volume(OriginalStack stack, JProgressBar progressBar, boolean isBasic) {
     this.progressBar = progressBar;
     this.translation = new Vector3d(0, 0, 0);
     this.rotation = new Quaterniond();
     this.size = new Vector3i(0, 0, 0);
     this.pixelRatio = new Vector3d(1.0, 1.0, 1.0);
-    this.needsRowFlip = false;
-    this.needsColFlip = false;
     this.stack = stack;
     int type = stack.getMiddleImage().getModalityLutImage(null, null).type();
     int depth = CvType.depth(type);
@@ -135,7 +129,9 @@ public abstract sealed class Volume<T extends Number, A>
     this.byteDepth = CvType.ELEM_SIZE(cvType) / channels;
     this.minValue = initMinValue();
     this.maxValue = initMaxValue();
-    copyFromAnyOrientation();
+    this.isBasic = isBasic;
+    if (isBasic) copyFromAnyOrientationWithoutRectification();
+    else copyFromAnyOrientationWithRectification();
   }
 
   private static boolean isSigned(int depth) {
@@ -184,12 +180,32 @@ public abstract sealed class Volume<T extends Number, A>
     }
   }
 
+  protected void copyFromAnyOrientationWithoutRectification() {
+    VolumeBounds bounds = stack.computeVolumeBounds();
+    if (bounds == null) {
+      return;
+    }
+    Vector3i volumeSize = bounds.size();
+    this.size.set(volumeSize);
+    this.sliceStride = (long) volumeSize.x * volumeSize.y;
+    this.pixelRatio.set(bounds.spacing());
+    this.isTransformed = false;
+
+    List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
+    // For axial, we need to reverse to go from inferior to superior
+    if (stack.getPlane() == MprView.Plane.AXIAL) {
+      Collections.reverse(medias);
+    }
+
+    copyImageToVolume(medias, bounds, new Vector3d(0, 0, 0));
+  }
+
   /**
    * Unified method to copy pixels from any orientation directly into the volume. Uses DICOM
    * geometry (Image Position Patient and Image Orientation Patient) to place voxels in the correct
    * 3D position.
    */
-  protected void copyFromAnyOrientation() {
+  protected void copyFromAnyOrientationWithRectification() {
     VolumeBounds bounds = stack.computeVolumeBounds();
     if (bounds == null) {
       return;
@@ -247,7 +263,7 @@ public abstract sealed class Volume<T extends Number, A>
   /**
    * Computes the basis matrix using the actual in-plane pixel spacings from the slice geometry. <a
    * href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.2.html#sect_C.7.6.2.1.1">DICOM
-   * slice geometry</a>
+   * patient geometry</a>
    *
    * @return the matrix corresponding to the row and column vectors
    */
@@ -356,66 +372,86 @@ public abstract sealed class Volume<T extends Number, A>
   private void copyImageToVolume(
       List<DicomImageElement> dicomImages, VolumeBounds bounds, Vector3d translation) {
     createData(size.x, size.y, size.z);
-    computeFlipRequirements(bounds);
 
     final int n = dicomImages.size();
-    final boolean flipRow = needsRowFlip;
-    final boolean flipCol = needsColFlip;
 
-    // Submit per-slice tasks with bounded concurrency
-    CompletionService<MinMaxLocResult> ecs = new ExecutorCompletionService<>(VOLUME_BUILD_POOL);
+    final long totalVoxels = (long) size.x * size.y * size.z * channels;
+    try (SplatContext sharedCtx = SplatContext.create(!isBasic, totalVoxels)) {
 
-    final AtomicInteger submitted = new AtomicInteger(0);
-    final AtomicInteger completed = new AtomicInteger(0);
+      // Submit per-slice tasks with bounded concurrency
+      CompletionService<MinMaxLocResult> ecs = new ExecutorCompletionService<>(VOLUME_BUILD_POOL);
 
-    for (int z = 0; z < n; z++) {
-      final int zi = z;
-      ecs.submit(
-          () -> {
-            DicomImageElement dcm = dicomImages.get(zi);
+      final AtomicInteger submitted = new AtomicInteger(0);
+      final AtomicInteger completed = new AtomicInteger(0);
 
-            // Load source image (IO and decode may run concurrently with other slices
-            PlanarImage src = dcm.getModalityLutImage(null, null);
-            // Get min max after loading the image
-            MinMaxLocResult minMaxLoc = ImageAnalyzer.findRawMinMaxValues(src, true);
+      for (int z = 0; z < n; z++) {
+        final int zi = z;
+        ecs.submit(
+            () -> {
+              DicomImageElement dcm = dicomImages.get(zi);
 
-            // Flip only if needed
-            if (flipRow || flipCol) {
-              int flipType = (flipRow && flipCol) ? -1 : (flipCol ? 0 : 1);
-              src = ImageTransformer.flip(src.toImageCV(), flipType);
-            }
+              // Load source image (IO and decode may run concurrently with other slices)
+              PlanarImage src = dcm.getModalityLutImage(null, null);
+              // Get min/max after loading the image
+              Core.MinMaxLocResult minMaxLoc = new Core.MinMaxLocResult();
+              minMaxLoc.minVal = dcm.getMinValue(null);
+              minMaxLoc.maxVal = dcm.getMaxValue(null);
 
-            Vector3d position = dcm.getSliceGeometry().getTLHC();
-            Matrix4d transform = getBasisMatrix();
-            position.sub(translation);
-            transform.set(3, 0, position.x());
-            transform.set(3, 1, position.y());
-            transform.set(3, 2, position.z());
+              Matrix4d transform;
+              if (isBasic) {
+                transform = computeSliceToVolumeTransform();
+              } else {
+                Vector3d position = dcm.getSliceGeometry().getTLHC();
+                transform = getBasisMatrix();
+                position.sub(translation);
+                transform.set(3, 0, position.x());
+                transform.set(3, 1, position.y());
+                transform.set(3, 2, position.z());
+              }
 
-            Dimension dim = new Dimension(src.width(), src.height());
-            copyFrom(src, zi, transform, dim);
-            int done = completed.incrementAndGet();
-            updateProgressBar(done - 1);
-            return minMaxLoc;
-          });
-      submitted.incrementAndGet();
-    }
-
-    // Initialize min/max with inverted values
-    this.minValue = initMaxValue();
-    this.maxValue = initMinValue();
-    try {
-      for (int i = 0; i < submitted.get(); i++) {
-        Future<MinMaxLocResult> f = ecs.take();
-        var minMax = f.get(); // propagate exceptions if any
-        this.minValue = compareMin(convertToGeneric(minMax.minVal), minValue);
-        this.maxValue = compareMax(convertToGeneric(minMax.maxVal), maxValue);
+              Dimension dim = new Dimension(src.width(), src.height());
+              SplatContext sliceCtx = sharedCtx.withTransformAndDim(transform, dim);
+              copyFrom(src, zi, sliceCtx);
+              int done = completed.incrementAndGet();
+              updateProgressBar(done - 1);
+              return minMaxLoc;
+            });
+        submitted.incrementAndGet();
       }
-    } catch (InterruptedException ie) {
-      Thread.currentThread().interrupt();
-    } catch (Exception e) {
-      LOGGER.error("Error while building volume", e);
+
+      // Collect results and track global min/max
+      this.minValue = initMaxValue();
+      this.maxValue = initMinValue();
+      try {
+        for (int i = 0; i < submitted.get(); i++) {
+          Future<Core.MinMaxLocResult> f = ecs.take();
+          var minMax = f.get(); // propagate exceptions if any
+          this.minValue = compareMin(convertToGeneric(minMax.minVal), minValue);
+          this.maxValue = compareMax(convertToGeneric(minMax.maxVal), maxValue);
+        }
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+      } catch (Exception e) {
+        LOGGER.error("Error while building volume", e);
+      }
+      sharedCtx.normalize(this);
     }
+  }
+
+  private Matrix4d computeSliceToVolumeTransform() {
+    Matrix4d matrix4d = new Matrix4d();
+    switch (stack.getPlane()) {
+      case AXIAL -> {
+        // No additional transform needed for axial, as it's the default orientation
+      }
+      case CORONAL -> {
+        matrix4d.rotateX(-Math.toRadians(90)).scale(1.0, -1.0, 1.0);
+      }
+      case SAGITTAL -> {
+        matrix4d.rotateY(Math.toRadians(90)).rotateZ(Math.toRadians(90));
+      }
+    }
+    return matrix4d;
   }
 
   protected void initValue(T value) {
@@ -440,29 +476,6 @@ public abstract sealed class Volume<T extends Number, A>
 
   private T compareMax(T a, T b) {
     return convertToUnsigned(a) > convertToUnsigned(b) ? a : b;
-  }
-
-  /** Determines if row/column flipping is needed based on the volume bounds orientation. */
-  private void computeFlipRequirements(VolumeBounds bounds) {
-    Vector3d row = new Vector3d(bounds.rowDir());
-    Vector3d col = new Vector3d(bounds.colDir());
-    needsRowFlip = normalizeNegativeDirection(row);
-    needsColFlip = normalizeNegativeDirection(col);
-  }
-
-  /**
-   * Negates the vector if its primary components are negative (pointing in negative direction).
-   * This ensures consistent orientation when building the volume.
-   *
-   * @param vector the direction vector to normalize
-   * @return true if the vector was negated
-   */
-  private boolean normalizeNegativeDirection(Vector3d vector) {
-    if (vector.x < -0.5 || vector.y < -0.5) {
-      vector.negate();
-      return true;
-    }
-    return false;
   }
 
   public void removeData() {
@@ -557,6 +570,14 @@ public abstract sealed class Volume<T extends Number, A>
     rotation.identity();
   }
 
+  public void setSkipRectification(boolean skipRectification) {
+    this.skipRectification = skipRectification;
+  }
+
+  public boolean isSkipRectification() {
+    return skipRectification;
+  }
+
   protected abstract ChunkedArray<A> createChunkedArray(long totalElements);
 
   /**
@@ -608,12 +629,12 @@ public abstract sealed class Volume<T extends Number, A>
   /** Returns the number of elements in the pixel array. */
   protected abstract int pixelArrayLength(A pixelData);
 
-  protected void copyFrom(PlanarImage image, int sliceIndex, Matrix4d transform, Dimension dim) {
-    int pixelCount = dim.width * dim.height;
+  private void copyFrom(PlanarImage image, int sliceIndex, SplatContext ctx) {
+    int pixelCount = ctx.dim().width * ctx.dim().height;
     A pixelData = allocatePixelArray(pixelCount);
     readImagePixels(image, pixelData);
 
-    if (isIdentityTransform(transform)) {
+    if (isIdentityTransform(ctx.transform())) {
       long destOffset = (long) sliceIndex * size.y * size.x * channels;
       int length = pixelArrayLength(pixelData);
       if (data != null) {
@@ -622,11 +643,10 @@ public abstract sealed class Volume<T extends Number, A>
         writeToMappedBuffer(destOffset * byteDepth, pixelData, length);
       }
     } else {
-      int width = dim.width;
       copyPixels(
-          dim,
+          ctx.dim(),
           (x, y) -> {
-            setValue(x, y, sliceIndex, width, pixelData, transform);
+            setValue(x, y, sliceIndex, pixelData, ctx);
             return 0;
           });
     }
@@ -665,54 +685,94 @@ public abstract sealed class Volume<T extends Number, A>
   }
 
   /**
-   * Sets the voxel value at the specified 3D coordinates, applying an optional transformation. This
-   * method supports only single-channel volumes. When a non-identity transform is used
-   * (rectification), uses splatting to avoid gaps.
+   * Sets the voxel value at the specified 3D coordinates, applying the transformation and optional
+   * weighted-splatting accumulators carried by {@code ctx}.
+   *
+   * <p>When {@code ctx} contains non-null accumulators (rectified, non-basic mode) the source pixel
+   * is scatter-interpolated: its value is distributed to the 8 surrounding lattice corners weighted
+   * by trilinear coefficients. The normalisation pass in {@link SplatContext#normalize} later
+   * divides each voxel's accumulated value by its accumulated weight, producing an artefact-free
+   * result even with high tilt and few slices.
+   *
+   * <p>When no accumulators are present (basic mode or disk-backed fallback) the nearest-corner
+   * write is used.
    */
-  protected void setValue(int x, int y, int z, int width, A pixelData, Matrix4d transform) {
+  private void setValue(int x, int y, int z, A pixelData, SplatContext ctx) {
+    Matrix4d transform = ctx.transform();
+    int width = ctx.dim().width;
     if (transform != null) {
       Vector4d p = new Vector4d(x, y, 0.0, 1.0);
-      // The coordinates of the voxel (i,j) in the frame's image plane in units of mm.
+
+      if (isBasic) {
+        p.set(x, y, z, 1.0);
+      }
+
+      // World-space position of this source pixel
       transform.transform(p);
 
-      // Convert to pixel unit
-      p.div(new Vector4d(pixelRatio.x(), pixelRatio.y(), pixelRatio.z(), 1.0));
+      if (!isBasic) {
+        // Convert mm → voxel units
+        p.div(new Vector4d(pixelRatio.x(), pixelRatio.y(), pixelRatio.z(), 1.0));
 
-      if (stack.getPlane().equals(MprView.Plane.AXIAL)) {
-        // Axial is reversed in Z compared to patient coordinates, so we need to flip the Z axis
-        p.z = -p.z;
-      } else {
-        p.z = size.z - p.z;
+        if (stack.getPlane().equals(MprView.Plane.AXIAL)) {
+          p.z = -p.z;
+        } else {
+          p.z = size.z - p.z;
+        }
       }
 
       int x0 = (int) Math.floor(p.x);
       int y0 = (int) Math.floor(p.y);
       int z0 = (int) Math.floor(p.z);
 
-      double fx = p.x - x0;
-      double fy = p.y - y0;
-      double fz = p.z - z0;
+      float fx = (float) (p.x - x0);
+      float fy = (float) (p.y - y0);
+      float fz = (float) (p.z - z0);
 
-      boolean splatX = fx > SPLAT_THRESHOLD;
-      boolean splatY = fy > SPLAT_THRESHOLD;
-      boolean splatZ = fz > SPLAT_THRESHOLD;
+      if (ctx.isWeighted()) {
+        // Trilinear weights for the 8 surrounding corners (float arithmetic)
+        float w000 = (1 - fx) * (1 - fy) * (1 - fz);
+        float w100 = fx * (1 - fy) * (1 - fz);
+        float w010 = (1 - fx) * fy * (1 - fz);
+        float w110 = fx * fy * (1 - fz);
+        float w001 = (1 - fx) * (1 - fy) * fz;
+        float w101 = fx * (1 - fy) * fz;
+        float w011 = (1 - fx) * fy * fz;
+        float w111 = fx * fy * fz;
 
-      for (int channel = 0; channel < channels; channel++) {
-        T value = getFromPixelArray(pixelData, (y * width + x) * channels + channel);
-        setIfInside(x0, y0, z0, channel, value);
+        int x1 = x0 + 1;
+        int y1 = y0 + 1;
+        int z1 = z0 + 1;
 
-        // Splat along axes where fractional offset is significant
-        if (splatX) setIfInside(x0 + 1, y0, z0, channel, value);
-        if (splatY) setIfInside(x0, y0 + 1, z0, channel, value);
-        if (splatZ) setIfInside(x0, y0, z0 + 1, channel, value);
-
-        // Splat along diagonal pairs
-        if (splatX && splatY) setIfInside(x0 + 1, y0 + 1, z0, channel, value);
-        if (splatX && splatZ) setIfInside(x0 + 1, y0, z0 + 1, channel, value);
-        if (splatY && splatZ) setIfInside(x0, y0 + 1, z0 + 1, channel, value);
-
-        // Splat the full corner only when all three axes are fractional
-        if (splatX && splatY && splatZ) setIfInside(x0 + 1, y0 + 1, z0 + 1, channel, value);
+        for (int channel = 0; channel < channels; channel++) {
+          float rawValue =
+              (float)
+                  convertToUnsigned(
+                      getFromPixelArray(pixelData, (y * width + x) * channels + channel));
+          // Each corner is accumulated only when it falls inside the volume bounds and its
+          // weight contribution is not negligible.
+          if (!isOutside(x0, y0, z0) && w000 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x0, y0, z0, channel), rawValue, w000);
+          if (!isOutside(x1, y0, z0) && w100 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x1, y0, z0, channel), rawValue, w100);
+          if (!isOutside(x0, y1, z0) && w010 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x0, y1, z0, channel), rawValue, w010);
+          if (!isOutside(x1, y1, z0) && w110 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x1, y1, z0, channel), rawValue, w110);
+          if (!isOutside(x0, y0, z1) && w001 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x0, y0, z1, channel), rawValue, w001);
+          if (!isOutside(x1, y0, z1) && w101 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x1, y0, z1, channel), rawValue, w101);
+          if (!isOutside(x0, y1, z1) && w011 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x0, y1, z1, channel), rawValue, w011);
+          if (!isOutside(x1, y1, z1) && w111 >= WEIGHT_EPSILON)
+            ctx.accumulate(linearIndex(x1, y1, z1, channel), rawValue, w111);
+        }
+      } else {
+        for (int channel = 0; channel < channels; channel++) {
+          T value = getFromPixelArray(pixelData, (y * width + x) * channels + channel);
+          setIfInside(x0, y0, z0, channel, value);
+        }
       }
     } else {
       for (int channel = 0; channel < channels; channel++) {
@@ -921,13 +981,14 @@ public abstract sealed class Volume<T extends Number, A>
     GuiExecutor.execute(() -> pb.setValue(target));
   }
 
-  public static Volume<?, ?> createVolume(OriginalStack stack, JProgressBar progressBar) {
+  public static Volume<?, ?> createVolume(
+      OriginalStack stack, JProgressBar progressBar, boolean isBasic) {
     if (stack == null || stack.getSourceStack().isEmpty()) {
       return null;
     }
 
     Volume<?, ?> volume = getSharedVolume(stack);
-    if (volume != null) {
+    if (volume != null && volume.isBasic == isBasic) {
       if (progressBar != null) {
         progressBar.setValue(volume.size.z);
       }
@@ -936,14 +997,15 @@ public abstract sealed class Volume<T extends Number, A>
     }
 
     int depth = CvType.depth(getCvType(stack));
-    return switch (depth) {
-      case CvType.CV_8U, CvType.CV_8S -> new VolumeByte(stack, progressBar);
-      case CvType.CV_16U, CvType.CV_16S -> new VolumeShort(stack, progressBar);
-      case CvType.CV_32S -> new VolumeInt(stack, progressBar);
-      case CvType.CV_32F -> new VolumeFloat(stack, progressBar);
-      case CvType.CV_64F -> new VolumeDouble(stack, progressBar);
+    switch (depth) {
+      case CvType.CV_8U, CvType.CV_8S -> volume = new VolumeByte(stack, progressBar, isBasic);
+      case CvType.CV_16U, CvType.CV_16S -> volume = new VolumeShort(stack, progressBar, isBasic);
+      case CvType.CV_32S -> volume = new VolumeInt(stack, progressBar, isBasic);
+      case CvType.CV_32F -> volume = new VolumeFloat(stack, progressBar, isBasic);
+      case CvType.CV_64F -> volume = new VolumeDouble(stack, progressBar, isBasic);
       default -> throw new IllegalArgumentException("Unsupported data type: " + depth);
-    };
+    }
+    return volume;
   }
 
   public static int getCvType(OriginalStack stack) {
@@ -955,7 +1017,7 @@ public abstract sealed class Volume<T extends Number, A>
     return getSharedVolume(stack) != null;
   }
 
-  protected static Volume<?, ?> getSharedVolume(OriginalStack currentStack) {
+  public static Volume<?, ?> getSharedVolume(OriginalStack currentStack) {
     List<ViewerPlugin<?>> viewerPlugins = GuiUtils.getUICore().getViewerPlugins();
     synchronized (viewerPlugins) {
       for (int i = viewerPlugins.size() - 1; i >= 0; i--) {
@@ -998,10 +1060,6 @@ public abstract sealed class Volume<T extends Number, A>
     double val0 = v0 == null ? getMinimumAsDouble() : convertToUnsigned(v0);
     double val1 = v1 == null ? getMaximumAsDouble() : convertToUnsigned(v1);
     return val0 * (1 - factor) + val1 * factor;
-  }
-
-  public void setTransformed(boolean transformed) {
-    this.isTransformed = transformed;
   }
 
   public boolean isTransformed() {
@@ -1058,7 +1116,7 @@ public abstract sealed class Volume<T extends Number, A>
   }
 
   @SuppressWarnings("unchecked")
-  private T convertToGeneric(double value) {
+  T convertToGeneric(double value) {
     return switch (this) {
       case VolumeByte _ -> (T) Byte.valueOf((byte) Math.round(value));
       case VolumeShort _ -> (T) Short.valueOf((short) Math.round(value));
