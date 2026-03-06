@@ -12,9 +12,10 @@ package org.weasis.dicom.viewer3d.vr;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2ES2;
-import java.nio.IntBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.IntBuffer;
 
 /**
  * OpenGL 3.3-compatible FBO-based render target for volume rendering.
@@ -33,10 +34,10 @@ import org.slf4j.LoggerFactory;
  *
  * <ol>
  *   <li>Bind the FBO.
- *   <li>Draw the full-screen quad using the FBO ray-casting program.
- *   <li>Unbind the FBO.
- *   <li>The FBO color-attachment texture is then blitted to the screen by the quad program, exactly
- *       as in the compute path.
+ *   <li>Draw the full-screen quad using the FBO ray-casting program (at logical resolution).
+ *   <li>Unbind the FBO and restore the viewport to the physical surface size.
+ *   <li>The FBO color-attachment texture is then blitted to the screen by the quad program,
+ *       upscaling from logical → physical via {@code GL_LINEAR}.
  * </ol>
  */
 public class FboRenderTexture extends TextureData {
@@ -52,26 +53,41 @@ public class FboRenderTexture extends TextureData {
   private int fboId = -1;
 
   public FboRenderTexture(View3d view3d) {
-    super(view3d.getSurfaceWidth(), view3d.getSurfaceHeight(), PixelFormat.RGBA32F);
+    // Use RGBA16F: half-float is sufficient for volume rendering output and halves GPU memory
+    // bandwidth compared to RGBA32F. The FBO is sized at the logical (AWT) resolution; on macOS
+    // Retina the physical surface is 2× per axis (4× pixels), so rendering at logical size cuts
+    // fragment work by 4×. The final blit quad upscales with GL_LINEAR which is virtually free.
+    super(view3d.getWidth(), view3d.getHeight(), PixelFormat.RGBA16F);
     this.view3d = view3d;
+  }
+
+  /** Returns the render width in logical (AWT) pixels — same as {@code view3d.getWidth()}. */
+  private int logicalWidth() {
+    int w = view3d.getWidth();
+    return w > 0 ? w : view3d.getSurfaceWidth();
+  }
+
+  /** Returns the render height in logical (AWT) pixels — same as {@code view3d.getHeight()}. */
+  private int logicalHeight() {
+    int h = view3d.getHeight();
+    return h > 0 ? h : view3d.getSurfaceHeight();
   }
 
   @Override
   public void init(GL2ES2 gl) {
     super.init(gl);
-    // Use getSurfaceWidth/Height (physical pixels) rather than getWidth/Height (logical AWT
-    // points). On macOS Retina the surface is 2× the logical size; using logical dimensions
-    // creates an FBO that is only ¼ the required area and appears in the bottom-left corner.
-    this.width = view3d.getSurfaceWidth();
-    this.height = view3d.getSurfaceHeight();
+    // Size the FBO at logical (AWT) pixels.
+    this.width = logicalWidth();
+    this.height = logicalHeight();
 
     // --- Colour-attachment texture (bound on unit 3 to avoid disturbing units 0-2) ---
     gl.glActiveTexture(GL.GL_TEXTURE0 + OUTPUT_TEXTURE_UNIT);
     gl.glBindTexture(GL.GL_TEXTURE_2D, getId());
     gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE);
     gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE);
-    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+    // GL_LINEAR: the blit quad upscales the logical-resolution FBO to the physical Retina surface.
+    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
     gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, null);
     gl.glBindTexture(GL.GL_TEXTURE_2D, 0);
 
@@ -100,8 +116,8 @@ public class FboRenderTexture extends TextureData {
   private void resizeTexture(GL2ES2 gl) {
     gl.glActiveTexture(GL.GL_TEXTURE0 + OUTPUT_TEXTURE_UNIT);
     gl.glBindTexture(GL.GL_TEXTURE_2D, getId());
-    this.width = view3d.getSurfaceWidth();
-    this.height = view3d.getSurfaceHeight();
+    this.width = logicalWidth();
+    this.height = logicalHeight();
     gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, null);
     gl.glBindTexture(GL.GL_TEXTURE_2D, 0);
     gl.glActiveTexture(GL.GL_TEXTURE0);
@@ -122,11 +138,11 @@ public class FboRenderTexture extends TextureData {
       init(gl);
     }
 
-    if (width != view3d.getSurfaceWidth() || height != view3d.getSurfaceHeight()) {
+    if (width != logicalWidth() || height != logicalHeight()) {
       resizeTexture(gl);
     }
 
-    // Render ray-casting into FBO.
+    // Render ray-casting into FBO at logical resolution.
     // Units 0 (volTexture 3D), 1 (colorMap), 2 (lightingMap) are already bound by the caller.
     gl.glBindFramebuffer(GL.GL_FRAMEBUFFER, fboId);
     gl.glViewport(0, 0, width, height);

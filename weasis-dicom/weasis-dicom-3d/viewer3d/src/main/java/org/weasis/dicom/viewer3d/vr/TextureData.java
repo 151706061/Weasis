@@ -22,6 +22,7 @@ public abstract class TextureData {
     FLOAT,
     RGB8,
     RGBA32F,
+    RGBA16F,
     RGBA8;
   }
 
@@ -71,6 +72,12 @@ public abstract class TextureData {
       case RGBA8 -> {
         this.internalFormat = GL.GL_RGBA8;
         this.type = GL.GL_UNSIGNED_BYTE;
+        this.format = GL.GL_RGBA;
+      }
+      case RGBA16F -> {
+        // Half-float: 8 bytes/pixel vs 16 for RGBA32F — halves GPU memory bandwidth on Retina.
+        this.internalFormat = GL2GL3.GL_RGBA16F;
+        this.type = GL.GL_FLOAT;
         this.format = GL.GL_RGBA;
       }
       default -> {
@@ -137,7 +144,7 @@ public abstract class TextureData {
       case UNSIGNED_SHORT -> 2;
       case RGB8 -> 3;
       case RGBA8 -> 4;
-      case RGBA32F -> 5;
+      case RGBA32F, RGBA16F -> 5;
       case FLOAT -> 6;
     };
   }
