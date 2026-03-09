@@ -75,7 +75,8 @@ public class AxesControl {
   }
 
   public double getCenterAlongAxis(SliceCanvas c) {
-    return center.get(c.getPlane().axisIndex()) * getSliceSize();
+    Vector3d axis = getRotatedCanvasAxis(c.getPlane());
+    return (new Vector3d(center).sub(CENTER_VECTOR).dot(axis) + HALF_DIMENSION) * getSliceSize();
   }
 
   public void setCenter(Vector3d center) {
@@ -83,7 +84,11 @@ public class AxesControl {
   }
 
   public void setCenterAlongAxis(SliceCanvas c, double value) {
-    center.setComponent(c.getPlane().axisIndex(), value / getSliceSize());
+    Vector3d axis = getRotatedCanvasAxis(c.getPlane());
+    double currentDepth = new Vector3d(center).sub(CENTER_VECTOR).dot(axis);
+    double targetDepth = value / getSliceSize() - HALF_DIMENSION;
+    double delta = targetDepth - currentDepth;
+    center.add(new Vector3d(axis).mul(delta));
   }
 
   public boolean isHidden() {
@@ -192,10 +197,6 @@ public class AxesControl {
     } else if (type == Plane.CORONAL) {
       p = new Vector3d(0.0, 1.0, 0.0);
     } else {
-      if (type == Plane.SAGITTAL) {
-        throw new IllegalArgumentException("Canvas3D type not supported");
-      }
-
       p = new Vector3d(-1.0, 0.0, 0.0);
     }
 
