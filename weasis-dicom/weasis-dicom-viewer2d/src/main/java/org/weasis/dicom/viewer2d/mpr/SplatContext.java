@@ -336,7 +336,7 @@ public final class SplatContext implements AutoCloseable {
             } else {
               continue;
             }
-            volume.setElementInData(idx, volume.convertToGeneric(v / w));
+            volume.setChannelValue(x, y, z, c, volume.convertToGeneric(v / w));
           }
         }
       }
