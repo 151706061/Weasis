@@ -25,6 +25,8 @@ import org.weasis.core.util.FileUtil;
 import org.weasis.dicom.codec.*;
 import org.weasis.dicom.codec.DicomMediaIO.Reading;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
+import org.weasis.dicom.explorer.imp.DicomZipCodec;
+import org.weasis.dicom.explorer.imp.DicomZipMediaIO;
 
 public class LoadLocalDicom extends LoadDicom {
 
@@ -67,7 +69,7 @@ public class LoadLocalDicom extends LoadDicom {
       if (isCancelled()) {
         return;
       }
-      if (value == null) {
+      if (value == null || !value.canRead()) {
         continue;
       }
 
@@ -75,8 +77,7 @@ public class LoadLocalDicom extends LoadDicom {
         if (firstLevel || recursive) {
           folders.add(value);
         }
-      } else if (value.canRead()
-              && FileUtil.isFileExtensionMatching(value.toPath(), DicomCodec.FILE_EXTENSIONS)
+      } else if (FileUtil.isFileExtensionMatching(value.toPath(), DicomCodec.FILE_EXTENSIONS)
           || MimeInspector.isMatchingMimeTypeFromMagicNumber(value, DicomMediaIO.DICOM_MIMETYPE)) {
         DicomMediaIO loader = new DicomMediaIO(value);
         Reading reading = loader.getReadingStatus();
@@ -94,6 +95,9 @@ public class LoadLocalDicom extends LoadDicom {
         } else if (reading == Reading.ERROR) {
           errors.incrementAndGet();
         }
+      } else if (FileUtil.isFileExtensionMatching(value.toPath(), DicomZipCodec.FILE_EXTENSIONS)
+          || MimeInspector.isMatchingMimeTypeFromMagicNumber(value, DicomZipMediaIO.MIME_TYPE)) {
+        new DicomZipMediaIO(value.toURI(), null).delegate(dicomModel);
       }
     }
 
