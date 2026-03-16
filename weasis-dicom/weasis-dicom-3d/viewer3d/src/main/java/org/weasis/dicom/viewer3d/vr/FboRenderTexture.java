@@ -12,10 +12,9 @@ package org.weasis.dicom.viewer3d.vr;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2ES2;
+import java.nio.IntBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.nio.IntBuffer;
 
 /**
  * OpenGL 3.3-compatible FBO-based render target for volume rendering.
