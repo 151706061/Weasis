@@ -202,17 +202,15 @@ public class SeriesBuilder {
           int channels = CvType.channels(curImage.type());
           writePixelDataAttributes(channels, curImage.type(), rawIO);
 
-          double thickness =
-              DicomMediaUtils.getThickness(sources.getFirst().first(), sources.getLast().first());
-          if (thickness <= 0.0) {
-            thickness = sources.size();
-          }
-          rawIO.setTag(TagD.get(Tag.SliceThickness), thickness);
-          double[] loc = (double[]) imgRef.getTagValue(TagW.SlicePosition);
-          if (loc != null) {
-            rawIO.setTag(TagW.SlicePosition, loc);
-            rawIO.setTag(TagD.get(Tag.SliceLocation), loc[0] + loc[1] + loc[2]);
-          }
+    double thickness =
+        DicomMediaUtils.getThickness(sources.getFirst().first(), sources.getLast().first());
+    rawIO.setTag(TagD.get(Tag.SliceThickness), thickness > 0.0 ? thickness : sources.size());
+
+    double[] loc = (double[]) imgRef.getTagValue(TagW.SlicePosition);
+    if (loc != null) {
+      rawIO.setTag(TagW.SlicePosition, loc);
+      rawIO.setTag(TagD.get(Tag.SliceLocation), DicomMediaUtils.getSlicePositionValue(imgRef));
+    }
 
           rawIO.setTag(TagD.get(Tag.SeriesInstanceUID), seriesUID);
 

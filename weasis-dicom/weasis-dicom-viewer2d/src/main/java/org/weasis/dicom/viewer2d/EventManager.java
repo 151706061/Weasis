@@ -325,9 +325,9 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
 
           SynchView synchview = (SynchView) synchAction.get().getSelectedItem();
           if (synchview.getSynchData().isActionEnable(ActionW.SCROLL_SERIES.cmd())) {
-            double[] val = (double[]) image.getTagValue(TagW.SlicePosition);
+            Double val = (Double) image.getTagValue(TagW.SlicePosition);
             if (val != null) {
-              mediaEvent.setLocation(val[0] + val[1] + val[2]);
+              mediaEvent.setLocation(val);
             }
           } else {
             if (selectedView2dContainer != null) {
@@ -336,9 +336,9 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
               for (ViewCanvas<DicomImageElement> p : panes) {
                 Boolean cutlines = (Boolean) p.getActionValue(ActionW.SYNCH_CROSSLINE.cmd());
                 if (cutlines != null && cutlines) {
-                  double[] val = (double[]) image.getTagValue(TagW.SlicePosition);
+                  Double val = (Double) image.getTagValue(TagW.SlicePosition);
                   if (val != null) {
-                    mediaEvent.setLocation(val[0] + val[1] + val[2]);
+                    mediaEvent.setLocation(val);
                   } else {
                     return; // Do not throw event
                   }
@@ -1355,7 +1355,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
           if (Mode.STACK.equals(synch.getMode())) {
             String fruid = TagD.getTagValue(series, Tag.FrameOfReferenceUID, String.class);
             DicomImageElement img = series.getMedia(MEDIA_POSITION.MIDDLE, null, null);
-            double[] val = img == null ? null : (double[]) img.getTagValue(TagW.SlicePosition);
+            Double val = img == null ? null : (Double) img.getTagValue(TagW.SlicePosition);
 
             for (ViewCanvas<DicomImageElement> pane : getViews(viewerPlugin, viewPane, true)) {
               pane.getGraphicManager().deleteByLayerType(LayerType.CROSSLINES);
