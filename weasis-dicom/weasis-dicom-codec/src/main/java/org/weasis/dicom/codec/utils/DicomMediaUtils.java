@@ -298,7 +298,8 @@ public class DicomMediaUtils {
   }
 
   /**
-   * Computes the signed scalar slice position, caches it as {@link TagW#SlicePosition}, and returns it.
+   * Computes the signed scalar slice position, caches it as {@link TagW#SlicePosition}, and returns
+   * it.
    *
    * <p>The value equals {@code dot(normal, IPP)} and is used for sorting slices, finding the
    * nearest image, and synchronizing scroll positions as Slice Location is not always available and
