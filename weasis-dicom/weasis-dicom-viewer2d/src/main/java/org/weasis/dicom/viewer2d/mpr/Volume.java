@@ -80,6 +80,24 @@ public abstract sealed class Volume<T extends Number, A>
   protected boolean skipRectification = false;
   protected long sliceStride;
 
+  /**
+   * Physical position (LPS mm) of voxel (0,0,0) in the volume. Set during volume construction and
+   * used to convert voxel coordinates back to patient space in getSlice().
+   */
+  protected Vector3d volumeOrigin = new Vector3d(0, 0, 0);
+
+  /**
+   * Patient-space (LPS) unit direction vectors corresponding to the volume's X, Y, Z voxel axes.
+   * For a rectified volume these are the canonical LPS axes (1,0,0), (0,1,0), (0,0,1). For a
+   * skipRectification volume they follow the plane-dependent axis ordering from VolumeBounds.
+   */
+  protected Vector3d volumeAxisX = new Vector3d(1, 0, 0);
+
+  protected Vector3d volumeAxisY = new Vector3d(0, 1, 0);
+  protected Vector3d volumeAxisZ = new Vector3d(0, 0, 1);
+
+  private final PropertyChangeSupport crossHairChangeSupport = new PropertyChangeSupport(this);
+
   @SuppressWarnings("unchecked")
   Volume(Volume<?, ?> volume, int sizeX, int sizeY, int sizeZ, Vector3d originalPixelRatio) {
     this.progressBar = volume.progressBar;
@@ -142,6 +160,21 @@ public abstract sealed class Volume<T extends Number, A>
         || depth == CvType.CV_32S
         || depth == CvType.CV_32F
         || depth == CvType.CV_64F;
+  }
+
+  public void addCrossHairChangeListener(PropertyChangeListener listener) {
+    crossHairChangeSupport.addPropertyChangeListener(listener);
+  }
+
+  public void removeCrossHairChangeListener(PropertyChangeListener listener) {
+    crossHairChangeSupport.removePropertyChangeListener(listener);
+  }
+
+  public void fireCrossHairChanged(Vector3d normalizedPosition, Quaterniond globalRotation) {
+    crossHairChangeSupport.firePropertyChange(
+        "mpr.crosshair",
+        null,
+        new Object[] {new Vector3d(normalizedPosition), new Quaterniond(globalRotation)});
   }
 
   protected abstract T initMinValue();
