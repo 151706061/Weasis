@@ -12,6 +12,8 @@ package org.weasis.dicom.viewer2d.mpr;
 import static org.weasis.dicom.viewer2d.mpr.SplatContext.WEIGHT_EPSILON;
 
 import java.awt.Dimension;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -190,6 +192,12 @@ public abstract sealed class Volume<T extends Number, A>
     this.sliceStride = (long) volumeSize.x * volumeSize.y;
     this.pixelRatio.set(bounds.spacing());
     this.isTransformed = false;
+    // Physical origin = TLHC of the starting image (translation is zero in the basic path)
+    this.volumeOrigin.set(stack.getFirstSliceGeometry().getTLHC());
+    // Volume voxel axes follow the plane-dependent ordering from VolumeBounds
+    this.volumeAxisX.set(bounds.rowDir());
+    this.volumeAxisY.set(bounds.colDir());
+    this.volumeAxisZ.set(bounds.normalDir());
 
     List<DicomImageElement> medias = new ArrayList<>(stack.getSourceStack());
     // For axial, we need to reverse to go from inferior to superior
@@ -211,8 +219,8 @@ public abstract sealed class Volume<T extends Number, A>
       return;
     }
 
-    Vector3d firstTlhc = stack.getStartingImage().getSliceGeometry().getTLHC();
-    Vector3d lastTlhc = stack.getEndingImage().getSliceGeometry().getTLHC();
+    Vector3d firstTlhc = stack.getFirstImage().getSliceGeometry().getTLHC();
+    Vector3d lastTlhc = stack.getLastImage().getSliceGeometry().getTLHC();
 
     // Calculate the new bounds after rectification
     Vector3d[] transformedBounds = calculateBoundsForSize(firstTlhc, lastTlhc);
@@ -235,6 +243,13 @@ public abstract sealed class Volume<T extends Number, A>
     // Adapt the origin according to the modifications applied on the volume (geometric
     // rectification)
     origin.sub(translation);
+    // Store as the physical LPS origin of voxel (0,0,0) for use by getSlice()
+
+    this.volumeOrigin.set(origin);
+    // For the rectified volume the voxel X/Y/Z axes are remapped to absolute LPS axes.
+    this.volumeAxisX.set(1, 0, 0);
+    this.volumeAxisY.set(0, 1, 0);
+    this.volumeAxisZ.set(0, 0, -1);
 
     // Compare the new size needed with the actual size of the images without transformation
     // and set the volume size accordingly
@@ -934,7 +949,6 @@ public abstract sealed class Volume<T extends Number, A>
     return getElementFromData(index);
   }
 
-  @SuppressWarnings("unchecked")
   private T getFromMappedBuffer(long byteOffset) {
     return (T)
         switch (CvType.depth(cvType)) {
@@ -1064,6 +1078,30 @@ public abstract sealed class Volume<T extends Number, A>
 
   public boolean isTransformed() {
     return this.isTransformed;
+  }
+
+  public boolean isBasic() {
+    return isBasic;
+  }
+
+  /**
+   * Returns the physical LPS position (mm) of voxel (0,0,0). Set during volume construction; used
+   * by getSlice() to derive ImagePositionPatient.
+   */
+  public Vector3d getVolumeOrigin() {
+    return new Vector3d(volumeOrigin);
+  }
+
+  public Vector3d getVolumeAxisX() {
+    return new Vector3d(volumeAxisX);
+  }
+
+  public Vector3d getVolumeAxisY() {
+    return new Vector3d(volumeAxisY);
+  }
+
+  public Vector3d getVolumeAxisZ() {
+    return new Vector3d(volumeAxisZ);
   }
 
   protected T getInterpolatedValueFromSource(double x, double y, double z, int channel) {
