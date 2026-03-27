@@ -813,6 +813,13 @@ Starting OSGI Bundles...
       System.setProperty(FlatSystemProperties.UI_SCALE, scaleFactor);
     }
 
+    final String useSystemFileChooser =
+        getGeneralProperty(
+            "weasis.use.system.file.chooser", null, serverProp, currentProps, true, false);
+    if (useSystemFileChooser != null) {
+      System.setProperty(FlatSystemProperties.USE_SYSTEM_FILE_CHOOSER, useSystemFileChooser);
+    }
+
     /*
      * Build a Frame
      *

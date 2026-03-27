@@ -9,6 +9,8 @@
  */
 package org.weasis.dicom.viewer2d;
 
+import com.formdev.flatlaf.util.SystemFileChooser;
+import com.formdev.flatlaf.util.SystemFileChooser.FileNameExtensionFilter;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.util.ArrayList;
@@ -17,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.Action;
 import javax.swing.Icon;
-import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import org.dcm4che3.data.Tag;
 import org.slf4j.Logger;
@@ -27,7 +28,6 @@ import org.weasis.core.api.gui.layout.MigCell;
 import org.weasis.core.api.gui.layout.MigLayoutModel;
 import org.weasis.core.api.gui.util.ActionW;
 import org.weasis.core.api.gui.util.ComboItemListener;
-import org.weasis.core.api.gui.util.FileFormatFilter;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.media.MimeInspector;
 import org.weasis.core.api.media.data.Codec;
@@ -156,19 +156,18 @@ public class View2dFactory implements SeriesViewerFactory {
   private static void getOpenImageAction(ActionEvent e) {
     WProperties localPersistence = GuiUtils.getUICore().getLocalPersistence();
     String directory = localPersistence.getProperty("last.open.dicom.dir", ""); // NON-NLS
-    JFileChooser fileChooser = new JFileChooser(directory);
+    SystemFileChooser fileChooser = new SystemFileChooser(directory);
 
-    fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+    fileChooser.setFileSelectionMode(SystemFileChooser.FILES_ONLY);
     fileChooser.setMultiSelectionEnabled(true);
-    FileFormatFilter filter =
-        new FileFormatFilter(new String[] {"dcm", "dicm"}, "DICOM"); // NON-NLS
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("DICOM", "dcm", "dicm"); // NON-NLS
     fileChooser.addChoosableFileFilter(filter);
     fileChooser.setAcceptAllFileFilterUsed(true);
     fileChooser.setFileFilter(filter);
 
     File[] selectedFiles;
     if (fileChooser.showOpenDialog(GuiUtils.getUICore().getApplicationWindow())
-            != JFileChooser.APPROVE_OPTION
+            != SystemFileChooser.APPROVE_OPTION
         || (selectedFiles = fileChooser.getSelectedFiles()) == null) {
       return;
     } else {

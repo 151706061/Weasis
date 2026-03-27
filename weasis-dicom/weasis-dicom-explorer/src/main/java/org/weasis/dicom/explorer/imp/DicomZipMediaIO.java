@@ -196,7 +196,7 @@ public class DicomZipMediaIO implements MediaReader<MediaElement> {
           panel.add(new JLabel(Messages.getString("enter.password")));
           panel.add(pass);
           ActionListener al = ae -> pass.requestFocusInWindow();
-          Timer timer = new Timer(150, al);
+          Timer timer = new Timer(250, al);
           timer.setRepeats(false);
           timer.start();
           int response =
