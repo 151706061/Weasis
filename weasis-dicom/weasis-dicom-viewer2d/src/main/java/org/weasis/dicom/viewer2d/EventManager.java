@@ -284,6 +284,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
           axis.updateImage();
           image = axis.getImageElement();
           controller.setAdjusting(oldAdjusting);
+          controller.fireCrossHairChanged();
           mediaEvent = new SynchCineEvent(view2d, image, index);
         } else if (view2d != null && view2d.getSeries() instanceof Series) {
           series = (Series<DicomImageElement>) view2d.getSeries();

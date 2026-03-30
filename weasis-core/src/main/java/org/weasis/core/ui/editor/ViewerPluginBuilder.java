@@ -49,6 +49,7 @@ public class ViewerPluginBuilder {
   public static final String OPEN_IN_SELECTION = "add.in.selected.view"; // For only one image
   public static final String ADD_IN_SELECTED_VIEW = "add.in.selected.view"; // For non DICOM images
   public static final String SCREEN_BOUND = "screen.bound";
+  public static final String SPLIT_BESIDE_FOCUSED = "split.beside.focused";
   public static final String ICON = "plugin.icon";
   public static final String UID = "plugin.uid";
 

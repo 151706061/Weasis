@@ -498,6 +498,12 @@ public class WeasisWin {
         viewer.getDockable().setTitleIcon(icon);
       }
 
+      // When requested, place the new plugin in a split beside the focused one
+      // instead of stacking as a tab.
+      if (LangUtil.nullToFalse((Boolean) props.get(ViewerPluginBuilder.SPLIT_BESIDE_FOCUSED))) {
+        viewer.setLocateAsideFocused(false);
+      }
+
       boolean registered;
       if (screenBound != null) {
         registered = registerDetachWindow(viewer, screenBound);

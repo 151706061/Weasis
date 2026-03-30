@@ -95,7 +95,8 @@ public class InfoLayer extends AbstractInfoLayer<DicomImageElement> {
   }
 
   @Override
-  public LayerAnnotation getLayerCopy(ViewCanvas view2DPane, boolean useGlobalPreferences) {
+  public LayerAnnotation<DicomImageElement> getLayerCopy(
+      ViewCanvas<DicomImageElement> view2DPane, boolean useGlobalPreferences) {
     InfoLayer layer = new InfoLayer(view2DPane, useGlobalPreferences);
     copyLayerValues(layer.displayPreferences);
     return layer;
