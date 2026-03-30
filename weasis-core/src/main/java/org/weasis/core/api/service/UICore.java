@@ -155,7 +155,9 @@ public final class UICore {
     ResourceUtil.setResourcePath(path);
 
     Path dataFolder = AppProperties.getBundleDataFolder(context);
-    PropertiesUtil.loadProperties(dataFolder.resolve("persistence.properties"), localPersistence);
+    if (dataFolder != null) {
+      PropertiesUtil.loadProperties(dataFolder.resolve("persistence.properties"), localPersistence);
+    }
 
     this.dicomLaunchers = Launcher.loadLaunchers(Launcher.Type.DICOM);
     this.otherLaunchers = Launcher.loadLaunchers(Launcher.Type.OTHER);
