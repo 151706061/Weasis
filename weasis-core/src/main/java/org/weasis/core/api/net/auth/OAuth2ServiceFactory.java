@@ -44,8 +44,8 @@ public final class OAuth2ServiceFactory {
   }
 
   public static OAuth20Service getService(AuthMethod authMethod, int port) {
-    return services.computeIfAbsent(
-        authMethod.getUid(), uid -> createOAuth20Service(authMethod, port));
+    String serviceKey = authMethod.getUid() + ":" + port; // NON-NLS
+    return services.computeIfAbsent(serviceKey, uid -> createOAuth20Service(authMethod, port));
   }
 
   public static AuthProvider buildKeycloakProvider(String name, String baseUrl, String realm) {
