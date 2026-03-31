@@ -24,6 +24,7 @@ public class RenderingLayer<E extends ImageElement> {
 
   public static final int MAX_QUALITY = 8192;
   public static final int MIN_QUALITY = 128;
+  public static final int MIN_TEXTURE_SIZE = 2048;
   public static final int DEFAULT_DYNAMIC_QUALITY_RATE = 100;
   private final List<RenderingLayerChangeListener<E>> listenerList;
   protected int depthSampleNumber;

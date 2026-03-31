@@ -120,17 +120,18 @@ public class InfoLayer3d extends AbstractInfoLayer<DicomImageElement> {
         GuiUtils.setRenderingHints(g2d, true, false, view2DPane.requiredTextAntialiasing());
 
     try {
-      paintContent(g2d, fontMetrics, bound);
+      paintContent(g2d, bound);
     } finally {
       GuiUtils.resetRenderingHints(g2d, oldRenderingHints);
     }
   }
 
-  private void paintContent(Graphics2D g2d, FontMetrics fontMetrics, Rectangle bound) {
+  private void paintContent(Graphics2D g2d, Rectangle bound) {
     Modality mod =
         Modality.getModality(TagD.getTagValue(view2DPane.getSeries(), Tag.Modality, String.class));
     ModalityInfoData modality = ModalityView.getModlatityInfos(mod);
 
+    FontMetrics fontMetrics = g2d.getFontMetrics();
     final int fontHeight = fontMetrics.getHeight();
     thickLength = Math.max(fontHeight, GuiUtils.getScaleLength(5.0));
 
@@ -169,13 +170,6 @@ public class InfoLayer3d extends AbstractInfoLayer<DicomImageElement> {
       drawY -= fontHeight;
     } else if (imSeries.getVolume().isSkipRectification()) {
       String message = org.weasis.dicom.viewer2d.Messages.getString("skip.rectification.msg");
-      FontTools.paintColorFontOutline(
-          g2d, message, border, drawY, IconColor.ACTIONS_RED.getColor());
-      drawY -= fontHeight;
-    }
-
-    if (imSeries.getVolume().isVariableSliceSpacing()) {
-      String message = Messages.getString("non.regular.volume.msg");
       FontTools.paintColorFontOutline(
           g2d, message, border, drawY, IconColor.ACTIONS_RED.getColor());
       drawY -= fontHeight;
