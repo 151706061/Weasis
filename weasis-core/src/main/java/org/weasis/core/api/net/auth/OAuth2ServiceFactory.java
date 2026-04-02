@@ -25,8 +25,7 @@ import org.weasis.core.api.net.SocketUtil;
 public final class OAuth2ServiceFactory {
 
   public static final String CALLBACK_URL = "http://127.0.0.1:";
-  public static final String NO_AUTH_ID =
-      "5aa85854-8f1f-11eb-b339-d3daace59a05"; // NOSONAR not a secret
+  public static final String NO_AUTH_ID = "5aa85854-8f1f-11eb-b339-d3daace59a05"; // NOSONAR !secret
 
   public static final DefaultAuthMethod NO_AUTH = createNoAuthMethod();
 

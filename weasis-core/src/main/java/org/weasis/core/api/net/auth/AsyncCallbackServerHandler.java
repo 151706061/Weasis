@@ -32,7 +32,7 @@ public final class AsyncCallbackServerHandler implements Runnable, AutoCloseable
 
   private final AtomicBoolean stopped = new AtomicBoolean(true);
   private final AcceptCallbackHandler responseHandler;
-  private volatile AsynchronousServerSocketChannel socketChannel;
+  private volatile AsynchronousServerSocketChannel socketChannel; // NOSONAR visibility reference
   private final int port;
   private final ExecutorService executor;
   private volatile CountDownLatch latch; // NOSONAR guarantees visibility of the reference
