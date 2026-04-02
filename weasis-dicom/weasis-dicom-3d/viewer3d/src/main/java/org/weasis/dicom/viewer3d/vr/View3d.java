@@ -145,8 +145,10 @@ public class View3d extends VolumeCanvas
   protected Preset volumePreset;
   private JProgressBar progressBar;
 
-  private volatile Vector3d mprCrossHairPosition;
-  private volatile Quaterniond mprCrossHairRotation;
+  private volatile Vector3d
+      mprCrossHairPosition; // NOSONAR volatile only guarantees visibility of the reference
+  private volatile Quaterniond
+      mprCrossHairRotation; // NOSONAR volatile only guarantees visibility of the reference
   private volatile CrosshairCutMode mprCrossHairCutMode = CrosshairCutMode.NONE;
 
   private PropertyChangeListener mprCrossHairListener;

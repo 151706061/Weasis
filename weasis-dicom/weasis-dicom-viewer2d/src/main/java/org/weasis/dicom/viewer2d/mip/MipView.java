@@ -106,7 +106,7 @@ public class MipView extends View2d {
 
   private Thread process;
 
-  private volatile DicomImageElement centerImage;
+  private volatile DicomImageElement centerImage; // NOSONAR volatile only guarantees visibility
   private volatile int currentIndex = 0;
   private volatile Type lastBuiltType;
   private volatile Integer lastBuiltExtend;
