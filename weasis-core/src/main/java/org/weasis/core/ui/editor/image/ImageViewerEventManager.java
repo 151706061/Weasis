@@ -98,7 +98,7 @@ public abstract class ImageViewerEventManager<E extends ImageElement> implements
         ImageElement image = null;
 
         if (selectedView2dContainer != null) {
-          view2d = (ViewCanvas<ImageElement>) selectedView2dContainer.getSelectedImagePane();
+          view2d = (ViewCanvas<ImageElement>) selectedView2dContainer.getSelectedViewCanvas();
         }
 
         if (view2d != null && view2d.getSeries() instanceof Series) {
@@ -353,10 +353,10 @@ public abstract class ImageViewerEventManager<E extends ImageElement> implements
         if (selectedView2dContainer != null && object instanceof MigLayoutModel layoutModel) {
           // change layout
           clearAllPropertyChangeListeners();
-          ViewCanvas<E> view = selectedView2dContainer.getSelectedImagePane();
+          ViewCanvas<E> view = selectedView2dContainer.getSelectedViewCanvas();
           selectedView2dContainer.setLayoutModel(layoutModel);
           if (!selectedView2dContainer.isContainingView(view)) {
-            view = selectedView2dContainer.getSelectedImagePane();
+            view = selectedView2dContainer.getSelectedViewCanvas();
           }
           selectedView2dContainer.setSelectedImagePane(view);
           getAction(ActionW.SYNCH)
@@ -632,7 +632,7 @@ public abstract class ImageViewerEventManager<E extends ImageElement> implements
   public ViewCanvas<E> getSelectedViewPane() {
     ImageViewerPlugin<E> container = selectedView2dContainer;
     if (container != null) {
-      return container.getSelectedImagePane();
+      return container.getSelectedViewCanvas();
     }
     return null;
   }
@@ -652,7 +652,7 @@ public abstract class ImageViewerEventManager<E extends ImageElement> implements
   public void updateAllListeners(ImageViewerPlugin<E> viewerPlugin, SynchView synchView) {
     clearAllPropertyChangeListeners();
     if (viewerPlugin != null) {
-      ViewCanvas<E> viewPane = viewerPlugin.getSelectedImagePane();
+      ViewCanvas<E> viewPane = viewerPlugin.getSelectedViewCanvas();
       if (viewPane == null) {
         return;
       }

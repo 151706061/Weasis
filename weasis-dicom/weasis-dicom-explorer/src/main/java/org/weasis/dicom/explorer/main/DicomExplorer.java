@@ -980,7 +980,7 @@ public class DicomExplorer extends PluginTool
     SeriesViewerEvent.EVENT type = event.getEventType();
     if (SeriesViewerEvent.EVENT.SELECT_VIEW.equals(type)
         && event.getSeriesViewer() instanceof ImageViewerPlugin) {
-      ViewCanvas<?> pane = ((ImageViewerPlugin<?>) event.getSeriesViewer()).getSelectedImagePane();
+      ViewCanvas<?> pane = ((ImageViewerPlugin<?>) event.getSeriesViewer()).getSelectedViewCanvas();
       if (pane != null) {
         MediaSeries<?> s = pane.getSeries();
         if (s != null

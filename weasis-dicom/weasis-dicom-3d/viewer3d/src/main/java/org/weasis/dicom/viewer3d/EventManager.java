@@ -513,7 +513,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
                     selectedView2dContainer.getLayoutList().toArray(new MigLayoutModel[0])));
       }
       if (oldContainer != null) {
-        ViewCanvas<DicomImageElement> pane = oldContainer.getSelectedImagePane();
+        ViewCanvas<DicomImageElement> pane = oldContainer.getSelectedViewCanvas();
         if (pane != null) {
           pane.setFocused(false);
         }
@@ -524,9 +524,9 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
           a ->
               a.setSelectedItemWithoutTriggerAction(
                   selectedView2dContainer.getOriginalLayoutModel()));
-      updateComponentsListener(selectedView2dContainer.getSelectedImagePane());
+      updateComponentsListener(selectedView2dContainer.getSelectedViewCanvas());
       selectedView2dContainer.setMouseActions(mouseActions);
-      ViewCanvas<DicomImageElement> pane = selectedView2dContainer.getSelectedImagePane();
+      ViewCanvas<DicomImageElement> pane = selectedView2dContainer.getSelectedViewCanvas();
       if (pane != null) {
         pane.setFocused(true);
         fireSeriesViewerListeners(
@@ -543,7 +543,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
     }
 
     if (selectedView2dContainer == null
-        || view2d != selectedView2dContainer.getSelectedImagePane()) {
+        || view2d != selectedView2dContainer.getSelectedViewCanvas()) {
       return false;
     }
 
@@ -703,7 +703,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
           new SynchEvent(getSelectedViewPane(), ActionW.ZOOM.cmd(), 0.0));
     } else if (ResetTools.WL.equals(action)) {
       if (selectedView2dContainer != null) {
-        if (selectedView2dContainer.getSelectedImagePane() instanceof View3d view3d) {
+        if (selectedView2dContainer.getSelectedViewCanvas() instanceof View3d view3d) {
           var volumePreset = view3d.getVolumePreset();
           PresetWindowLevel defaultPreset = view3d.getVolTexture().getDefaultPreset(volumePreset);
           updatePreset(ActionW.PRESET.cmd(), defaultPreset, false);
@@ -712,7 +712,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
 
     } else if (ResetTools.PAN.equals(action)) {
       if (selectedView2dContainer != null) {
-        ViewCanvas viewPane = selectedView2dContainer.getSelectedImagePane();
+        ViewCanvas viewPane = selectedView2dContainer.getSelectedViewCanvas();
         if (viewPane != null) {
           viewPane.resetPan();
           viewPane.getJComponent().repaint();
@@ -727,7 +727,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
     clearAllPropertyChangeListeners();
 
     if (viewerPlugin != null) {
-      ViewCanvas<DicomImageElement> viewPane = viewerPlugin.getSelectedImagePane();
+      ViewCanvas<DicomImageElement> viewPane = viewerPlugin.getSelectedViewCanvas();
       // if (viewPane == null || viewPane.getSeries() == null) {
       if (!(viewPane instanceof View3d canvas) || canvas.getVolTexture() == null) {
         return;

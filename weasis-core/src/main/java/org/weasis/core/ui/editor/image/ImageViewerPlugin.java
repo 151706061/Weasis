@@ -191,7 +191,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
 
   public abstract MigLayoutModel getDefaultLayoutModel();
 
-  public ViewCanvas<E> getSelectedImagePane() {
+  public ViewCanvas<E> getSelectedViewCanvas() {
     return selectedImagePane;
   }
 
@@ -306,7 +306,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
         updateTileOffset();
         return;
       }
-      ViewCanvas<E> viewPane = getSelectedImagePane();
+      ViewCanvas<E> viewPane = getSelectedViewCanvas();
       if (viewPane != null) {
         viewPane.setSeries(sequence);
         viewPane.getJComponent().repaint();
@@ -862,7 +862,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
   public List<ViewCanvas<E>> getImagePanels(boolean selectedImagePaneLast) {
     List<ViewCanvas<E>> viewList = new ArrayList<>(cellManager.getAllViewCanvases());
     if (selectedImagePaneLast) {
-      ViewCanvas<E> selectedView = getSelectedImagePane();
+      ViewCanvas<E> selectedView = getSelectedViewCanvas();
 
       if (selectedView != null && viewList.size() > 1) {
         viewList.remove(selectedView);
@@ -1210,7 +1210,7 @@ public abstract class ImageViewerPlugin<E extends ImageElement> extends ViewerPl
     if (views.size() > requiredCount) {
       setSelectedImagePane(views.get(requiredCount));
       for (int i = requiredCount; i < views.size(); i++) {
-        ViewCanvas<E> viewPane = getSelectedImagePane();
+        ViewCanvas<E> viewPane = getSelectedViewCanvas();
         if (viewPane != null) {
           viewPane.setSeries(null, null);
         }

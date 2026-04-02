@@ -500,7 +500,7 @@ public interface ViewCanvas<E extends ImageElement>
     } else if (e.getKeyCode() == KeyEvent.VK_F11) {
       ImageViewerPlugin<E> c = (ImageViewerPlugin<E>) eventManager.getSelectedView2dContainer();
       if (c != null) {
-        c.maximizedSelectedImagePane(c.getSelectedImagePane(), null);
+        c.maximizedSelectedImagePane(c.getSelectedViewCanvas(), null);
       }
     } else if (e.isAltDown() && e.getKeyCode() == KeyEvent.VK_L) {
       // Counterclockwise

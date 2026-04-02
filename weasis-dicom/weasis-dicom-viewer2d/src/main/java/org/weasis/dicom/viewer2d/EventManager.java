@@ -270,7 +270,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
             defaultPresetAction.isEmpty() || defaultPresetAction.get().isSelected();
 
         if (selectedView2dContainer != null) {
-          view2d = selectedView2dContainer.getSelectedImagePane();
+          view2d = selectedView2dContainer.getSelectedViewCanvas();
         }
 
         if (view2d instanceof MprView mprView) {
@@ -639,7 +639,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
         Boolean enableFilter =
             (Boolean)
                 (filterSelection ? selected : selectedView.getActionValue(ActionW.KO_FILTER.cmd()));
-        ViewCanvas<DicomImageElement> viewPane = container.getSelectedImagePane();
+        ViewCanvas<DicomImageElement> viewPane = container.getSelectedViewCanvas();
         int frameIndex =
             LangUtil.nullToFalse(enableFilter)
                 ? 0
@@ -776,21 +776,21 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
       } else if (keyEvent == KeyEvent.VK_END && e.isControlDown()) {
         movePatient(ListPosition.LAST);
       } else if (isMpr && keyEvent == KeyEvent.VK_X && e.isAltDown()) {
-        if (selectedView2dContainer.getSelectedImagePane() instanceof MprView mprView) {
+        if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           mprView.recenterAxis(e.isControlDown());
         }
       } else if (isMpr && keyEvent == KeyEvent.VK_C && e.isAltDown()) {
-        if (selectedView2dContainer.getSelectedImagePane() instanceof MprView mprView) {
+        if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           boolean showCenter = MprView.getViewProperty(mprView, MprView.SHOW_CROSS_CENTER);
           mprView.showCrossCenter(!showCenter, e.isControlDown());
         }
       } else if (isMpr && keyEvent == KeyEvent.VK_V && e.isAltDown()) {
-        if (selectedView2dContainer.getSelectedImagePane() instanceof MprView mprView) {
+        if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           boolean showCrossLines = MprView.getViewProperty(mprView, MprView.HIDE_CROSSLINES);
           mprView.showCrossLines(showCrossLines, e.isControlDown());
         }
       } else if (isMpr && keyEvent == KeyEvent.VK_B && e.isAltDown() && e.isControlDown()) {
-        if (selectedView2dContainer.getSelectedImagePane() instanceof MprView mprView) {
+        if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           MprController controller = mprView.getMprController();
           if (controller != null) {
             ComboItemListener<MipView.Type> mipCombo = controller.getMipTypeOption();
@@ -893,7 +893,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
                     selectedView2dContainer.getLayoutList().toArray(new MigLayoutModel[0])));
       }
       if (oldContainer != null) {
-        ViewCanvas<DicomImageElement> pane = oldContainer.getSelectedImagePane();
+        ViewCanvas<DicomImageElement> pane = oldContainer.getSelectedViewCanvas();
         if (pane != null) {
           pane.setFocused(false);
         }
@@ -904,9 +904,9 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
           a ->
               a.setSelectedItemWithoutTriggerAction(
                   selectedView2dContainer.getOriginalLayoutModel()));
-      updateComponentsListener(selectedView2dContainer.getSelectedImagePane());
+      updateComponentsListener(selectedView2dContainer.getSelectedViewCanvas());
       selectedView2dContainer.setMouseActions(mouseActions);
-      ViewCanvas<DicomImageElement> pane = selectedView2dContainer.getSelectedImagePane();
+      ViewCanvas<DicomImageElement> pane = selectedView2dContainer.getSelectedViewCanvas();
       if (pane != null) {
         pane.setFocused(true);
       }
@@ -974,7 +974,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
       getAction(ActionW.PRESET).ifPresent(a -> a.setSelectedItem(a.getFirstItem()));
     } else if (ResetTools.PAN.equals(action)) {
       if (selectedView2dContainer != null) {
-        ViewCanvas viewPane = selectedView2dContainer.getSelectedImagePane();
+        ViewCanvas viewPane = selectedView2dContainer.getSelectedViewCanvas();
         if (viewPane != null) {
           viewPane.resetPan();
         }
@@ -989,7 +989,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
     }
 
     if (selectedView2dContainer == null
-        || view2d != selectedView2dContainer.getSelectedImagePane()) {
+        || view2d != selectedView2dContainer.getSelectedViewCanvas()) {
       return false;
     }
 
@@ -1302,7 +1302,7 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
     clearAllPropertyChangeListeners();
 
     if (viewerPlugin != null) {
-      ViewCanvas<DicomImageElement> viewPane = viewerPlugin.getSelectedImagePane();
+      ViewCanvas<DicomImageElement> viewPane = viewerPlugin.getSelectedViewCanvas();
       if (viewPane == null) {
         return;
       }

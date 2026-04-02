@@ -66,7 +66,7 @@ public final class MipMenu {
     if (!(container instanceof View2dContainer)) {
       return;
     }
-    ViewCanvas<DicomImageElement> selView = container.getSelectedImagePane();
+    ViewCanvas<DicomImageElement> selView = container.getSelectedViewCanvas();
     if (selView == null) {
       return;
     }
