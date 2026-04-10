@@ -46,7 +46,9 @@ import org.weasis.core.ui.docking.DockableTool;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerUI;
 import org.weasis.core.ui.editor.SplitLayout;
-import org.weasis.core.ui.editor.SplitPosition;
+import org.weasis.core.ui.editor.TabFocusPolicy;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
+import org.weasis.core.ui.editor.ViewerPlacement;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.util.Toolbar;
 
@@ -59,7 +61,6 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
   private final Icon icon;
   private final String tooltips;
   private final DefaultSingleCDockable dockable;
-  private SplitLayout splitLayout = SplitLayout.NONE;
 
   protected ViewerPlugin(String pluginName) {
     this(null, pluginName, null, null);
@@ -156,20 +157,11 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
   }
 
   /**
-   * Configures how this dockable is placed when shown. By default ({@link SplitLayout#NONE}), the
-   * dockable stacks as a tab alongside the currently focused one.
+   * Requests focus for this dockable, bringing it to the foreground.
    *
-   * <p>When a directional position ({@link SplitPosition#LEFT}, {@link SplitPosition#RIGHT}, etc.)
-   * is specified, the dockable is placed in a split at that side with the given ratio. {@link
-   * SplitPosition#AUTO} lets the framework decide the best side.
-   *
-   * @param splitLayout the desired split layout (position + ratio)
-   * @see SplitLayout
+   * <p>This method unconditionally requests focus. Callers that need to respect a {@link
+   * TabFocusPolicy} should check {@link TabFocusPolicy#shouldBringToFront()} before calling.
    */
-  public void setSplitLayout(SplitLayout splitLayout) {
-    this.splitLayout = splitLayout == null ? SplitLayout.NONE : splitLayout;
-  }
-
   public void setSelectedAndGetFocus() {
     GuiUtils.getUICore()
         .getDockingControl()
@@ -212,7 +204,21 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
     return dockable;
   }
 
-  public void showDockable() {
+  /**
+   * Makes this viewer's dockable visible, applying placement and focus behaviour from the given
+   * options.
+   *
+   * @param options the open options controlling split layout and tab focus policy; if {@code null},
+   *     defaults are used (tab stacking, foreground focus)
+   */
+  public void showDockable(ViewerOpenOptions options) {
+    ViewerOpenOptions opts = options == null ? ViewerOpenOptions.defaults() : options;
+    SplitLayout splitLayout =
+        opts.placement() instanceof ViewerPlacement.Split split
+            ? split.splitLayout()
+            : SplitLayout.NONE;
+    TabFocusPolicy focusPolicy = opts.tabFocusPolicy();
+
     GuiExecutor.execute(
         () -> {
           if (!dockable.isVisible()) {
@@ -220,14 +226,57 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
             if (!viewerPlugins.contains(ViewerPlugin.this)) {
               viewerPlugins.add(ViewerPlugin.this);
             }
+
             dockable.add(getComponent());
             dockable.setFocusComponent(ViewerPlugin.this);
             CWorkingArea mainArea = GuiUtils.getUICore().getMainArea();
             mainArea.add(getDockable());
             dockable.setDefaultLocation(
                 ExtendedMode.NORMALIZED, CLocation.working(mainArea).stack());
+
+            CControl ctl = GuiUtils.getUICore().getDockingControl();
+            StackDockStation viewerStack = null;
+            Dockable previousFront = null;
+            CDockable singleDockable = null;
+            for (ViewerPlugin<?> vp : viewerPlugins) {
+              if (vp != ViewerPlugin.this && vp.getDockable().isVisible()) {
+                DockStation parent = vp.getDockable().intern().getDockParent();
+                if (parent instanceof StackDockStation stack) {
+                  viewerStack = stack;
+                  previousFront = stack.getFrontDockable();
+                  break;
+                } else if (singleDockable == null) {
+                  // The dockable is alone and not yet part of a StackDockStation
+                  singleDockable = vp.getDockable();
+                }
+              }
+            }
+            // When no stack exists yet, treat the lone visible dockable as the "front"
+            if (viewerStack == null && singleDockable != null) {
+              previousFront = singleDockable.intern();
+            }
+
             if (!splitLayout.isSplit()) {
-              dockable.setLocationsAsideFocused();
+              // Place the new tab at the end of the tab list.
+              CDockable lastInStack = null;
+              if (viewerStack != null) {
+                int count = viewerStack.getDockableCount();
+                if (count > 0) {
+                  Dockable last = viewerStack.getDockable(count - 1);
+                  if (last instanceof CommonDockable commonDockable) {
+                    lastInStack = commonDockable.getDockable();
+                  }
+                }
+              } else if (singleDockable != null) {
+                // No stack yet – use the lone dockable as the placement anchor
+                lastInStack = singleDockable;
+              }
+              if (lastInStack != null) {
+                CDockable target = lastInStack;
+                dockable.setLocationsAside(item -> item == target);
+              } else {
+                dockable.setLocationsAsideFocused();
+              }
             } else {
               // A specific split direction was requested.
               CLocation explicitLocation = splitLayout.toLocation(mainArea);
@@ -236,9 +285,7 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
                 dockable.setLocation(explicitLocation);
               } else {
                 // AUTO mode – place in a different split area from the focused one.
-                // Find a visible dockable in the working area that is NOT the currently focused
-                // one, so the new dockable stacks with the "other side" of an existing split.
-                CControl ctl = GuiUtils.getUICore().getDockingControl();
+
                 CDockable focused = ctl.getFocusedCDockable();
                 DockStation focusedParent =
                     focused != null ? focused.intern().getDockParent() : null;
@@ -259,11 +306,22 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
                 }
               }
             }
-            CControl control = GuiUtils.getUICore().getDockingControl();
+
             CVetoFocusListener vetoFocus = GuiUtils.getUICore().getDockingVetoFocus();
-            control.addVetoFocusListener(vetoFocus);
+            ctl.addVetoFocusListener(vetoFocus);
             dockable.setVisible(true);
-            control.removeVetoFocusListener(vetoFocus);
+            ctl.removeVetoFocusListener(vetoFocus);
+
+            // When the policy says the tab should stay in background, restore the previously
+            // visible tab as the front one so the user's current view remains undisturbed.
+            if (!focusPolicy.shouldBringToFront() && previousFront != null) {
+              DockStation newParent = dockable.intern().getDockParent();
+              if (newParent instanceof StackDockStation stack) {
+                stack.setFrontDockable(previousFront);
+              } else if (viewerStack != null) {
+                viewerStack.setFrontDockable(previousFront);
+              }
+            }
             setSelectedAndGetFocus();
           }
         });

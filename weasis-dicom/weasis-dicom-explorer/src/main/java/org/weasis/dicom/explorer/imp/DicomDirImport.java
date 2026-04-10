@@ -18,10 +18,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JOptionPane;
 import javax.swing.JProgressBar;
 import javax.swing.JTextField;
@@ -41,11 +39,8 @@ public class DicomDirImport extends AbstractItemDialogPage implements ImportDico
   private static final Logger LOGGER = LoggerFactory.getLogger(DicomDirImport.class);
 
   private static final String LAST_DICOM_DIR = "lastDicomDir";
-  public static final String LAST_DICOMDIR_OPEN_MODE = "last.dicomdir.open.mode";
   private final JTextField textField = new JTextField();
   private JCheckBox checkboxWriteInCache;
-  private final JComboBox<OpeningViewer> openingViewerJComboBox =
-      new JComboBox<>(OpeningViewer.values());
 
   public DicomDirImport() {
     super(Messages.getString("DicomDirImport.dicomdir"), 5);
@@ -77,7 +72,6 @@ public class DicomDirImport extends AbstractItemDialogPage implements ImportDico
     add(GuiUtils.getFlowLayoutPanel(ITEM_SEPARATOR_SMALL, ITEM_SEPARATOR, btnCdrom));
     add(GuiUtils.getFlowLayoutPanel(ITEM_SEPARATOR_SMALL, ITEM_SEPARATOR, checkboxWriteInCache));
 
-    add(LocalImport.buildOpenViewerPanel(openingViewerJComboBox, LAST_DICOMDIR_OPEN_MODE));
     add(GuiUtils.boxYLastElement(LAST_FILLER_HEIGHT));
   }
 
@@ -123,13 +117,11 @@ public class DicomDirImport extends AbstractItemDialogPage implements ImportDico
 
   @Override
   public void closeAdditionalWindow() {
-    LocalPersistence.getProperties()
-        .setProperty(LAST_DICOMDIR_OPEN_MODE, getOpeningViewer().name());
+    // No additional window to close
   }
 
   private OpeningViewer getOpeningViewer() {
-    return Objects.requireNonNullElse(
-        (OpeningViewer) openingViewerJComboBox.getSelectedItem(), OpeningViewer.ONE_PATIENT);
+    return OpeningViewer.ALL_PATIENTS;
   }
 
   @Override

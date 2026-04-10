@@ -19,26 +19,37 @@ import javax.swing.Icon;
  *
  * @param placement the placement strategy, defining <em>where</em> the viewer opens (reuse
  *     existing, new tab, split, or external window); see {@link ViewerPlacement}
+ * @param tabFocusPolicy the policy that controls whether a newly opened tab gets focus; see {@link
+ *     TabFocusPolicy}
  * @param icon an optional icon override for the viewer tab
  * @param uid an optional unique identifier for the plugin instance
  * @param seriesCount the number of series to display; used as a hint for layout selection (default
  *     1)
  */
-public record ViewerOpenOptions(ViewerPlacement placement, Icon icon, String uid, int seriesCount) {
+public record ViewerOpenOptions(
+    ViewerPlacement placement,
+    TabFocusPolicy tabFocusPolicy,
+    Icon icon,
+    String uid,
+    int seriesCount) {
 
   private static final ViewerOpenOptions DEFAULTS =
-      new ViewerOpenOptions(ViewerPlacement.reuseViewer(), null, null, 1);
+      new ViewerOpenOptions(
+          ViewerPlacement.reuseViewer(), TabFocusPolicy.foreground(), null, null, 1);
 
-  /** Compact constructor – normalises null placement. */
+  /** Compact constructor – normalises null values. */
   public ViewerOpenOptions {
     if (placement == null) {
       placement = ViewerPlacement.reuseViewer();
     }
+    if (tabFocusPolicy == null) {
+      tabFocusPolicy = TabFocusPolicy.foreground();
+    }
   }
 
   /**
-   * Returns the default options: reuse existing viewer with best layout, no icon/uid, single
-   * series.
+   * Returns the default options: reuse existing viewer with best layout, foreground focus policy,
+   * no icon/uid, single series.
    */
   public static ViewerOpenOptions defaults() {
     return DEFAULTS;
@@ -51,12 +62,18 @@ public record ViewerOpenOptions(ViewerPlacement placement, Icon icon, String uid
 
   /** Returns a copy of this record with a different {@code seriesCount}. */
   public ViewerOpenOptions withSeriesCount(int count) {
-    return new ViewerOpenOptions(placement, icon, uid, count);
+    return new ViewerOpenOptions(placement, tabFocusPolicy, icon, uid, count);
+  }
+
+  /** Returns a copy of this record with a different {@link TabFocusPolicy}. */
+  public ViewerOpenOptions withTabFocusPolicy(TabFocusPolicy policy) {
+    return new ViewerOpenOptions(placement, policy, icon, uid, seriesCount);
   }
 
   /** Fluent builder for {@link ViewerOpenOptions}. */
   public static final class Builder {
     private ViewerPlacement placement = ViewerPlacement.reuseViewer();
+    private TabFocusPolicy tabFocusPolicy = TabFocusPolicy.foreground();
     private Icon icon = null;
     private String uid = null;
     private int seriesCount = 1;
@@ -90,6 +107,33 @@ public record ViewerOpenOptions(ViewerPlacement placement, Icon icon, String uid
       return this;
     }
 
+    /**
+     * Sets the tab focus policy.
+     *
+     * <p>Example usage:
+     *
+     * <pre>{@code
+     * // Always bring to front (default)
+     * builder.tabFocusPolicy(TabFocusPolicy.foreground())
+     *
+     * // Keep in background
+     * builder.tabFocusPolicy(TabFocusPolicy.background())
+     *
+     * // Auto-decide based on loading time (default 2s threshold)
+     * builder.tabFocusPolicy(TabFocusPolicy.autoByDuration())
+     *
+     * // Custom threshold
+     * builder.tabFocusPolicy(TabFocusPolicy.autoByDuration(Duration.ofSeconds(5)))
+     * }</pre>
+     *
+     * @param val the focus policy; defaults to {@link TabFocusPolicy#foreground()} if null
+     * @see TabFocusPolicy
+     */
+    public Builder tabFocusPolicy(TabFocusPolicy val) {
+      this.tabFocusPolicy = val;
+      return this;
+    }
+
     public Builder icon(Icon val) {
       this.icon = val;
       return this;
@@ -106,7 +150,7 @@ public record ViewerOpenOptions(ViewerPlacement placement, Icon icon, String uid
     }
 
     public ViewerOpenOptions build() {
-      return new ViewerOpenOptions(placement, icon, uid, seriesCount);
+      return new ViewerOpenOptions(placement, tabFocusPolicy, icon, uid, seriesCount);
     }
   }
 }

@@ -142,6 +142,7 @@ import org.weasis.core.ui.editor.MimeSystemAppViewer;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.SeriesViewerUI;
+import org.weasis.core.ui.editor.TabFocusPolicy;
 import org.weasis.core.ui.editor.ViewerOpenOptions;
 import org.weasis.core.ui.editor.ViewerPlacement;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
@@ -416,6 +417,7 @@ public class WeasisWin {
     List<MediaSeries<MediaElement>> seriesList = builder.getSeries();
     ViewerOpenOptions opts = builder.getViewerOpenOptions();
     ViewerPlacement placement = opts.placement();
+    TabFocusPolicy focusPolicy = opts.tabFocusPolicy();
 
     // -- ReuseViewer: try to reuse an existing viewer matching the same group --
     if (placement instanceof ViewerPlacement.ReuseViewer reuse && group != null) {
@@ -432,11 +434,13 @@ public class WeasisWin {
               && p.getName().equals(factory.getUIName())
               && group.equals(p.getGroupID())) {
             if (reuse.openInSelection() && seriesList.size() == 1) {
-              viewer.addSeries(seriesList.get(0));
+              viewer.addSeries(seriesList.getFirst());
             } else {
               viewer.addSeriesList(seriesList, reuse.bestDefaultLayout());
             }
-            viewer.setSelectedAndGetFocus();
+            if (focusPolicy.shouldBringToFront()) {
+              viewer.setSelectedAndGetFocus();
+            }
             return;
           }
         }
@@ -483,20 +487,20 @@ public class WeasisWin {
       // Apply placement-specific configuration
       boolean openInSelection = false;
       boolean registered;
-      if (placement instanceof ViewerPlacement.Split split) {
-        viewer.setSplitLayout(split.splitLayout());
-        registered = registerPlugin(viewer);
-      } else if (placement instanceof ViewerPlacement.External ext) {
-        registered = registerDetachWindow(viewer, ext.externalDisplay());
+      if (placement instanceof ViewerPlacement.External ext) {
+        registered = registerDetachWindow(viewer, ext.externalDisplay(), opts);
       } else {
         if (placement instanceof ViewerPlacement.ReuseViewer reuse) {
           openInSelection = reuse.openInSelection();
         }
-        registered = registerPlugin(viewer);
+        registered = registerPlugin(viewer, opts);
       }
 
       if (registered) {
-        viewer.setSelectedAndGetFocus();
+        boolean bringToFront = focusPolicy.shouldBringToFront();
+        if (bringToFront) {
+          viewer.setSelectedAndGetFocus();
+        }
         if (seriesViewer instanceof ImageViewerPlugin) {
           if (!openInSelection) {
             ((ImageViewerPlugin) viewer).selectLayoutPositionForAddingSeries(seriesList);
@@ -505,7 +509,9 @@ public class WeasisWin {
         for (MediaSeries m : seriesList) {
           viewer.addSeries(m);
         }
-        viewer.setSelected(true);
+        if (bringToFront) {
+          viewer.setSelected(true);
+        }
       } else {
         viewer.close();
         viewer.handleFocusAfterClosing();
@@ -526,7 +532,7 @@ public class WeasisWin {
   }
 
   private static boolean registerDetachWindow(
-      final ViewerPlugin plugin, ExternalDisplay extDisplay) {
+      final ViewerPlugin plugin, ExternalDisplay extDisplay, ViewerOpenOptions opts) {
     if (plugin != null && extDisplay != null) {
       Rectangle screenBound = extDisplay.screenBounds();
       ViewerPlugin oldWin = null;
@@ -552,7 +558,7 @@ public class WeasisWin {
         dock.setLocation(
             CLocation.external(
                 screenBound.x, screenBound.y, screenBound.width - 150, screenBound.height - 150));
-        plugin.showDockable();
+        plugin.showDockable(opts);
         GuiExecutor.execute(
             () -> {
               if (dock.isVisible()) {
@@ -572,7 +578,7 @@ public class WeasisWin {
           Rectangle b2 = parent.getBounds();
           b2.setLocation(parent.getLocationOnScreen());
           dock.setLocation(CLocation.external(b2.x, b2.y, b2.width, b2.height).stack());
-          plugin.showDockable();
+          plugin.showDockable(opts);
         }
       }
       return true;
@@ -580,12 +586,16 @@ public class WeasisWin {
     return false;
   }
 
-  public boolean registerPlugin(final ViewerPlugin plugin) {
+  public boolean registerPlugin(ViewerPlugin plugin, ViewerOpenOptions opts) {
     if (plugin == null || GuiUtils.getUICore().getViewerPlugins().contains(plugin)) {
       return false;
     }
-    plugin.showDockable();
+    plugin.showDockable(opts);
     return true;
+  }
+
+  public boolean registerPlugin(ViewerPlugin plugin) {
+    return registerPlugin(plugin, ViewerOpenOptions.defaults());
   }
 
   public synchronized ViewerPlugin getSelectedPlugin() {

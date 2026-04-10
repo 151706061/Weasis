@@ -12,16 +12,13 @@ package org.weasis.dicom.explorer.imp;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.util.SystemFileChooser;
 import java.awt.Dimension;
-import java.awt.event.ItemEvent;
 import java.io.File;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -50,7 +47,6 @@ import org.weasis.dicom.explorer.Messages;
 public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
   private static final Logger LOGGER = LoggerFactory.getLogger(LocalImport.class);
 
-  public static final String LAST_OPEN_VIEWER_MODE = "last.open.viewer.mode";
   public static final String LAST_RECURSIVE_MODE = "last.recursive.mode";
   public static final String LAST_OPEN_FILES = "last.open.files";
   public static final String LAST_OPEN_DIR = "lastOpenDir";
@@ -58,8 +54,6 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
   private static final String MULTI_DIR_MESSAGE = "LocalImport.multi_dir";
   private static final String DIR_SUFFIX = ".dir";
 
-  private final JComboBox<OpeningViewer> openingViewerJComboBox =
-      new JComboBox<>(OpeningViewer.values());
   private final JCheckBox checkboxSearch =
       new JCheckBox(Messages.getString("LocalImport.recursive"), true);
   private final JTextField textFieldFiles = new JTextField();
@@ -93,15 +87,6 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
     checkboxSearch.setSelected(recursive);
     add(GuiUtils.getFlowLayoutPanel(ITEM_SEPARATOR_SMALL, ITEM_SEPARATOR, checkboxSearch));
 
-    add(GuiUtils.boxVerticalStrut(BLOCK_SEPARATOR));
-    add(buildOpenViewerPanel(openingViewerJComboBox, LAST_OPEN_VIEWER_MODE));
-    openingViewerJComboBox.addItemListener(
-        e -> {
-          if (e.getStateChange() == ItemEvent.SELECTED) {
-            LocalPersistence.getProperties()
-                .setProperty(LAST_OPEN_VIEWER_MODE, getOpeningViewer().name());
-          }
-        });
     add(GuiUtils.boxYLastElement(LAST_FILLER_HEIGHT));
   }
 
@@ -125,14 +110,6 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
     preferredSize.width = 200;
     textField.setPreferredSize(preferredSize);
     textField.setMaximumSize(new Dimension(Short.MAX_VALUE, preferredSize.height));
-  }
-
-  static JPanel buildOpenViewerPanel(JComboBox<OpeningViewer> comboBox, String key) {
-    JLabel labelOpenPatient =
-        new JLabel(Messages.getString("DicomExplorer.open_win") + StringUtil.COLON);
-    comboBox.setSelectedItem(OpeningViewer.getOpeningViewerByLocalKey(key));
-    return GuiUtils.getFlowLayoutPanel(
-        ITEM_SEPARATOR_SMALL, ITEM_SEPARATOR, labelOpenPatient, comboBox);
   }
 
   private void browseFiles() {
@@ -268,7 +245,6 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
   @Override
   public void closeAdditionalWindow() {
     Properties props = LocalPersistence.getProperties();
-    props.setProperty(LAST_OPEN_VIEWER_MODE, getOpeningViewer().name());
     props.setProperty(LAST_RECURSIVE_MODE, String.valueOf(checkboxSearch.isSelected()));
 
     // Skip only the multi-selection placeholder – the real parent path is already stored.
@@ -285,8 +261,7 @@ public class LocalImport extends AbstractItemDialogPage implements ImportDicom {
   }
 
   private OpeningViewer getOpeningViewer() {
-    return Objects.requireNonNullElse(
-        (OpeningViewer) openingViewerJComboBox.getSelectedItem(), OpeningViewer.ONE_PATIENT);
+    return OpeningViewer.ALL_PATIENTS;
   }
 
   @Override
