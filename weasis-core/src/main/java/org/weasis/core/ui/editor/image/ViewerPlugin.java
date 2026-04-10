@@ -45,6 +45,8 @@ import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.ui.docking.DockableTool;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerUI;
+import org.weasis.core.ui.editor.SplitLayout;
+import org.weasis.core.ui.editor.SplitPosition;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.util.Toolbar;
 
@@ -57,7 +59,7 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
   private final Icon icon;
   private final String tooltips;
   private final DefaultSingleCDockable dockable;
-  private boolean locateAsideFocused = true;
+  private SplitLayout splitLayout = SplitLayout.NONE;
 
   protected ViewerPlugin(String pluginName) {
     this(null, pluginName, null, null);
@@ -154,16 +156,18 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
   }
 
   /**
-   * Sets whether the dockable should be placed as a tab alongside the currently focused dockable
-   * when shown. When set to {@code false}, the dockable will try to locate itself beside a
-   * non-focused dockable in the working area (i.e., in a different split area), or let the
-   * framework create a new split if no other dockable exists.
+   * Configures how this dockable is placed when shown. By default ({@link SplitLayout#NONE}), the
+   * dockable stacks as a tab alongside the currently focused one.
    *
-   * @param locateAsideFocused {@code true} to stack as a tab with the focused dockable (default),
-   *     {@code false} to split beside it
+   * <p>When a directional position ({@link SplitPosition#LEFT}, {@link SplitPosition#RIGHT}, etc.)
+   * is specified, the dockable is placed in a split at that side with the given ratio. {@link
+   * SplitPosition#AUTO} lets the framework decide the best side.
+   *
+   * @param splitLayout the desired split layout (position + ratio)
+   * @see SplitLayout
    */
-  public void setLocateAsideFocused(boolean locateAsideFocused) {
-    this.locateAsideFocused = locateAsideFocused;
+  public void setSplitLayout(SplitLayout splitLayout) {
+    this.splitLayout = splitLayout == null ? SplitLayout.NONE : splitLayout;
   }
 
   public void setSelectedAndGetFocus() {
@@ -222,29 +226,37 @@ public abstract class ViewerPlugin<E extends MediaElement> extends JPanel
             mainArea.add(getDockable());
             dockable.setDefaultLocation(
                 ExtendedMode.NORMALIZED, CLocation.working(mainArea).stack());
-            if (locateAsideFocused) {
+            if (!splitLayout.isSplit()) {
               dockable.setLocationsAsideFocused();
             } else {
-              // Place the new dockable in a different split area from the focused one.
-              // Find a visible dockable in the working area that is NOT the currently focused
-              // one, so the new dockable stacks with the "other side" of an existing split.
-              CControl ctl = GuiUtils.getUICore().getDockingControl();
-              CDockable focused = ctl.getFocusedCDockable();
-              DockStation focusedParent = focused != null ? focused.intern().getDockParent() : null;
-              boolean focusedInStack = focusedParent instanceof StackDockStation;
-              boolean found =
-                  dockable.setLocationsAside(
-                      item ->
-                          item != dockable
-                              && item != focused
-                              && item.getWorkingArea() == dockable.getWorkingArea()
-                              && item.isVisible()
-                              // Exclude dockables in the same tab group as the focused one
-                              && !(focusedInStack
-                                  && item.intern().getDockParent() == focusedParent));
-              if (!found) {
-                // No other dockable exists (no split yet): force a right-side split
-                dockable.setLocation(CLocation.working(mainArea).east(0.5));
+              // A specific split direction was requested.
+              CLocation explicitLocation = splitLayout.toLocation(mainArea);
+              if (explicitLocation != null) {
+                // Directional split (LEFT, RIGHT, TOP, BOTTOM)
+                dockable.setLocation(explicitLocation);
+              } else {
+                // AUTO mode – place in a different split area from the focused one.
+                // Find a visible dockable in the working area that is NOT the currently focused
+                // one, so the new dockable stacks with the "other side" of an existing split.
+                CControl ctl = GuiUtils.getUICore().getDockingControl();
+                CDockable focused = ctl.getFocusedCDockable();
+                DockStation focusedParent =
+                    focused != null ? focused.intern().getDockParent() : null;
+                boolean focusedInStack = focusedParent instanceof StackDockStation;
+                boolean found =
+                    dockable.setLocationsAside(
+                        item ->
+                            item != dockable
+                                && item != focused
+                                && item.getWorkingArea() == dockable.getWorkingArea()
+                                && item.isVisible()
+                                // Exclude dockables in the same tab group as the focused one
+                                && !(focusedInStack
+                                    && item.intern().getDockParent() == focusedParent));
+                if (!found) {
+                  // No other dockable exists (no split yet): force a right-side split
+                  dockable.setLocation(CLocation.working(mainArea).east(splitLayout.ratio()));
+                }
               }
             }
             CControl control = GuiUtils.getUICore().getDockingControl();

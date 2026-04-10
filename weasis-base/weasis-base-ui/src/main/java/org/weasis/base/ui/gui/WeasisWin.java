@@ -136,14 +136,17 @@ import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.ActionIcon;
 import org.weasis.core.api.util.ResourceUtil.LogoIcon;
 import org.weasis.core.ui.docking.DockableTool;
+import org.weasis.core.ui.editor.ExternalDisplay;
+import org.weasis.core.ui.editor.MediaFactory;
 import org.weasis.core.ui.editor.MimeSystemAppViewer;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.SeriesViewerUI;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
+import org.weasis.core.ui.editor.ViewerPlacement;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.editor.image.ImageViewerPlugin;
 import org.weasis.core.ui.editor.image.SequenceHandler;
-import org.weasis.core.ui.editor.image.ViewCanvas;
 import org.weasis.core.ui.editor.image.ViewerPlugin;
 import org.weasis.core.ui.launcher.Launcher;
 import org.weasis.core.ui.launcher.Launcher.Type;
@@ -153,7 +156,6 @@ import org.weasis.core.ui.util.ColorLayerUI;
 import org.weasis.core.ui.util.DefaultAction;
 import org.weasis.core.ui.util.ToolBarContainer;
 import org.weasis.core.ui.util.Toolbar;
-import org.weasis.core.util.LangUtil;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.StringUtil.Suffix;
 
@@ -412,15 +414,11 @@ public class WeasisWin {
     SeriesViewerFactory factory = builder.getFactory();
     DataExplorerModel model = builder.getModel();
     List<MediaSeries<MediaElement>> seriesList = builder.getSeries();
-    Map<String, Object> props = builder.getProperties();
+    ViewerOpenOptions opts = builder.getViewerOpenOptions();
+    ViewerPlacement placement = opts.placement();
 
-    Rectangle screenBound = (Rectangle) props.get(ViewerPluginBuilder.SCREEN_BOUND);
-    boolean setInSelection =
-        LangUtil.nullToFalse((Boolean) props.get(ViewerPluginBuilder.OPEN_IN_SELECTION));
-
-    if (screenBound == null && group != null) {
-      boolean bestDefaultLayout =
-          LangUtil.nullToTrue((Boolean) props.get(ViewerPluginBuilder.BEST_DEF_LAYOUT));
+    // -- ReuseViewer: try to reuse an existing viewer matching the same group --
+    if (placement instanceof ViewerPlacement.ReuseViewer reuse && group != null) {
       List<ViewerPlugin<?>> viewerPlugins = GuiUtils.getUICore().getViewerPlugins();
       synchronized (viewerPlugins) {
         for (int i = viewerPlugins.size() - 1; i >= 0; i--) {
@@ -433,10 +431,10 @@ public class WeasisWin {
           if (p instanceof ImageViewerPlugin viewer
               && p.getName().equals(factory.getUIName())
               && group.equals(p.getGroupID())) {
-            if (setInSelection && seriesList.size() == 1) {
+            if (reuse.openInSelection() && seriesList.size() == 1) {
               viewer.addSeries(seriesList.get(0));
             } else {
-              viewer.addSeriesList(seriesList, bestDefaultLayout);
+              viewer.addSeriesList(seriesList, reuse.bestDefaultLayout());
             }
             viewer.setSelectedAndGetFocus();
             return;
@@ -444,38 +442,22 @@ public class WeasisWin {
         }
       }
     }
-    // Pass the DataExplorerModel to the viewer
-    props.put(DataExplorerModel.class.getName(), model);
-    if (seriesList.size() > 1) {
-      props.put(ViewCanvas.class.getName(), seriesList.size());
-    }
-    SeriesViewer<?> seriesViewer = factory.createSeriesViewer(props);
+
+    // -- No existing viewer found or non-reuse strategy: create a new viewer --
+    ViewerOpenOptions factoryOpts =
+        seriesList.size() > 1 ? opts.withSeriesCount(seriesList.size()) : opts;
+    SeriesViewer<?> seriesViewer = factory.createSeriesViewer(factoryOpts, model);
     if (seriesViewer instanceof MimeSystemAppViewer) {
       for (MediaSeries m : seriesList) {
         seriesViewer.addSeries(m);
       }
     } else if (seriesViewer instanceof ViewerPlugin<?> viewer) {
-      String title;
       if (factory.canExternalizeSeries()) {
         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
         GraphicsDevice[] gd = ge.getScreenDevices();
         if (gd.length > 1) {
           viewer.getDockable().setExternalizable(true);
           setExternalPosition(viewer.getDockable());
-          // viewer.getDockable().addCDockableLocationListener(new CDockableLocationListener() {
-          //
-          // @Override
-          // public void changed(CDockableLocationEvent event) {
-          // // TODO not a good condition
-          // if (event.getNewLocation() instanceof CExternalizedLocation
-          // && !(event.getOldLocation() instanceof CExternalizedLocation)) {
-          // CDockable dockable = event.getDockable();
-          // if (dockable instanceof DefaultSingleCDockable) {
-          // setExternalPosition((DefaultSingleCDockable) dockable);
-          // }
-          // }
-          // }
-          // });
         }
       }
       if (group == null
@@ -486,34 +468,37 @@ public class WeasisWin {
         group = treeModel.getParent(s, model.getTreeModelNodeForNewPlugin());
       }
       if (group != null) {
-        title = group.toString();
+        String title = group.toString();
         viewer.setGroupID(group);
         viewer.getDockable().setTitleToolTip(title);
         viewer.setPluginName(StringUtil.getTruncatedString(title, 25, Suffix.THREE_PTS));
       }
 
       // Override default plugin icon
-      Object val = props.get(ViewerPluginBuilder.ICON);
-      if (val instanceof Icon icon) {
-        viewer.getDockable().setTitleIcon(icon);
+      Icon pluginIcon = opts.icon();
+      if (pluginIcon != null) {
+        viewer.getDockable().setTitleIcon(pluginIcon);
       }
 
-      // When requested, place the new plugin in a split beside the focused one
-      // instead of stacking as a tab.
-      if (LangUtil.nullToFalse((Boolean) props.get(ViewerPluginBuilder.SPLIT_BESIDE_FOCUSED))) {
-        viewer.setLocateAsideFocused(false);
-      }
-
+      // Apply placement-specific configuration
+      boolean openInSelection = false;
       boolean registered;
-      if (screenBound != null) {
-        registered = registerDetachWindow(viewer, screenBound);
+      if (placement instanceof ViewerPlacement.Split split) {
+        viewer.setSplitLayout(split.splitLayout());
+        registered = registerPlugin(viewer);
+      } else if (placement instanceof ViewerPlacement.External ext) {
+        registered = registerDetachWindow(viewer, ext.externalDisplay());
       } else {
+        if (placement instanceof ViewerPlacement.ReuseViewer reuse) {
+          openInSelection = reuse.openInSelection();
+        }
         registered = registerPlugin(viewer);
       }
+
       if (registered) {
         viewer.setSelectedAndGetFocus();
         if (seriesViewer instanceof ImageViewerPlugin) {
-          if (!setInSelection) {
+          if (!openInSelection) {
             ((ImageViewerPlugin) viewer).selectLayoutPositionForAddingSeries(seriesList);
           }
         }
@@ -531,34 +516,19 @@ public class WeasisWin {
   private void setExternalPosition(final DefaultSingleCDockable dockable) {
     // TODO should be set dynamically. Maximize button of external window does not support
     // multi-screens.
-    Toolkit toolkit = Toolkit.getDefaultToolkit();
-    GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-    GraphicsDevice[] gd = ge.getScreenDevices();
-    if (gd.length > 1) {
-      Rectangle bound = WinUtil.getClosedScreenBound(rootPaneContainer.getRootPane().getBounds());
-      if (bound == null) {
-        return;
-      }
-      for (GraphicsDevice graphicsDevice : gd) {
-        GraphicsConfiguration config = graphicsDevice.getDefaultConfiguration();
-        final Rectangle b = config.getBounds();
-        if (!b.contains(bound)) {
-          Insets inset = toolkit.getScreenInsets(config);
-          b.x += inset.left;
-          b.y += inset.top;
-          b.width -= (inset.left + inset.right);
-          b.height -= (inset.top + inset.bottom);
-          dockable.setDefaultLocation(
-              ExtendedMode.EXTERNALIZED,
-              CLocation.external(b.x, b.y, b.width - 150, b.height - 150));
-          break;
-        }
-      }
+    ExternalDisplay otherScreen =
+        ExternalDisplay.onOtherScreen(rootPaneContainer.getRootPane().getBounds());
+    if (otherScreen != null) {
+      Rectangle b = otherScreen.screenBounds();
+      dockable.setDefaultLocation(
+          ExtendedMode.EXTERNALIZED, CLocation.external(b.x, b.y, b.width - 150, b.height - 150));
     }
   }
 
-  private static boolean registerDetachWindow(final ViewerPlugin plugin, Rectangle screenBound) {
-    if (plugin != null && screenBound != null) {
+  private static boolean registerDetachWindow(
+      final ViewerPlugin plugin, ExternalDisplay extDisplay) {
+    if (plugin != null && extDisplay != null) {
+      Rectangle screenBound = extDisplay.screenBounds();
       ViewerPlugin oldWin = null;
       List<ViewerPlugin<?>> viewerPlugins = GuiUtils.getUICore().getViewerPlugins();
       synchronized (viewerPlugins) {
@@ -1189,12 +1159,15 @@ public class WeasisWin {
     private void openWithFactory(Series<?> seq, SeriesViewerFactory factory) {
       DataExplorerModel model = (DataExplorerModel) seq.getTagValue(TagW.ExplorerModel);
       if (model instanceof TreeModel treeModel) {
-        ViewerPluginBuilder builder = new ViewerPluginBuilder(factory, List.of(seq), model, null);
+        ViewerPluginBuilder builder =
+            new ViewerPluginBuilder(factory, List.of(seq), model, ViewerOpenOptions.defaults());
         openSeriesInViewerPlugin(
             builder, treeModel.getParent(seq, model.getTreeModelNodeForNewPlugin()));
       } else {
-        ViewerPluginBuilder.openSequenceInDefaultPlugin(
-            seq, model == null ? ViewerPluginBuilder.DefaultDataModel : model, true, true);
+        ViewerPluginBuilder.openInDefaultViewer(
+            seq,
+            model == null ? ViewerPluginBuilder.DefaultDataModel : model,
+            ViewerOpenOptions.defaults());
       }
     }
 
@@ -1231,7 +1204,7 @@ public class WeasisWin {
     }
 
     private void categorizeMediaFile(Path file, Map<Codec, List<Path>> codecFiles) {
-      MediaReader reader = ViewerPluginBuilder.getMedia(file, false);
+      MediaReader reader = MediaFactory.getMedia(file, false);
       if (reader != null) {
         Codec codec = reader.getCodec();
         if (codec != null) {
@@ -1254,7 +1227,8 @@ public class WeasisWin {
             findCompatibleExplorers(explorers, entry.getKey());
 
         if (compatibleExplorers.isEmpty()) {
-          files.forEach(file -> ViewerPluginBuilder.openSequenceInDefaultPlugin(file, true, true));
+          files.forEach(
+              file -> ViewerPluginBuilder.openInDefaultViewer(file, ViewerOpenOptions.defaults()));
         } else {
           importInExplorer(compatibleExplorers, files, null);
         }

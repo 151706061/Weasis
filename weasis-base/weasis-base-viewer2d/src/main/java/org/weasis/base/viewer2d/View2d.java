@@ -45,6 +45,7 @@ import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.Series;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.ui.dialog.MeasureDialog;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.editor.image.CalibrationView;
 import org.weasis.core.ui.editor.image.ContextMenuHandler;
@@ -429,7 +430,7 @@ public class View2d extends DefaultView2d<ImageElement> {
               }
               if (openPlugin == null) {
                 if (View2d.this.getSeries() != null) {
-                  ViewerPluginBuilder.openSequenceInDefaultPlugin(seq, model, true, true);
+                  ViewerPluginBuilder.openInDefaultViewer(seq, model, ViewerOpenOptions.defaults());
                   return true;
                 }
               } else {
@@ -441,8 +442,10 @@ public class View2d extends DefaultView2d<ImageElement> {
             }
           }
         } else {
-          ViewerPluginBuilder.openSequenceInDefaultPlugin(
-              seq, model == null ? ViewerPluginBuilder.DefaultDataModel : model, true, true);
+          ViewerPluginBuilder.openInDefaultViewer(
+              seq,
+              model == null ? ViewerPluginBuilder.DefaultDataModel : model,
+              ViewerOpenOptions.defaults());
           return true;
         }
       } catch (Exception e) {

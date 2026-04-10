@@ -61,6 +61,8 @@ import org.weasis.core.ui.editor.SeriesViewerEvent.EVENT;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
 import org.weasis.core.ui.editor.SeriesViewerListener;
 import org.weasis.core.ui.editor.SeriesViewerUI;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
+import org.weasis.core.ui.editor.ViewerPlacement;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.core.ui.editor.image.DefaultView2d;
 import org.weasis.core.ui.editor.image.ImageViewerEventManager;
@@ -410,12 +412,14 @@ public class View2dContainer extends DicomViewerPlugin implements PropertyChange
               GuiUtils.applySelectedIconEffect(menuFactory);
               menuFactory.addActionListener(
                   e ->
-                      ViewerPluginBuilder.openSequenceInPlugin(
-                          viewerFactory,
-                          series,
-                          (DataExplorerModel) series.getTagValue(TagW.ExplorerModel),
-                          false,
-                          false));
+                      new ViewerPluginBuilder(
+                              viewerFactory,
+                              List.of(series),
+                              (DataExplorerModel) series.getTagValue(TagW.ExplorerModel),
+                              ViewerOpenOptions.builder()
+                                  .placement(ViewerPlacement.newTab())
+                                  .build())
+                          .open());
               menu.add(menuFactory);
             }
           }

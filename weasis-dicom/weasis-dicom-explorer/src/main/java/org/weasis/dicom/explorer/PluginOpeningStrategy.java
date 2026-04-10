@@ -12,12 +12,14 @@ package org.weasis.dicom.explorer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.media.data.MediaSeriesGroup;
 import org.weasis.core.api.media.data.Series;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.dicom.explorer.HangingProtocols.OpeningViewer;
 
@@ -96,7 +98,9 @@ public class PluginOpeningStrategy {
           && !("sr/dicom".equals(mime)) // NON-NLS
           && !(plugin instanceof MimeSystemAppFactory)) {
         addPatient(patient);
-        ViewerPluginBuilder.openSequenceInPlugin(plugin, dicomSeries, dicomModel, true, true);
+        new ViewerPluginBuilder(
+                plugin, List.of(dicomSeries), dicomModel, ViewerOpenOptions.defaults())
+            .open();
       }
     }
   }

@@ -10,10 +10,8 @@
 package org.weasis.dicom.explorer.main;
 
 import java.awt.Component;
-import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
-import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -38,8 +36,11 @@ import org.weasis.core.api.media.data.SeriesThumbnail;
 import org.weasis.core.api.media.data.TagW;
 import org.weasis.core.api.util.ResourceUtil;
 import org.weasis.core.api.util.ResourceUtil.ActionIcon;
+import org.weasis.core.ui.editor.ExternalDisplay;
 import org.weasis.core.ui.editor.SeriesViewer;
 import org.weasis.core.ui.editor.SeriesViewerFactory;
+import org.weasis.core.ui.editor.ViewerOpenOptions;
+import org.weasis.core.ui.editor.ViewerPlacement;
 import org.weasis.core.ui.editor.ViewerPluginBuilder;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.TagD;
@@ -215,8 +216,9 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
         e ->
             executeWithOpeningSeries(
                 () ->
-                    ViewerPluginBuilder.openSequenceInPlugin(
-                        viewerFactory, seriesList, dicomModel, true, true)));
+                    new ViewerPluginBuilder(
+                            viewerFactory, seriesList, dicomModel, ViewerOpenOptions.defaults())
+                        .open()));
     menuFactory.add(openItem);
   }
 
@@ -233,8 +235,12 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
         e ->
             executeWithOpeningSeries(
                 () ->
-                    ViewerPluginBuilder.openSequenceInPlugin(
-                        viewerFactory, seriesList, dicomModel, false, true)));
+                    new ViewerPluginBuilder(
+                            viewerFactory,
+                            seriesList,
+                            dicomModel,
+                            ViewerOpenOptions.builder().placement(ViewerPlacement.newTab()).build())
+                        .open()));
     menuFactory.add(newWindowItem);
 
     addScreenMenuItems(menuFactory, viewerFactory, seriesList);
@@ -250,15 +256,21 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
     if (gd.length > 1) { // Only add screen menu if multiple screens
       JMenu subMenu = new JMenu(Messages.getString("DicomExplorer.open_screen"));
       for (GraphicsDevice graphicsDevice : gd) {
-        GraphicsConfiguration config = graphicsDevice.getDefaultConfiguration();
-        Rectangle bounds = config.getBounds();
-        JMenuItem screenItem = new JMenuItem(config.getDevice().toString());
+        JMenuItem screenItem = new JMenuItem(graphicsDevice.toString());
         screenItem.addActionListener(
             e ->
                 executeWithOpeningSeries(
                     () ->
-                        ViewerPluginBuilder.openSequenceInPlugin(
-                            viewerFactory, seriesList, dicomModel, false, true, bounds)));
+                        new ViewerPluginBuilder(
+                                viewerFactory,
+                                seriesList,
+                                dicomModel,
+                                ViewerOpenOptions.builder()
+                                    .placement(
+                                        ViewerPlacement.external(
+                                            ExternalDisplay.onScreen(graphicsDevice)))
+                                    .build())
+                            .open()));
         subMenu.add(screenItem);
       }
       menuFactory.add(subMenu);
@@ -274,8 +286,14 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
         e ->
             executeWithOpeningSeries(
                 () ->
-                    ViewerPluginBuilder.openSequenceInPlugin(
-                        viewerFactory, seriesList, dicomModel, true, false)));
+                    new ViewerPluginBuilder(
+                            viewerFactory,
+                            seriesList,
+                            dicomModel,
+                            ViewerOpenOptions.builder()
+                                .placement(ViewerPlacement.reuseViewer(false, false))
+                                .build())
+                        .open()));
     menuFactory.add(addItem);
   }
 
@@ -287,7 +305,7 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
     GuiUtils.applySelectedIconEffect(metadataItem);
     metadataItem.addActionListener(
         e -> {
-          SeriesViewer<?> viewer = viewerFactory.createSeriesViewer(null);
+          SeriesViewer<?> viewer = viewerFactory.createSeriesViewer(null, null);
           MediaElement dcm = series.getMedia(MEDIA_POSITION.FIRST, null, null);
           DicomFieldsView.showHeaderDialog(viewer, series, dcm);
         });
