@@ -27,6 +27,7 @@ import bibliothek.gui.dock.common.intern.CDockable;
 import bibliothek.gui.dock.common.mode.ExtendedMode;
 import bibliothek.gui.dock.common.theme.ThemeMap;
 import bibliothek.gui.dock.common.theme.eclipse.CommonEclipseThemeConnector;
+import bibliothek.gui.dock.control.DockableSelector;
 import bibliothek.gui.dock.station.screen.BoundaryRestriction;
 import bibliothek.gui.dock.util.ConfiguredBackgroundPanel;
 import bibliothek.gui.dock.util.DirectWindowProvider;
@@ -122,6 +123,7 @@ import org.weasis.core.api.gui.util.AppProperties;
 import org.weasis.core.api.gui.util.DynamicMenu;
 import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.gui.util.ShortcutManager;
 import org.weasis.core.api.gui.util.WinUtil;
 import org.weasis.core.api.media.data.Codec;
 import org.weasis.core.api.media.data.MediaElement;
@@ -367,6 +369,21 @@ public class WeasisWin {
       DockUtilities.disableCheckLayoutLocked();
     }
     CControl control = GuiUtils.getUICore().getDockingControl();
+    applyDockingShortcuts(control);
+    // Keep CControl in sync when the user customises shortcuts
+    ShortcutManager.getInstance()
+        .addPropertyChangeListener(
+            evt -> {
+              if (ShortcutManager.PROPERTY_SHORTCUTS_CHANGED.equals(evt.getPropertyName())) {
+                Object newVal = evt.getNewValue();
+                if (newVal == null
+                    || (newVal instanceof ShortcutManager.ShortcutEntry entry
+                        && entry.getId().startsWith("docking."))) { // NON-NLS
+                  applyDockingShortcuts(control);
+                }
+              }
+            });
+
     control.setRootWindow(new DirectWindowProvider(frame));
     destroyOnClose(control);
     ThemeMap themes = control.getThemes();
@@ -586,6 +603,39 @@ public class WeasisWin {
     return false;
   }
 
+  /**
+   * Reads the docking-tab shortcuts from {@link ShortcutManager} and pushes them into the given
+   * {@link CControl}. Call once at startup and again whenever shortcuts are modified.
+   */
+  private static void applyDockingShortcuts(CControl control) {
+    ShortcutManager sm = ShortcutManager.getInstance();
+    control.putProperty(
+        CControl.KEY_MAXIMIZE_CHANGE,
+        KeyStroke.getKeyStroke(
+            sm.getKeyCode(ShortcutManager.ID_DOCKING_MAXIMIZE),
+            sm.getModifier(ShortcutManager.ID_DOCKING_MAXIMIZE)));
+    control.putProperty(
+        CControl.KEY_GOTO_EXTERNALIZED,
+        KeyStroke.getKeyStroke(
+            sm.getKeyCode(ShortcutManager.ID_DOCKING_EXTERNALIZE),
+            sm.getModifier(ShortcutManager.ID_DOCKING_EXTERNALIZE)));
+    control.putProperty(
+        CControl.KEY_GOTO_NORMALIZED,
+        KeyStroke.getKeyStroke(
+            sm.getKeyCode(ShortcutManager.ID_DOCKING_NORMALIZE),
+            sm.getModifier(ShortcutManager.ID_DOCKING_NORMALIZE)));
+    control.putProperty(
+        CControl.KEY_CLOSE,
+        KeyStroke.getKeyStroke(
+            sm.getKeyCode(ShortcutManager.ID_DOCKING_CLOSE),
+            sm.getModifier(ShortcutManager.ID_DOCKING_CLOSE)));
+    control.putProperty(
+        DockableSelector.INIT_SELECTION,
+        KeyStroke.getKeyStroke(
+            sm.getKeyCode(ShortcutManager.ID_DOCKING_PANEL_LIST),
+            sm.getModifier(ShortcutManager.ID_DOCKING_PANEL_LIST)));
+  }
+
   public boolean registerPlugin(ViewerPlugin plugin, ViewerOpenOptions opts) {
     if (plugin == null || GuiUtils.getUICore().getViewerPlugins().contains(plugin)) {
       return false;
@@ -735,7 +785,15 @@ public class WeasisWin {
 
     final JMenuItem webMenuItem = new JMenuItem(Messages.getString("WeasisWin.shortcuts"));
     webMenuItem.addActionListener(
-        e -> openBrowser(webMenuItem, preferences.getProperty("weasis.help.shortcuts")));
+        _ -> {
+          try {
+            Path htmlFile =
+                ShortcutManager.getInstance().writeHtmlToTempFile(AppProperties.APP_TEMP_DIR);
+            GuiUtils.openInDefaultBrowser(webMenuItem, htmlFile.toUri());
+          } catch (IOException ex) {
+            LOGGER.error("Cannot generate shortcuts page", ex);
+          }
+        });
     helpMenuItem.add(webMenuItem);
 
     final JMenuItem websiteMenuItem =

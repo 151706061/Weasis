@@ -28,6 +28,7 @@ import javax.swing.SwingUtilities;
 import org.dcm4che3.data.Tag;
 import org.weasis.core.api.explorer.DataExplorerView;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.gui.util.ShortcutManager;
 import org.weasis.core.api.media.data.MediaElement;
 import org.weasis.core.api.media.data.MediaSeries;
 import org.weasis.core.api.media.data.MediaSeries.MEDIA_POSITION;
@@ -87,20 +88,23 @@ public class ThumbnailMouseAndKeyAdapter extends MouseAdapter implements KeyList
 
   @Override
   public void keyPressed(KeyEvent e) {
-    int code = e.getKeyCode();
     SeriesSelectionModel selList = getSeriesSelectionModel();
+    ShortcutManager sm = ShortcutManager.getInstance();
 
-    switch (code) {
-      case KeyEvent.VK_ENTER -> handleEnterKey(e, selList);
-      case KeyEvent.VK_DOWN -> selList.selectNext();
-      case KeyEvent.VK_UP -> selList.selectPrevious();
-      case KeyEvent.VK_PAGE_DOWN, KeyEvent.VK_END -> selList.selectLast();
-      case KeyEvent.VK_PAGE_UP, KeyEvent.VK_HOME -> selList.selectFirst();
-      case KeyEvent.VK_A -> {
-        if (e.isControlDown()) {
-          selList.selectAll();
-        }
-      }
+    if (sm.matches(ShortcutManager.ID_EXPLORER_OPEN, e)) {
+      handleEnterKey(e, selList);
+    } else if (sm.matches(ShortcutManager.ID_EXPLORER_SELECT_NEXT, e)) {
+      selList.selectNext();
+    } else if (sm.matches(ShortcutManager.ID_EXPLORER_SELECT_PREVIOUS, e)) {
+      selList.selectPrevious();
+    } else if (sm.matches(ShortcutManager.ID_EXPLORER_SELECT_LAST, e)
+        || sm.matches(ShortcutManager.ID_EXPLORER_SELECT_LAST_ALT, e)) {
+      selList.selectLast();
+    } else if (sm.matches(ShortcutManager.ID_EXPLORER_SELECT_FIRST, e)
+        || sm.matches(ShortcutManager.ID_EXPLORER_SELECT_FIRST_ALT, e)) {
+      selList.selectFirst();
+    } else if (sm.matches(ShortcutManager.ID_EXPLORER_SELECT_ALL, e)) {
+      selList.selectAll();
     }
   }
 

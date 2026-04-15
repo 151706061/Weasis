@@ -56,6 +56,7 @@ import org.weasis.core.api.gui.util.Filter;
 import org.weasis.core.api.gui.util.GuiExecutor;
 import org.weasis.core.api.gui.util.GuiUtils;
 import org.weasis.core.api.gui.util.RadioMenuItem;
+import org.weasis.core.api.gui.util.ShortcutManager;
 import org.weasis.core.api.gui.util.SliderChangeListener;
 import org.weasis.core.api.gui.util.SliderCineListener;
 import org.weasis.core.api.gui.util.SliderCineListener.TIME;
@@ -742,54 +743,58 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement>
       int keyEvent = e.getKeyCode();
       int modifiers = e.getModifiers();
       boolean isMpr = selectedView2dContainer instanceof MprContainer;
+      ShortcutManager sm = ShortcutManager.getInstance();
 
-      if (keyEvent == KeyEvent.VK_LEFT && !e.isAltDown()) {
-        if (e.isControlDown()) {
-          moveStudy(ListPosition.PREVIOUS);
-        } else {
-          moveSeries(ListPosition.PREVIOUS);
-        }
-      } else if (keyEvent == KeyEvent.VK_RIGHT && !e.isAltDown()) {
-        if (e.isControlDown()) {
-          moveStudy(ListPosition.NEXT);
-        } else {
-          moveSeries(ListPosition.NEXT);
-        }
-      } else if (keyEvent == KeyEvent.VK_UP && !e.isAltDown() && e.isControlDown()) {
+      if (sm.matches(ShortcutManager.ID_DICOM_PREV_STUDY, keyEvent, modifiers)) {
+        moveStudy(ListPosition.PREVIOUS);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_NEXT_STUDY, keyEvent, modifiers)) {
+        moveStudy(ListPosition.NEXT);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_PREV_SERIES, keyEvent, modifiers)) {
+        moveSeries(ListPosition.PREVIOUS);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_NEXT_SERIES, keyEvent, modifiers)) {
+        moveSeries(ListPosition.NEXT);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_PREV_PATIENT, keyEvent, modifiers)) {
         movePatient(ListPosition.PREVIOUS);
-      } else if (keyEvent == KeyEvent.VK_DOWN && !e.isAltDown() && e.isControlDown()) {
+      } else if (sm.matches(ShortcutManager.ID_DICOM_NEXT_PATIENT, keyEvent, modifiers)) {
         movePatient(ListPosition.NEXT);
-      } else if (keyEvent == KeyEvent.VK_PAGE_UP) {
-        if (e.isControlDown()) {
-          moveStudy(ListPosition.FIRST);
-        } else {
-          moveSeries(ListPosition.FIRST);
-        }
-      } else if (keyEvent == KeyEvent.VK_PAGE_DOWN) {
-        if (e.isControlDown()) {
-          moveStudy(ListPosition.LAST);
-        } else {
-          moveSeries(ListPosition.LAST);
-        }
-      } else if (keyEvent == KeyEvent.VK_HOME && e.isControlDown()) {
+      } else if (sm.matches(ShortcutManager.ID_DICOM_FIRST_STUDY, keyEvent, modifiers)) {
+        moveStudy(ListPosition.FIRST);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_LAST_STUDY, keyEvent, modifiers)) {
+        moveStudy(ListPosition.LAST);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_FIRST_SERIES, keyEvent, modifiers)) {
+        moveSeries(ListPosition.FIRST);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_LAST_SERIES, keyEvent, modifiers)) {
+        moveSeries(ListPosition.LAST);
+      } else if (sm.matches(ShortcutManager.ID_DICOM_FIRST_PATIENT, keyEvent, modifiers)) {
         movePatient(ListPosition.FIRST);
-      } else if (keyEvent == KeyEvent.VK_END && e.isControlDown()) {
+      } else if (sm.matches(ShortcutManager.ID_DICOM_LAST_PATIENT, keyEvent, modifiers)) {
         movePatient(ListPosition.LAST);
-      } else if (isMpr && keyEvent == KeyEvent.VK_X && e.isAltDown()) {
+      } else if (isMpr
+          && (sm.matches(ShortcutManager.ID_MPR_RECENTER, keyEvent, modifiers)
+              || sm.matches(ShortcutManager.ID_MPR_RECENTER_ALL, keyEvent, modifiers))) {
         if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
-          mprView.recenterAxis(e.isControlDown());
+          mprView.recenterAxis(
+              sm.matches(ShortcutManager.ID_MPR_RECENTER_ALL, keyEvent, modifiers));
         }
-      } else if (isMpr && keyEvent == KeyEvent.VK_C && e.isAltDown()) {
+      } else if (isMpr
+          && (sm.matches(ShortcutManager.ID_MPR_TOGGLE_CENTER, keyEvent, modifiers)
+              || sm.matches(ShortcutManager.ID_MPR_TOGGLE_CENTER_ALL, keyEvent, modifiers))) {
         if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           boolean showCenter = MprView.getViewProperty(mprView, MprView.SHOW_CROSS_CENTER);
-          mprView.showCrossCenter(!showCenter, e.isControlDown());
+          mprView.showCrossCenter(
+              !showCenter,
+              sm.matches(ShortcutManager.ID_MPR_TOGGLE_CENTER_ALL, keyEvent, modifiers));
         }
-      } else if (isMpr && keyEvent == KeyEvent.VK_V && e.isAltDown()) {
+      } else if (isMpr
+          && (sm.matches(ShortcutManager.ID_MPR_TOGGLE_CROSS_LINES, keyEvent, modifiers)
+              || sm.matches(ShortcutManager.ID_MPR_TOGGLE_CROSS_LINES_ALL, keyEvent, modifiers))) {
         if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           boolean showCrossLines = MprView.getViewProperty(mprView, MprView.HIDE_CROSSLINES);
-          mprView.showCrossLines(showCrossLines, e.isControlDown());
+          mprView.showCrossLines(
+              showCrossLines,
+              sm.matches(ShortcutManager.ID_MPR_TOGGLE_CROSS_LINES_ALL, keyEvent, modifiers));
         }
-      } else if (isMpr && keyEvent == KeyEvent.VK_B && e.isAltDown() && e.isControlDown()) {
+      } else if (isMpr && sm.matches(ShortcutManager.ID_MPR_CYCLE_MIP, keyEvent, modifiers)) {
         if (selectedView2dContainer.getSelectedViewCanvas() instanceof MprView mprView) {
           MprController controller = mprView.getMprController();
           if (controller != null) {

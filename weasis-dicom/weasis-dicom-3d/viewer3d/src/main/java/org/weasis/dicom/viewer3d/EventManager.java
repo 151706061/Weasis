@@ -37,6 +37,7 @@ import org.weasis.core.api.gui.util.BasicActionState;
 import org.weasis.core.api.gui.util.ComboItemListener;
 import org.weasis.core.api.gui.util.DecFormatter;
 import org.weasis.core.api.gui.util.GuiUtils;
+import org.weasis.core.api.gui.util.ShortcutManager;
 import org.weasis.core.api.gui.util.SliderChangeListener;
 import org.weasis.core.api.gui.util.ToggleButtonListener;
 import org.weasis.core.api.media.data.MediaSeries;
@@ -476,7 +477,8 @@ public class EventManager extends ImageViewerEventManager<DicomImageElement> {
     int keyEvent = e.getKeyCode();
     int modifiers = e.getModifiers();
 
-    if (keyEvent == KeyEvent.VK_ESCAPE) {
+    if (ShortcutManager.getInstance()
+        .matches(ShortcutManager.ID_VIEWER_ESCAPE, keyEvent, modifiers)) {
       resetDisplay();
     } else {
       triggerDrawingToolKeyEvent(keyEvent, modifiers);
