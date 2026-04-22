@@ -9,6 +9,8 @@
  */
 package org.weasis.core.api.net;
 
+import com.formdev.flatlaf.util.SystemInfo;
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -59,13 +61,39 @@ public final class URIUtils {
     return protocol.equalsIgnoreCase(uri.getScheme());
   }
 
+  /**
+   * Converts a file URI to a Path, handling UNC paths (e.g. file://wsl.localhost/... or
+   * file://server/share/...).
+   *
+   * @param uri the URI to convert
+   * @return the corresponding Path
+   */
+  public static Path toPath(URI uri) {
+    Objects.requireNonNull(uri, "URI cannot be null");
+    if (uri.getAuthority() != null && SystemInfo.isWindows) {
+      // UNC path (e.g. file://server/share/...)
+      return Path.of("\\\\" + uri.getAuthority() + uri.getPath());
+    }
+    return Paths.get(uri);
+  }
+
+  /**
+   * Converts a file URI to a File, handling UNC paths (e.g. file://wsl.localhost/... or
+   * file://server/share/...).
+   *
+   * @param uri the URI to convert
+   * @return the corresponding File
+   */
+  public static File toFile(URI uri) {
+    return toPath(uri).toFile();
+  }
+
   public static Path getAbsolutePath(URI uri) {
     Objects.requireNonNull(uri, "URI cannot be null");
 
     if (!isFileURI(uri)) {
       return null;
     }
-    String path = uri.getPath();
-    return path != null ? Paths.get(path).toAbsolutePath() : null;
+    return toPath(uri).toAbsolutePath();
   }
 }
