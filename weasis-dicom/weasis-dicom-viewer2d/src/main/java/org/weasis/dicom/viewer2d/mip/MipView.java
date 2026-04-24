@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import javax.swing.ImageIcon;
 import org.dcm4che3.data.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +52,6 @@ import org.weasis.dicom.codec.TagD;
 import org.weasis.dicom.explorer.DicomModel;
 import org.weasis.dicom.viewer2d.Messages;
 import org.weasis.dicom.viewer2d.View2d;
-import org.weasis.dicom.viewer2d.View2dFactory;
 
 /**
  * MIP (Maximum/Mean/Minimum Intensity Projection) view with responsive UI. Heavy work runs in
@@ -61,8 +59,6 @@ import org.weasis.dicom.viewer2d.View2dFactory;
  */
 public class MipView extends View2d {
   private static final Logger LOGGER = LoggerFactory.getLogger(MipView.class);
-
-  public static final ImageIcon MIP_ICON_SETTING = ResourceUtil.getIcon(OtherIcon.VIEW_MIP);
 
   public static final class MipViewType extends Feature<MipView.Type> {
     public MipViewType(String title, String command, int keyEvent, int modifier, Cursor cursor) {
@@ -305,14 +301,24 @@ public class MipView extends View2d {
     DataExplorerModel model = (DataExplorerModel) ser.getTagValue(TagW.ExplorerModel);
     if (model instanceof DicomModel dicomModel) {
       MediaSeriesGroup study = dicomModel.getParent(ser, DicomModel.study);
-      if (study != null) {
-        s.setTag(TagW.ExplorerModel, dicomModel);
-        dicomModel.addHierarchyNode(study, s);
-        dicomModel.firePropertyChange(
-            new ObservableEvent(ObservableEvent.BasicAction.ADD, dicomModel, null, s));
-      }
+      openSeries(s, model, dicomModel, study, false);
+    }
+  }
 
-      SeriesViewerFactory factory = GuiUtils.getUICore().getViewerFactory(View2dFactory.NAME);
+  public static void openSeries(
+      DicomSeries s,
+      DataExplorerModel model,
+      DicomModel dicomModel,
+      MediaSeriesGroup study,
+      boolean openTab) {
+    if (study != null) {
+      s.setTag(TagW.ExplorerModel, dicomModel);
+      dicomModel.addHierarchyNode(study, s);
+      dicomModel.firePropertyChange(
+          new ObservableEvent(ObservableEvent.BasicAction.ADD, dicomModel, null, s));
+    }
+    if (openTab) {
+      SeriesViewerFactory factory = GuiUtils.getUICore().getViewerFactory(s.getMimeType());
       new ViewerPluginBuilder(
               factory,
               List.of(s),
