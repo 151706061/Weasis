@@ -78,6 +78,7 @@ public final class AsyncCallbackServerHandler implements Runnable, AutoCloseable
     }
   }
 
+  @SuppressWarnings("java:S2095") // channel is intentionally kept open and closed via close()
   private AsynchronousServerSocketChannel openChannel() throws IOException {
     AsynchronousServerSocketChannel channel = AsynchronousServerSocketChannel.open();
     try {

@@ -917,6 +917,9 @@ public class MprView extends View2d implements SliceCanvas, ViewProgress {
               if (files != null && !files.isEmpty()) {
                 loadExportedSeriesInExplorer(files, uid, axis);
               }
+            } catch (InterruptedException e) {
+              LOGGER.error("MPR export interrupted", e);
+              Thread.currentThread().interrupt();
             } catch (Exception e) {
               LOGGER.error("MPR export failed", e);
             }

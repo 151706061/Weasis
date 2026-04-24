@@ -16,6 +16,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 /**
  * Supplies request body content for HTTP operations.
@@ -75,6 +76,34 @@ public interface BodySupplier<T> {
     @Override
     public long length() {
       return len;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (!(o instanceof ByteArraySupplier(byte[] otherBytes, int otherOffset, int otherLen)))
+        return false;
+      return offset == otherOffset && len == otherLen && Arrays.equals(bytes, otherBytes);
+    }
+
+    @Override
+    public int hashCode() {
+      int result = Arrays.hashCode(bytes);
+      result = 31 * result + offset;
+      result = 31 * result + len;
+      return result;
+    }
+
+    @Override
+    @org.jetbrains.annotations.NotNull
+    public String toString() {
+      return "ByteArraySupplier[bytes="
+          + Arrays.toString(bytes)
+          + ", offset="
+          + offset
+          + ", len="
+          + len
+          + "]";
     }
   }
 

@@ -229,9 +229,8 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
       OAuthAsyncRequestCallback<T> callback,
       OAuthRequest.ResponseConverter<T> converter) {
     try {
-      var response = toResponse(httpResponse);
       @SuppressWarnings("unchecked")
-      T result = converter == null ? (T) httpResponse : converter.convert(response);
+      T result = converter == null ? (T) httpResponse : converter.convert(toResponse(httpResponse));
       if (callback != null) {
         callback.onCompleted(result);
       }

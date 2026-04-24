@@ -110,14 +110,13 @@ class HttpUtilsTest {
   }
 
   @Test
-  void getHttpConnectionFailsOnNon200() {
+  void getHttpConnectionFailsOnNon200() throws Exception {
+    var url = URI.create(baseUrl + "/error").toURL();
     assertThrows(
         IOException.class,
         () ->
             HttpUtils.getHttpConnection(
-                URI.create(baseUrl + "/error").toURL(),
-                URLParameters.DEFAULT,
-                HttpResponse.BodyHandlers.discarding()));
+                url, URLParameters.DEFAULT, HttpResponse.BodyHandlers.discarding()));
   }
 
   @Test
@@ -211,15 +210,12 @@ class HttpUtilsTest {
   }
 
   @Test
-  void getHttpConnectionFailsOnInvalidHostQuickly() {
+  void getHttpConnectionFailsOnInvalidHostQuickly() throws Exception {
     URLParameters fast = URLParameters.builder().connectTimeout(50).readTimeout(200).build();
+    var url = URI.create("http://127.0.0.1:1/").toURL();
     assertThrows(
         IOException.class,
-        () ->
-            HttpUtils.getHttpConnection(
-                URI.create("http://127.0.0.1:1/").toURL(),
-                fast,
-                HttpResponse.BodyHandlers.discarding()));
+        () -> HttpUtils.getHttpConnection(url, fast, HttpResponse.BodyHandlers.discarding()));
   }
 
   // -------------------------------------------------------------------------
