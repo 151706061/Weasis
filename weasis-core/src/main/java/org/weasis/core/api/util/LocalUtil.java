@@ -41,7 +41,7 @@ public class LocalUtil {
     }
 
     if (!"system".equals(value)) { // NON-NLS
-      return Locale.forLanguageTag(value.replace("_", "-"));
+      return Locale.forLanguageTag(value.replace("_", "-")); // NOSONAR
     }
     return Locale.getDefault();
   }

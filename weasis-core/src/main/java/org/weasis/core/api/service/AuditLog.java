@@ -184,7 +184,7 @@ public class AuditLog {
     String limit = StringUtil.hasText(stackLimit) && !"-1".equals(stackLimit) ? stackLimit : "full";
     String layout =
         StringUtil.hasText(pattern) ? pattern : DEFAULT_LOG_PATTERN; // NOSONAR hasText does the job
-    String str = layout.replaceAll("ex\\{\\d+}", "ex{" + limit + "}"); // NOSONAR // NON-NLS
+    String str = layout.replaceAll("ex\\{\\d+}", "ex{" + limit + "}"); // NOSONAR
     encoder.setPattern(str);
     encoder.start();
     return encoder;
