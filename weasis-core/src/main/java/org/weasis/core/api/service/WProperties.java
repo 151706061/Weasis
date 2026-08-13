@@ -229,7 +229,7 @@ public class WProperties extends Properties {
     byte[] result = def;
     if (isKeyValid(key)) {
       String value = this.getProperty(key);
-      if (value != null && !value.isBlank()) {
+      if (StringUtil.hasText(value)) { // NOSONAR hasText does the job
         try {
           result =
               GzipManager.gzipUncompressToByte(
