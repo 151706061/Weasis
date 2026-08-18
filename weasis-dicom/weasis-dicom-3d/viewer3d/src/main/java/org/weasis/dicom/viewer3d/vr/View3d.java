@@ -13,6 +13,7 @@ import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2ES2;
 import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL2GL3;
 import com.jogamp.opengl.GL4;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLEventListener;
@@ -162,6 +163,14 @@ public class View3d extends VolumeCanvas
 
   /** Segmentation overlay 3D texture — null when no segmentation is active. */
   private volatile SegVolumeTexture segVolumeTexture; // NOSONAR visibility reference
+
+  /** Frame-time breakdown, inert unless {@link RenderProfiler#P_PROFILE} is set. */
+  private final RenderProfiler profiler = new RenderProfiler(this);
+
+  /** 1×1×1 placeholders keeping the segmentation sampler units complete, see bindSegTextures. */
+  private int segPlaceholderTextureId;
+
+  private int segPlaceholderColorId;
 
   /**
    * The SEG files contained in the current segmentation texture, each with the segment-number
@@ -402,10 +411,16 @@ public class View3d extends VolumeCanvas
 
   @Override
   protected void paintComponent(Graphics graphs) {
+    profiler.beginFrame();
+    long panelStart = profiler.start();
+    // Triggers display() — the GL pass — then the GLJPanel read-back into the Java2D pipeline.
     super.paintComponent(graphs);
+    long overlayStart = profiler.start();
     if (graphs instanceof Graphics2D graphics2D) {
       draw(graphics2D);
     }
+    profiler.endFrame(
+        panelStart, overlayStart, camera.isAdjusting(), getPassWidth(), getPassHeight());
   }
 
   protected void draw(Graphics2D g2d) {
@@ -671,6 +686,10 @@ public class View3d extends VolumeCanvas
       // derivatives of quadCoordinates in volumeFbo.frag, which is robust to the macOS GLJPanel
       // quirk that lets gl_FragCoord range over physical pixels even when the FBO color
       // attachment is sized at logical resolution — so no viewportSize uniform is needed here.
+      // Only the size of the pixel-metric overlays has to be corrected when the adaptive pass
+      // runs below the screen resolution.
+      program.allocateUniform(
+          gl, "overlayScale", (g, loc) -> g.glUniform1f(loc, getRenderScaleX()));
     }
 
     final IntBuffer intBuffer = IntBuffer.allocate(1);
@@ -742,6 +761,16 @@ public class View3d extends VolumeCanvas
         gl, "segColorMap", (g, loc) -> g.glUniform1i(loc, SegVolumeTexture.SEG_COLOR_UNIT));
 
     quadProgram.init(gl);
+    // Blit uniforms: the compute path writes its image to unit 0 and always fills it entirely,
+    // the FBO path blits from unit 3 and may have ray-cast only a sub-rectangle.
+    quadProgram.allocateUniform(
+        gl,
+        "compute",
+        (g, loc) ->
+            g.glUniform1i(loc, useComputeShader ? 0 : FboRenderTexture.OUTPUT_TEXTURE_UNIT));
+    quadProgram.allocateUniform(
+        gl, "texScale", (g, loc) -> g.glUniform2f(loc, getRenderScaleX(), getRenderScaleY()));
+
     gl.glGenBuffers(1, intBuffer);
     vertexBuffer = intBuffer.get(0);
     gl.glBindBuffer(GL.GL_ARRAY_BUFFER, vertexBuffer);
@@ -774,7 +803,86 @@ public class View3d extends VolumeCanvas
     render(drawable.getGL().getGL2ES2());
   }
 
+  /**
+   * Fraction of the render target that this frame is ray-cast into — below 1 only on the adaptive
+   * FBO path while the camera is being dragged. The compute path always fills its image.
+   */
+  private float getRenderScaleX() {
+    return texture instanceof FboRenderTexture fbo ? fbo.getRenderScaleX() : 1f;
+  }
+
+  private float getRenderScaleY() {
+    return texture instanceof FboRenderTexture fbo ? fbo.getRenderScaleY() : 1f;
+  }
+
+  /** Resolution the volume is actually ray-cast at this frame, for the profiling report. */
+  private int getPassWidth() {
+    return Math.round(getRenderScaleX() * texture.getWidth());
+  }
+
+  private int getPassHeight() {
+    return Math.round(getRenderScaleY() * texture.getHeight());
+  }
+
+  /**
+   * Binds the segmentation textures on units 4 and 5, falling back to 1×1×1 placeholders when no
+   * segmentation is loaded. Drivers validate every sampler of the active program, even those the
+   * shader never reaches, so leaving the {@code usampler3D} unit empty makes strict implementations
+   * (macOS) report an incomplete texture on each draw.
+   */
+  private void bindSegTextures(GL2ES2 gl) {
+    SegVolumeTexture svt = segVolumeTexture;
+    if (svt != null && svt.isReady()) {
+      svt.bind(gl);
+      return;
+    }
+    if (segPlaceholderTextureId <= 0) {
+      IntBuffer buf = IntBuffer.allocate(2);
+      gl.glGenTextures(2, buf);
+      segPlaceholderTextureId = buf.get(0);
+      segPlaceholderColorId = buf.get(1);
+
+      gl.glActiveTexture(GL.GL_TEXTURE0 + SegVolumeTexture.SEG_TEXTURE_UNIT);
+      gl.glBindTexture(GL2ES2.GL_TEXTURE_3D, segPlaceholderTextureId);
+      gl.glTexParameteri(GL2ES2.GL_TEXTURE_3D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+      gl.glTexParameteri(GL2ES2.GL_TEXTURE_3D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+      gl.glTexImage3D(
+          GL2ES2.GL_TEXTURE_3D,
+          0,
+          GL2ES3.GL_R8UI,
+          1,
+          1,
+          1,
+          0,
+          GL2GL3.GL_RED_INTEGER,
+          GL.GL_UNSIGNED_BYTE,
+          Buffers.newDirectByteBuffer(1));
+
+      gl.glActiveTexture(GL.GL_TEXTURE0 + SegVolumeTexture.SEG_COLOR_UNIT);
+      gl.glBindTexture(GL.GL_TEXTURE_2D, segPlaceholderColorId);
+      gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+      gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+      gl.glTexImage2D(
+          GL.GL_TEXTURE_2D,
+          0,
+          GL.GL_RGBA8,
+          1,
+          1,
+          0,
+          GL.GL_RGBA,
+          GL.GL_UNSIGNED_BYTE,
+          Buffers.newDirectByteBuffer(4));
+    } else {
+      gl.glActiveTexture(GL.GL_TEXTURE0 + SegVolumeTexture.SEG_TEXTURE_UNIT);
+      gl.glBindTexture(GL2ES2.GL_TEXTURE_3D, segPlaceholderTextureId);
+      gl.glActiveTexture(GL.GL_TEXTURE0 + SegVolumeTexture.SEG_COLOR_UNIT);
+      gl.glBindTexture(GL.GL_TEXTURE_2D, segPlaceholderColorId);
+    }
+    gl.glActiveTexture(GL.GL_TEXTURE0);
+  }
+
   private void render(GL2ES2 gl2) {
+    long start = profiler.start();
     gl2.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
     if (volTexture != null && volTexture.isReadyForDisplay()) {
       int sampleCount = renderingLayer.getQuality();
@@ -801,12 +909,10 @@ public class View3d extends VolumeCanvas
           volumePreset.render(gl4, renderingLayer.isInvertLut());
         }
         // Bind segmentation overlay textures (units 4 and 5)
-        SegVolumeTexture svt = segVolumeTexture;
-        if (svt != null && svt.isReady()) {
-          svt.bind(gl4);
-        }
+        bindSegTextures(gl4);
         texture.render(gl4);
         quadProgram.use(gl4);
+        quadProgram.setUniforms(gl4);
 
         gl4.glEnable(GL.GL_BLEND);
         gl4.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -830,10 +936,7 @@ public class View3d extends VolumeCanvas
           volumePreset.render(gl2, renderingLayer.isInvertLut());
         }
         // Bind segmentation overlay textures (units 4 and 5)
-        SegVolumeTexture svt = segVolumeTexture;
-        if (svt != null && svt.isReady()) {
-          svt.bind(gl2);
-        }
+        bindSegTextures(gl2);
 
         // Set up the vertex array so FboRenderTexture.render() can call glDrawArrays
         gl2.glEnableVertexAttribArray(0);
@@ -845,12 +948,11 @@ public class View3d extends VolumeCanvas
         gl2.glDisableVertexAttribArray(0);
 
         // Step 2: Blit the FBO colour-attachment texture to the screen using the quad program.
-        // The FBO output lives on unit 3 (FboRenderTexture.OUTPUT_TEXTURE_UNIT); point the
-        // quad sampler there so we never disturb the 3D volume texture on unit 0.
+        // The FBO output lives on unit 3 (FboRenderTexture.OUTPUT_TEXTURE_UNIT), so the quad
+        // sampler never disturbs the 3D volume texture on unit 0, and texScale restricts the
+        // sampling to the sub-rectangle that was ray-cast.
         quadProgram.use(gl2);
-        gl2.glUniform1i(
-            gl2.glGetUniformLocation(quadProgram.getProgramId(), "compute"), // NON-NLS
-            FboRenderTexture.OUTPUT_TEXTURE_UNIT);
+        quadProgram.setUniforms(gl2);
 
         gl2.glEnable(GL.GL_BLEND);
         gl2.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -865,6 +967,7 @@ public class View3d extends VolumeCanvas
         gl2.glDisable(GL.GL_BLEND);
       }
     }
+    profiler.endGpu(gl2, start);
   }
 
   public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
