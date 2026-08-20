@@ -46,12 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.Action;
 import javax.swing.JCheckBoxMenuItem;
@@ -96,6 +91,7 @@ import org.weasis.dicom.codec.DicomImageElement;
 import org.weasis.dicom.codec.DicomSeries;
 import org.weasis.dicom.codec.SpecialElementRegion;
 import org.weasis.dicom.codec.geometry.PatientOrientation;
+import org.weasis.dicom.codec.seg.SegBuildScheduler;
 import org.weasis.dicom.codec.seg.SegSpecialElement;
 import org.weasis.dicom.codec.seg.SegmentationVolume;
 import org.weasis.dicom.explorer.DicomSeriesHandler;
@@ -185,9 +181,6 @@ public class View3d extends VolumeCanvas
 
   /** Generation stamp; bumping it invalidates any in-flight asynchronous seg texture build. */
   private final AtomicInteger segBuildGeneration = new AtomicInteger();
-
-  /** How many SEG files are decoded at once — bounded because each holds a full-size volume. */
-  private static final int MAX_CONCURRENT_SEG_BUILDS = 3;
 
   /** {@code true} while an asynchronous seg texture build is running for this view. */
   private volatile boolean segBuildRunning;
@@ -988,8 +981,14 @@ public class View3d extends VolumeCanvas
     Type currentType = getSegType();
     DicomVolTexture tex = volTexture;
     Volume<?, ?> volume = tex == null ? null : tex.getVolume();
+    // Only the SEG files actually shown are resampled. Each one costs a full copy of the displayed
+    // volume's grid (one byte per image voxel, hundreds of MB for a thin-slice CT), and a study may
+    // carry dozens; building the hidden ones exhausts the heap for overlays nobody asked for.
+    // Ticking one back on is caught by hasUnrenderedVisibleSeg() and rebuilds the texture.
     List<SpecialElementRegion> segList =
-        currentType.requiresSegTexture() && volume != null ? tex.getSegmentations() : null;
+        currentType.requiresSegTexture() && volume != null
+            ? tex.getSegmentations().stream().filter(SpecialElementRegion::isVisible).toList()
+            : null;
     if (segList == null || segList.isEmpty()) {
       segBuildGeneration.incrementAndGet(); // invalidate any in-flight build
       setSegBuildRunning(false);
@@ -1033,20 +1032,15 @@ public class View3d extends VolumeCanvas
    */
   private void buildSegTexture(
       int generation, List<SpecialElementRegion> segList, Volume<?, ?> imageVolume) {
-    // Each SEG file decodes its own frames into its own volume, so the files are built
-    // concurrently — otherwise a study with several large SEGs pays the sum of their build times.
-    // A fixed pool rather than a parallel stream: it caps how many full-size volumes are live at
-    // once (they reach several hundred MB each) without imposing a barrier, so a small SEG starts
-    // as soon as a slot frees instead of waiting for the slowest file of a batch.
-    List<AlignedSeg> aligned = buildAlignedSegs(generation, segList, imageVolume);
-    if (aligned == null) {
+    List<RenderedSeg> rendered = new ArrayList<>();
+    SegmentationVolume segVolume =
+        buildCombinedSegVolume(generation, segList, imageVolume, rendered);
+
+    // An interrupt cuts the build short, and a partial texture would be missing some SEG files.
+    if (Thread.currentThread().isInterrupted() || generation != segBuildGeneration.get()) {
       return; // superseded by a newer request
     }
-
-    if (generation != segBuildGeneration.get()) {
-      return;
-    }
-    if (aligned.isEmpty()) {
+    if (segVolume == null) {
       GuiExecutor.execute(
           () -> {
             if (generation == segBuildGeneration.get()) {
@@ -1058,18 +1052,6 @@ public class View3d extends VolumeCanvas
       return;
     }
 
-    // A single SEG file renders its cached volume directly; several SEG files are combined into
-    // one volume whose segment numbers are shifted by a per-file offset so they cannot collide.
-    List<RenderedSeg> rendered = new ArrayList<>();
-    SegmentationVolume segVolume;
-    if (aligned.size() == 1) {
-      AlignedSeg single = aligned.getFirst();
-      segVolume = single.volume();
-      rendered.add(new RenderedSeg(single.seg(), 0));
-    } else {
-      segVolume = mergeSegVolumes(aligned, rendered);
-    }
-
     SegVolumeTexture newSvt = new SegVolumeTexture(segVolume, new Vector3d(1.0, 1.0, 1.0));
     // Upload from this worker thread through the shared GL context
     newSvt.uploadVolumeDataAsync();
@@ -1078,34 +1060,106 @@ public class View3d extends VolumeCanvas
   }
 
   /**
-   * Builds the image-aligned volume of every SEG file, at most {@value #MAX_CONCURRENT_SEG_BUILDS}
-   * at a time, preserving {@code segList} order so the segment-number offsets stay reproducible.
-   * Returns {@code null} when a newer segmentation request superseded this build.
+   * Resamples the SEG files onto the displayed volume's grid and combines them into one volume,
+   * recording each file's segment-number offset in {@code rendered}. Returns {@code null} when no
+   * file yielded anything usable.
+   *
+   * <p>Each resampled volume is a full copy of the image grid, so they are merged and freed as they
+   * complete rather than collected first: the peak is the merge target plus the handful of builds
+   * in flight, not one volume per SEG file. A lone file needs no merge and keeps its cached volume,
+   * which the MPR overlays can then reuse.
    */
-  private List<AlignedSeg> buildAlignedSegs(
-      int generation, List<SpecialElementRegion> segList, Volume<?, ?> imageVolume) {
-    int threads = Math.min(segList.size(), MAX_CONCURRENT_SEG_BUILDS);
-    // invokeAll returns only once every task is done or cancelled, so close() never waits
-    try (ExecutorService executor = Executors.newFixedThreadPool(threads)) {
-      List<Callable<AlignedSeg>> tasks =
-          segList.stream()
-              .map(
-                  seg -> (Callable<AlignedSeg>) () -> buildAlignedSeg(generation, seg, imageVolume))
-              .toList();
-      List<AlignedSeg> aligned = new ArrayList<>(tasks.size());
-      for (Future<AlignedSeg> future : executor.invokeAll(tasks)) {
-        AlignedSeg seg = future.get();
-        if (seg != null) {
-          aligned.add(seg);
-        }
+  private SegmentationVolume buildCombinedSegVolume(
+      int generation,
+      List<SpecialElementRegion> segList,
+      Volume<?, ?> imageVolume,
+      List<RenderedSeg> rendered) {
+
+    if (segList.size() == 1) {
+      AlignedSeg single = buildAlignedSeg(generation, segList.getFirst(), imageVolume);
+      if (single == null) {
+        return null;
       }
-      return generation == segBuildGeneration.get() ? aligned : null;
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      return null;
-    } catch (ExecutionException e) {
-      LOGGER.error("Building the image-aligned segmentation volumes", e.getCause());
-      return null;
+      rendered.add(new RenderedSeg(single.seg(), 0));
+      return single.volume();
+    }
+
+    // Offsets follow segList order rather than completion order, so a study always maps a given
+    // file to the same segment numbers however the concurrent builds interleave. Files that end up
+    // yielding nothing simply leave their range unused.
+    Map<Integer, RegionAttributes> combined = new HashMap<>();
+    List<Integer> indexes = new ArrayList<>(segList.size());
+    int[] offsets = new int[segList.size()];
+    int offset = 0;
+    for (int i = 0; i < segList.size(); i++) {
+      indexes.add(i);
+      offsets[i] = offset;
+      int maxSegNum = 0;
+      for (Map.Entry<Integer, ? extends RegionAttributes> e :
+          segList.get(i).getSegAttributes().entrySet()) {
+        combined.put(offset + e.getKey(), e.getValue());
+        maxSegNum = Math.max(maxSegNum, e.getKey());
+      }
+      offset += maxSegNum;
+    }
+
+    SegVolumeMerger merger = new SegVolumeMerger(combined);
+    long start = System.nanoTime();
+    // mapBounded returns the non-null results in input order, so rendered stays in segList order.
+    rendered.addAll(
+        SegBuildScheduler.mapBounded(
+            indexes,
+            i -> {
+              AlignedSeg as = buildAlignedSeg(generation, segList.get(i), imageVolume);
+              if (as == null) {
+                return null;
+              }
+              try {
+                merger.merge(as.volume(), offsets[i]);
+              } finally {
+                // Freed as soon as it is merged. MPR keeps a retain() on the volumes it displays,
+                // so this releases only the copies this build owns.
+                as.seg().disposeAlignedVolume(imageVolume);
+              }
+              return new RenderedSeg(as.seg(), offsets[i]);
+            }));
+    LOGGER.debug(
+        "Merged {} segmentation volumes ({} stamped voxels) in {} ms",
+        rendered.size(),
+        merger.stamped(),
+        (System.nanoTime() - start) / 1_000_000);
+    return merger.merged();
+  }
+
+  /**
+   * Accumulates image-aligned SEG volumes into a single volume as they are built. Segment numbers
+   * of each file are shifted by that file's offset so files sharing segment numbers do not
+   * overwrite each other.
+   */
+  private static final class SegVolumeMerger {
+
+    private final Map<Integer, RegionAttributes> combined;
+    private SegmentationVolume merged;
+    private long stamped;
+
+    SegVolumeMerger(Map<Integer, RegionAttributes> combined) {
+      this.combined = combined;
+    }
+
+    /** The merge target is created from the first volume, which fixes the grid for the rest. */
+    synchronized void merge(SegmentationVolume volume, int offset) {
+      if (merged == null) {
+        merged = volume.createCompatible(combined);
+      }
+      stamped += volume.mergeInto(merged, segNum -> segNum + offset);
+    }
+
+    synchronized SegmentationVolume merged() {
+      return merged;
+    }
+
+    synchronized long stamped() {
+      return stamped;
     }
   }
 
@@ -1243,40 +1297,6 @@ public class View3d extends VolumeCanvas
 
   /** A SEG file contained in the current texture and its segment-number offset. */
   private record RenderedSeg(SegSpecialElement seg, int offset) {}
-
-  /**
-   * Combines several image-aligned SEG volumes into a single volume. Segment numbers of each file
-   * are shifted by a running offset (recorded in {@code rendered}) so that files whose segments
-   * share the same numbers do not overwrite each other.
-   */
-  private static SegmentationVolume mergeSegVolumes(
-      List<AlignedSeg> aligned, List<RenderedSeg> rendered) {
-    Map<Integer, RegionAttributes> combined = new HashMap<>();
-    int offset = 0;
-    for (AlignedSeg as : aligned) {
-      rendered.add(new RenderedSeg(as.seg(), offset));
-      int maxSegNum = 0;
-      for (Map.Entry<Integer, ? extends RegionAttributes> e :
-          as.seg().getSegAttributes().entrySet()) {
-        combined.put(offset + e.getKey(), e.getValue());
-        maxSegNum = Math.max(maxSegNum, e.getKey());
-      }
-      offset += maxSegNum;
-    }
-    SegmentationVolume merged = aligned.getFirst().volume().createCompatible(combined);
-    long start = System.nanoTime();
-    long stamped = 0;
-    for (int i = 0; i < aligned.size(); i++) {
-      int base = rendered.get(i).offset();
-      stamped += aligned.get(i).volume().mergeInto(merged, segNum -> segNum + base);
-    }
-    LOGGER.debug(
-        "Merged {} segmentation volumes ({} stamped voxels) in {} ms",
-        aligned.size(),
-        stamped,
-        (System.nanoTime() - start) / 1_000_000);
-    return merged;
-  }
 
   /**
    * Builds a flat segment-number → RegionAttributes map suitable for {@link
