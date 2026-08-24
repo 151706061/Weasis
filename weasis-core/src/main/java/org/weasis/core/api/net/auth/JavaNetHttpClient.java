@@ -25,7 +25,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -41,6 +40,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.weasis.core.api.net.HttpUtils;
+import org.weasis.core.api.net.RequestStallGuard;
+import org.weasis.core.api.net.StallGuardInputStream;
 import org.weasis.core.util.StringUtil;
 
 /** HTTP client implementation using Java's {@link HttpClient} for ScribeJava OAuth integration. */
@@ -56,7 +57,7 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
   private static final String MULTIPART_CT_PREFIX = "multipart/form-data; boundary=";
 
   private final HttpClient sharedClient;
-  private final Duration readTimeout;
+  private final Duration inactivityTimeout;
 
   public JavaNetHttpClient() {
     this(new JavaNetHttpClientConfig());
@@ -65,10 +66,14 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
   public JavaNetHttpClient(JavaNetHttpClientConfig config) {
     this.sharedClient =
         HttpUtils.buildHttpClient(
-            Duration.ofMillis(config.getConnectTimeout()),
+            Duration.ofMillis(config.getConnectTimeoutMillis()),
             HttpClient.Redirect.NORMAL,
             config.getProxy());
-    this.readTimeout = Duration.ofMillis(config.getReadTimeout());
+    this.inactivityTimeout = Duration.ofMillis(config.getInactivityTimeoutMillis());
+  }
+
+  private RequestStallGuard newStallGuard() {
+    return new RequestStallGuard((int) inactivityTimeout.toMillis());
   }
 
   @Override
@@ -79,10 +84,12 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
   /**
    * Serializes {@code payload} into an in-memory body and applies it to {@code builder} as a POST,
    * setting the multipart Content-Type declared by the payload. Shared with the no-auth STOW-RS
-   * path in {@link HttpUtils}.
+   * path in {@link HttpUtils}. The body is routed through {@code stallGuard} so a slow upload is
+   * only aborted once it stops progressing.
    */
-  public static void applyMultipart(HttpRequest.Builder builder, MultipartPayload payload) {
-    MultipartEncoder.applyTo(builder, payload, Verb.POST);
+  public static void applyMultipart(
+      HttpRequest.Builder builder, MultipartPayload payload, RequestStallGuard stallGuard) {
+    builder.POST(stallGuard.track(MultipartEncoder.applyTo(builder, payload)));
   }
 
   @Override
@@ -190,12 +197,13 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
       OAuthAsyncRequestCallback<T> callback,
       OAuthRequest.ResponseConverter<T> converter) {
 
+    var stallGuard = newStallGuard();
     var request =
-        createRequestBuilder(userAgent, headers, httpVerb, completeUrl, bodyContents, readTimeout)
+        createRequestBuilder(userAgent, headers, httpVerb, completeUrl, bodyContents, stallGuard)
             .build();
 
-    return sharedClient
-        .sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
+    return stallGuard
+        .guard(sharedClient.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()))
         .thenApply(httpResponse -> processAsyncResponse(httpResponse, callback, converter))
         .exceptionally(
             throwable -> {
@@ -227,26 +235,36 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
       Object bodyContents)
       throws IOException {
 
+    var stallGuard = newStallGuard();
     var request =
-        createRequestBuilder(userAgent, headers, httpVerb, completeUrl, bodyContents, readTimeout)
+        createRequestBuilder(userAgent, headers, httpVerb, completeUrl, bodyContents, stallGuard)
             .build();
 
+    var future =
+        stallGuard.guard(
+            sharedClient.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()));
     try {
-      return toResponse(sharedClient.send(request, HttpResponse.BodyHandlers.ofInputStream()));
+      return toResponse(future.get());
     } catch (InterruptedException e) {
+      future.cancel(true);
       Thread.currentThread().interrupt();
       throw new IOException("Request interrupted", e);
-    } catch (HttpTimeoutException e) {
-      throw new IOException("Request timed out after " + readTimeout.toMillis() + "ms", e);
+    } catch (ExecutionException e) {
+      var cause = unwrap(e.getCause());
+      throw cause instanceof IOException io ? io : new IOException("Request failed", cause);
     }
   }
 
-  private static Response toResponse(HttpResponse<InputStream> httpResponse) {
+  /**
+   * The body is guarded against stalled reads rather than capped by a request deadline, so a large
+   * retrieve on a slow link is only aborted when the data actually stops flowing.
+   */
+  private Response toResponse(HttpResponse<InputStream> httpResponse) {
     return new Response(
         httpResponse.statusCode(),
         httpResponse.version().toString(),
         parseHeaders(httpResponse),
-        httpResponse.body());
+        StallGuardInputStream.wrap(httpResponse.body(), (int) inactivityTimeout.toMillis()));
   }
 
   private <T> T processAsyncResponse(
@@ -274,8 +292,8 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
       Verb httpVerb,
       String completeUrl,
       Object bodyContents,
-      Duration readTimeout) {
-    var requestBuilder = HttpRequest.newBuilder(URI.create(completeUrl)).timeout(readTimeout);
+      RequestStallGuard stallGuard) {
+    var requestBuilder = HttpRequest.newBuilder(URI.create(completeUrl));
     if (StringUtil.hasText(userAgent)) {
       requestBuilder.setHeader(HEADER_USER_AGENT, userAgent);
     }
@@ -293,7 +311,7 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
     if (!callerSetContentType && httpVerb.isPermitBody() && needsFormContentType(bodyContents)) {
       requestBuilder.setHeader(HEADER_CONTENT_TYPE, DEFAULT_FORM_CONTENT_TYPE);
     }
-    setBody(requestBuilder, bodyContents, httpVerb);
+    setBody(requestBuilder, bodyContents, httpVerb, stallGuard);
     return requestBuilder;
   }
 
@@ -314,31 +332,33 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
   }
 
   private static void setBody(
-      HttpRequest.Builder requestBuilder, Object bodyContents, Verb httpVerb) {
+      HttpRequest.Builder requestBuilder,
+      Object bodyContents,
+      Verb httpVerb,
+      RequestStallGuard stallGuard) {
     if (!httpVerb.isPermitBody()) {
       requestBuilder.method(httpVerb.name(), HttpRequest.BodyPublishers.noBody());
       return;
     }
 
-    switch (bodyContents) {
-      case null -> {
-        if (httpVerb.isRequiresBody()) {
-          throw new IllegalArgumentException("Body content is required but null");
-        }
-        requestBuilder.method(httpVerb.name(), HttpRequest.BodyPublishers.noBody());
-      }
-      case byte[] bytes ->
-          requestBuilder.method(httpVerb.name(), HttpRequest.BodyPublishers.ofByteArray(bytes));
-      case String str ->
-          requestBuilder.method(
-              httpVerb.name(),
-              HttpRequest.BodyPublishers.ofByteArray(str.getBytes(StandardCharsets.UTF_8)));
-      case Path path ->
-          requestBuilder.method(httpVerb.name(), MultipartEncoder.filePublisher(path));
-      case MultipartPayload multi -> MultipartEncoder.applyTo(requestBuilder, multi, httpVerb);
-      default ->
-          throw new IllegalArgumentException("Unsupported body type: " + bodyContents.getClass());
-    }
+    var publisher =
+        switch (bodyContents) {
+          case null -> {
+            if (httpVerb.isRequiresBody()) {
+              throw new IllegalArgumentException("Body content is required but null");
+            }
+            yield HttpRequest.BodyPublishers.noBody();
+          }
+          case byte[] bytes -> HttpRequest.BodyPublishers.ofByteArray(bytes);
+          case String str ->
+              HttpRequest.BodyPublishers.ofByteArray(str.getBytes(StandardCharsets.UTF_8));
+          case Path path -> MultipartEncoder.filePublisher(path);
+          case MultipartPayload multi -> MultipartEncoder.applyTo(requestBuilder, multi);
+          default ->
+              throw new IllegalArgumentException(
+                  "Unsupported body type: " + bodyContents.getClass());
+        };
+    requestBuilder.method(httpVerb.name(), stallGuard.track(publisher));
   }
 
   /** Encodes a {@link MultipartPayload} into a single byte-array body. */
@@ -354,13 +374,15 @@ public class JavaNetHttpClient implements com.github.scribejava.core.httpclient.
       }
     }
 
-    static void applyTo(HttpRequest.Builder requestBuilder, MultipartPayload payload, Verb verb) {
+    /** Sets the multipart Content-Type and returns the encoded body, left for the caller to set. */
+    static HttpRequest.BodyPublisher applyTo(
+        HttpRequest.Builder requestBuilder, MultipartPayload payload) {
       var parts = new ArrayList<BodySupplier<InputStream>>();
       collectParts(parts, payload);
       try {
         byte[] body = serialize(parts);
         requestBuilder.setHeader(HEADER_CONTENT_TYPE, resolveContentType(payload));
-        requestBuilder.method(verb.name(), HttpRequest.BodyPublishers.ofByteArray(body));
+        return HttpRequest.BodyPublishers.ofByteArray(body);
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to prepare multipart payload", e);
       }

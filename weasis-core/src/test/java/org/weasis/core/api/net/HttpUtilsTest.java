@@ -25,6 +25,7 @@ import com.github.scribejava.core.oauth.OAuth20Service;
 import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.ProxySelector;
 import java.net.URI;
@@ -33,6 +34,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -45,7 +48,22 @@ import org.weasis.core.util.StreamIOException;
 
 class HttpUtilsTest {
 
+  private static final int SLOW_CHUNKS = 8;
+  private static final int CHUNK_SIZE = 1024;
+
+  /**
+   * An upload big enough to outlast {@link #UPLOAD_TIMEOUT_MS} while the server keeps draining it.
+   * {@link ThrottledUploadServer} bounds its receive buffer so the gap between two upload progress
+   * signals stays far below the timeout even though socket buffering makes that signal bursty.
+   */
+  private static final int UPLOAD_SIZE = 8 << 20;
+
+  private static final int UPLOAD_DRAIN_CHUNK = 64 * 1024;
+  private static final long UPLOAD_DRAIN_PAUSE_MS = 20;
+  private static final int UPLOAD_TIMEOUT_MS = 1_500;
+
   private static HttpServer server;
+  private static ExecutorService serverPool;
   private static String baseUrl;
   private static final AtomicReference<Map<String, java.util.List<String>>> LAST_HEADERS =
       new AtomicReference<>();
@@ -96,13 +114,49 @@ class HttpUtilsTest {
             os.write(body);
           }
         });
+    server.createContext(
+        "/slow-stream",
+        ex -> {
+          ex.sendResponseHeaders(200, 0);
+          try (var os = ex.getResponseBody()) {
+            for (int i = 0; i < SLOW_CHUNKS; i++) {
+              os.write(new byte[CHUNK_SIZE]);
+              os.flush();
+              sleepQuietly(120);
+            }
+          }
+        });
+    server.createContext(
+        "/stalled-stream",
+        ex -> {
+          ex.sendResponseHeaders(200, 0);
+          try (var os = ex.getResponseBody()) {
+            os.write(new byte[CHUNK_SIZE]);
+            os.flush();
+            // Headers and a first chunk arrive, then the peer goes quiet without closing.
+            sleepQuietly(3_000);
+          }
+        });
+    // Without an explicit executor the handlers run on the dispatcher thread, so the slow
+    // endpoints above would serialize every other request in this class.
+    serverPool = Executors.newCachedThreadPool();
+    server.setExecutor(serverPool);
     server.start();
     baseUrl = "http://localhost:" + server.getAddress().getPort();
+  }
+
+  private static void sleepQuietly(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   @AfterAll
   static void stop() {
     server.stop(0);
+    serverPool.shutdownNow();
   }
 
   @Test
@@ -276,9 +330,72 @@ class HttpUtilsTest {
     }
   }
 
+  private static URLParameters uploadParams() {
+    return URLParameters.builder()
+        .httpPost(true)
+        .connectTimeoutMillis(2_000)
+        .inactivityTimeoutMillis(UPLOAD_TIMEOUT_MS)
+        .build();
+  }
+
+  @Test
+  void slowUploadOutlivesTheInactivityTimeoutWhileBytesKeepFlowing() throws Exception {
+    // The upload takes several times the timeout. Before the stall guard covered the request half,
+    // the response future's deadline aborted this healthy transfer: a STOW-RS send of anything
+    // bigger than the link could carry in one timeout window always failed.
+    try (var upstream = ThrottledUploadServer.draining(UPLOAD_DRAIN_CHUNK, UPLOAD_DRAIN_PAUSE_MS)) {
+      var request = new OAuthRequest(Verb.POST, upstream.url());
+      request.setMultipartPayload(dicomMultipart(new byte[UPLOAD_SIZE]));
+      try (HttpStream stream =
+          HttpUtils.getHttpResponse(
+              upstream.url(), uploadParams(), OAuth2ServiceFactory.NO_AUTH, request)) {
+        assertEquals(200, stream.getResponseCode());
+      }
+    }
+  }
+
+  @Test
+  void stalledUploadIsAbortedOnceBytesStopFlowing() throws Exception {
+    try (var upstream = ThrottledUploadServer.stalling(UPLOAD_DRAIN_CHUNK)) {
+      var request = new OAuthRequest(Verb.POST, upstream.url());
+      request.setMultipartPayload(dicomMultipart(new byte[UPLOAD_SIZE]));
+      assertThrows(
+          StallTimeoutException.class,
+          () ->
+              HttpUtils.getHttpResponse(
+                  upstream.url(), uploadParams(), OAuth2ServiceFactory.NO_AUTH, request));
+    }
+  }
+
+  @Test
+  void slowStreamOutlivesTheReadTimeoutWhileDataKeepsFlowing() throws Exception {
+    // ~1s of streaming under a 400ms timeout: the timeout bounds a stalled read, not the transfer.
+    URLParameters params =
+        URLParameters.builder().connectTimeoutMillis(2_000).inactivityTimeoutMillis(400).build();
+    try (HttpStream stream =
+        HttpUtils.getHttpResponse(baseUrl + "/slow-stream", params, OAuth2ServiceFactory.NO_AUTH)) {
+      assertEquals(200, stream.getResponseCode());
+      assertEquals(SLOW_CHUNKS * CHUNK_SIZE, stream.getInputStream().readAllBytes().length);
+    }
+  }
+
+  @Test
+  void stalledStreamIsAbortedOnceDataStopsFlowing() throws Exception {
+    URLParameters params =
+        URLParameters.builder().connectTimeoutMillis(2_000).inactivityTimeoutMillis(400).build();
+    try (HttpStream stream =
+        HttpUtils.getHttpResponse(
+            baseUrl + "/stalled-stream", params, OAuth2ServiceFactory.NO_AUTH)) {
+      assertEquals(200, stream.getResponseCode());
+      InputStream body = stream.getInputStream();
+      assertThrows(StallTimeoutException.class, body::readAllBytes);
+    }
+  }
+
   @Test
   void getHttpConnectionFailsOnInvalidHostQuickly() throws Exception {
-    URLParameters fast = URLParameters.builder().connectTimeout(50).readTimeout(200).build();
+    URLParameters fast =
+        URLParameters.builder().connectTimeoutMillis(50).inactivityTimeoutMillis(200).build();
     var url = URI.create("http://127.0.0.1:1/").toURL();
     assertThrows(
         IOException.class,

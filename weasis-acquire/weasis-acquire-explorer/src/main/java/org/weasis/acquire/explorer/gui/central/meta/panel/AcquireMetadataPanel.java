@@ -13,6 +13,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -219,12 +220,14 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
       int tagID = 0;
       boolean date = false;
       boolean time = false;
+      boolean personName = false;
       int limitedChars = 64;
       if (tag instanceof TagW tagW) {
         tagID = tagW.getId();
         TagType type = tagW.getType();
         date = TagType.DICOM_DATE == type || TagType.DATE == type;
         time = TagType.DICOM_TIME == type || TagType.TIME == type;
+        personName = TagType.DICOM_PERSON_NAME == type;
         if (tag instanceof TagD tagD) {
           limitedChars = tagD.getMaximumChars();
         }
@@ -240,6 +243,8 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
         cellEditor = getTableCellEditor(value, studyDescCombo, limitedChars);
       } else if (tagID == Tag.SeriesDescription) {
         cellEditor = getTableCellEditor(value, seriesDescCombo, limitedChars);
+      } else if (personName) {
+        cellEditor = new PersonNameCellEditor();
       } else if (date) {
         JFormattedTextField pickerEditor = new JFormattedTextField();
         DatePicker datePicker = new DatePicker();
@@ -247,7 +252,7 @@ public abstract class AcquireMetadataPanel extends JPanel implements TableModelL
           datePicker.setSelectedDate(localDate);
         }
         datePicker.setStartWeekOnMonday(true);
-        datePicker.setDateSelectionAble(d -> !d.isAfter(LocalDate.now()));
+        datePicker.setDateSelectionAble(d -> !d.isAfter(LocalDate.now(ZoneId.systemDefault())));
         datePicker.setEditor(pickerEditor);
         cellEditor =
             new DefaultCellEditor(pickerEditor) {

@@ -231,9 +231,8 @@ public class WProperties extends Properties {
       String value = this.getProperty(key);
       if (StringUtil.hasText(value)) {
         try {
-          result =
-              GzipManager.gzipUncompressToByte(
-                  Base64.getDecoder().decode(value.getBytes(StandardCharsets.UTF_8)));
+          var bytes = value.getBytes(StandardCharsets.UTF_8); // NOSONAR hasText does the job
+          result = GzipManager.gzipUncompressToByte(Base64.getDecoder().decode(bytes));
         } catch (IOException e) {
           LOGGER.error("Get byte property", e);
         }
