@@ -37,7 +37,8 @@ public class GroupCheckBoxMenu implements GroupPopup {
   @Override
   public JPopupMenu createJPopupMenu() {
     final JPopupMenu popupMouseButtons = new JScrollPopupMenu();
-    // If the first element of the list is a "Select All" item, it is handled in the condition below, otherwise, all items are added to the popup menu.
+    // If the first element of the list is a "Select All" item, it is handled in the condition
+    // below, otherwise, all items are added to the popup menu.
     int startIndex = 0;
 
     if (startBySelectAll) {
